@@ -1,0 +1,397 @@
+{{ template "admin/layout.html" . }}
+{{ define "content" }}
+<div class="settings-container">
+    <h2>Settings</h2>
+    <div class="panel">
+        <form id="settingsForm">
+            <div class="setting-group">
+                <label for="siteTitle">Site Title</label>
+                <input type="text" id="siteTitle" name="siteTitle" value="{{ index .Settings "site_title" }}" required>
+            </div>
+            <div class="setting-group">
+                <label for="maxPosts">Maximum Posts</label>
+                <input type="number" id="maxPosts" name="maxPosts" value="{{ index .Settings "max_posts" }}" min="1" required>
+            </div>
+            <div class="setting-group">
+                <label for="updateInterval">Update Interval (seconds)</label>
+                <input type="number" id="updateInterval" name="updateInterval" value="{{ index .Settings "update_interval" }}" min="60" required>
+            </div>
+            <div class="setting-group">
+                <label for="headerLinkText">Header Link Text</label>
+                <input type="text" id="headerLinkText" name="headerLinkText" value="{{ index .Settings "header_link_text" }}" required>
+            </div>
+            <div class="setting-group">
+                <label for="headerLinkURL">Header Link URL</label>
+                <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Settings "header_link_url" }}" required>
+            </div>
+            <div class="setting-group">
+                <label for="footerLinkText">Footer Link Text</label>
+                <input type="text" id="footerLinkText" name="footerLinkText" value="{{ index .Settings "footer_link_text" }}" required>
+            </div>
+            <div class="setting-group">
+                <label for="footerLinkURL">Footer Link URL</label>
+                <input type="url" id="footerLinkURL" name="footerLinkURL" value="{{ index .Settings "footer_link_url" }}" required>
+            </div>
+            <div class="setting-group">
+                <label for="footerImageHeight">Footer Image Height</label>
+                <input type="text" id="footerImageHeight" name="footerImageHeight" value="{{ index .Settings "footer_image_height" }}" required>
+            </div>
+            <div class="setting-group">
+                <label>Footer Image</label>
+                {{ if index .Settings "footer_image_url" }}
+                <div class="current-image">
+                    <img src="/static/images/{{ index .Settings "footer_image_url" }}" alt="Footer image" style="max-height: 100px">
+                </div>
+                {{ end }}
+                <input type="file" id="footerImage" name="footerImage" accept="image/*" class="file-input">
+            </div>
+            <div class="setting-group">
+                <label for="trackingCode">Tracking Code</label>
+                <textarea id="trackingCode" name="trackingCode" rows="5" placeholder="Paste your analytics or tracking code here">{{ index .Settings "tracking_code" }}</textarea>
+                <div class="help-text">
+                    Paste your analytics code (e.g., Google Analytics, Umami) here. It will be added to the bottom of every page.
+                </div>
+            </div>
+            <div class="setting-group backup-section">
+                <h3>Backup & Restore</h3>
+                <div class="backup-actions">
+                    <button type="button" onclick="exportBackup()" class="backup-button">Export Backup</button>
+                    <div class="import-container">
+                        <input type="file" id="importFile" accept=".json" style="display: none" onchange="handleImport()">
+                        <button type="button" onclick="document.getElementById('importFile').click()" class="backup-button import">Import Backup</button>
+                    </div>
+                </div>
+                <div id="backupStatus" class="backup-status"></div>
+            </div>
+            <button type="submit" class="submit-button">Save Settings</button>
+            <div id="status" class="status"></div>
+        </form>
+    </div>
+</div>
+
+<style>
+.settings-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.panel {
+    background: #1a2438;
+    padding: 2rem;
+    border-radius: 8px;
+    margin-top: 1.5rem;
+}
+
+.setting-group {
+    margin-bottom: 1.5rem;
+}
+
+.setting-group label {
+    display: block;
+    color: #a5c5cf;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.setting-group input[type="text"],
+.setting-group input[type="number"],
+.setting-group input[type="url"],
+.setting-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    color: #7da9b7;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.setting-group input:focus,
+.setting-group textarea:focus {
+    outline: none;
+    border-color: #67bb79;
+}
+
+.setting-group textarea {
+    resize: vertical;
+    min-height: 100px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.file-input {
+    display: block;
+    width: 100%;
+    padding: 0.75rem;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    color: #7da9b7;
+    margin-top: 0.5rem;
+}
+
+.current-image {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: #0c1220;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.current-image img {
+    max-width: 100%;
+    height: auto;
+}
+
+.help-text {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #7da9b7;
+}
+
+.submit-button {
+    background: #67bb79;
+    color: #121a2b;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+    margin-top: 1rem;
+}
+
+.submit-button:hover {
+    background: #39ff64;
+}
+
+.status {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 4px;
+    display: none;
+}
+
+.status.success {
+    display: block;
+    background: #67bb79;
+    color: #121a2b;
+}
+
+.status.error {
+    display: block;
+    background: #bb6767;
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    .panel {
+        padding: 1.5rem;
+    }
+}
+
+.backup-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #2a3450;
+}
+
+.backup-section h3 {
+    color: #a5c5cf;
+    margin-bottom: 1rem;
+}
+
+.backup-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.backup-button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+}
+
+.backup-button {
+    background: #2a3450;
+    color: #7da9b7;
+}
+
+.backup-button:hover {
+    background: #3a4460;
+}
+
+.backup-button.import {
+    background: #67bb79;
+    color: #121a2b;
+}
+
+.backup-button.import:hover {
+    background: #39ff64;
+}
+
+.backup-status {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 4px;
+    display: none;
+}
+
+.backup-status.success {
+    display: block;
+    background: #67bb79;
+    color: #121a2b;
+}
+
+.backup-status.error {
+    display: block;
+    background: #bb6767;
+    color: #fff;
+}
+</style>
+<script>
+    document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    console.log('Settings form submitted');
+    const status = document.getElementById('status');
+
+    try {
+        // Handle image upload first if there's a new image
+        const imageInput = document.getElementById('footerImage');
+        let imageFilename = '{{ index .Settings "footer_image_url" }}';
+        
+        if (imageInput.files.length > 0) {
+            console.log('Uploading new image...');
+            const formData = new FormData();
+            formData.append('image', imageInput.files[0]);
+            
+            const token = getCSRFToken();
+            console.log('Using token for image upload:', token);
+            
+            const response = await fetch('/admin/upload-image', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': token
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Image upload failed:', errorText);
+                throw new Error(errorText);
+            }
+            
+            imageFilename = await response.text();
+            console.log('Image uploaded successfully:', imageFilename);
+        }
+
+        // Build settings data
+        const formData = {
+            siteTitle: document.getElementById('siteTitle').value,
+            maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
+            updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
+            headerLinkText: document.getElementById('headerLinkText').value,
+            headerLinkURL: document.getElementById('headerLinkURL').value,
+            footerLinkText: document.getElementById('footerLinkText').value,
+            footerLinkURL: document.getElementById('footerLinkURL').value,
+            footerImageHeight: document.getElementById('footerImageHeight').value,
+            footerImageURL: imageFilename,
+            trackingCode: document.getElementById('trackingCode').value
+        };
+
+        console.log('Saving settings:', formData);
+
+        const response = await fetchWithCSRF('/admin/settings', {
+            method: 'POST',
+            body: JSON.stringify(formData)
+        });
+
+        console.log('Settings saved successfully');
+        showStatus('Settings saved successfully!', 'success');
+    } catch (err) {
+        console.error('Settings save failed:', err);
+        showStatus('Error saving settings: ' + err.message, 'error');
+    }
+});
+</script>
+<script>
+    async function exportBackup() {
+        try {
+            const response = await fetch('/admin/backup', {
+                method: 'GET'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to create backup');
+            }
+            
+            // Create download
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'infoscope_backup_' + new Date().toISOString().split('T')[0] + '.json';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showBackupStatus('Backup exported successfully!', 'success');
+        } catch (err) {
+            showBackupStatus('Error exporting backup: ' + err.message, 'error');
+        }
+    }
+    
+    async function handleImport() {
+        const file = document.getElementById('importFile').files[0];
+        if (!file) return;
+        
+        try {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const backup = JSON.parse(e.target.result);
+                    
+                    const response = await fetch('/admin/backup', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(backup)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to import backup');
+                    }
+                    
+                    showBackupStatus('Backup imported successfully! Reloading...', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } catch (err) {
+                    showBackupStatus('Error importing backup: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        } catch (err) {
+            showBackupStatus('Error reading backup file: ' + err.message, 'error');
+        }
+    }
+    
+    function showBackupStatus(message, type) {
+        const status = document.getElementById('backupStatus');
+        status.textContent = message;
+        status.className = 'backup-status ' + type;
+        setTimeout(() => {
+            status.className = 'backup-status';
+        }, 3000);
+    }
+    </script>
+{{ end }}

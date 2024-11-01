@@ -1,0 +1,522 @@
+{{ template "admin/layout.html" . }}
+{{ define "content" }}
+<div class="feeds-container">
+    <h2>Manage Feeds</h2>
+    
+    <div class="panel add-feed">
+        <h3>Add New Feed</h3>
+        <form id="addFeedForm" class="feed-form">
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <input type="url" 
+                           id="feedUrl" 
+                           class="feed-input"
+                           placeholder="Enter RSS feed URL"
+                           required
+                           pattern="^https?://.+"
+                           title="Please enter a valid URL starting with http:// or https://">
+                    <div class="spinner"></div>
+                </div>
+                <button type="submit" id="submitButton" class="submit-button" disabled>Add Feed</button>
+            </div>
+            <div id="feedError" class="error-message"></div>
+            <div id="feedPreview" class="feed-preview"></div>
+        </form>
+    </div>
+
+    <div class="panel">
+        <h3>Current Feeds</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>URL</th>
+                        <th>Last Fetched</th>
+                        <th class="action-column">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ range .Feeds }}
+                    <tr>
+                        <td class="title-column">{{ .Title }}</td>
+                        <td class="url-column">
+                            <a href="{{ .URL }}" class="feed-url" target="_blank" rel="noopener noreferrer">{{ .URL }}</a>
+                        </td>
+                        <td class="date-column">{{ .LastFetched }}</td>
+                        <td class="action-column">
+                            <button onclick="showDeleteModal({{ .ID }}, '{{ .Title }}')" class="delete-button">Delete</button>
+                        </td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="deleteModal" class="modal">
+    <div class="modal-content">
+        <h3>Delete Feed</h3>
+        <p id="deleteMessage"></p>
+        <div class="modal-actions">
+            <button id="confirmDelete" class="delete-button">Delete</button>
+            <button onclick="hideDeleteModal()" class="cancel-button">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentFeedId = null;
+    let validateTimeout = null;
+    
+    // Feed form submission
+    document.getElementById('addFeedForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        console.log('Submit form triggered');
+        
+        const url = document.getElementById('feedUrl').value;
+        const errorElement = document.getElementById('feedError');
+        const inputWrapper = document.querySelector('.input-wrapper');
+        const submitButton = document.getElementById('submitButton');
+    
+        errorElement.textContent = '';
+        inputWrapper.classList.add('loading');
+        submitButton.disabled = true;
+    
+        try {
+            console.log('Attempting to add feed:', url);
+            const response = await csrfUtils.fetch('/admin/feeds', {
+                method: 'POST',
+                body: JSON.stringify({ url })
+            });
+    
+            await response.json(); // Ensure response is consumed
+            console.log('Feed added successfully');
+            location.reload();
+        } catch (err) {
+            console.error('Error adding feed:', err);
+            errorElement.textContent = err.message;
+            submitButton.disabled = false;
+        } finally {
+            inputWrapper.classList.remove('loading');
+        }
+    });
+    
+    // Feed validation
+    async function validateFeed(url) {
+        const inputWrapper = document.querySelector('.input-wrapper');
+        const submitButton = document.getElementById('submitButton');
+        const errorElement = document.getElementById('feedError');
+        const previewElement = document.getElementById('feedPreview');
+    
+        inputWrapper.classList.add('loading');
+        submitButton.disabled = true;
+    
+        try {
+            console.log('Validating feed URL:', url);
+            const response = await csrfUtils.fetch('/admin/feeds/validate', {
+                method: 'POST',
+                body: JSON.stringify({ url })
+            });
+    
+            const data = await response.json();
+            console.log('Feed validation successful:', data);
+    
+            // Update preview
+            previewElement.innerHTML = `
+                <h4>${data.title || 'Untitled Feed'}</h4>
+                <p>${data.description || 'No description available'}</p>
+                <div class="feed-meta">
+                    <span>${data.itemCount} items</span>
+                    ${data.lastUpdated ? `<span>Last updated: ${data.lastUpdated}</span>` : ''}
+                </div>
+            `;
+            previewElement.classList.add('show');
+            submitButton.disabled = false;
+        } catch (err) {
+            console.error('Feed validation failed:', err);
+            errorElement.textContent = err.message;
+            previewElement.classList.remove('show');
+            submitButton.disabled = true;
+        } finally {
+            inputWrapper.classList.remove('loading');
+        }
+    }
+    
+    // Delete feed functionality
+    async function deleteFeed(feedId) {
+        try {
+            console.log('Attempting to delete feed:', feedId);
+            const response = await csrfUtils.fetch(`/admin/feeds?id=${feedId}`, {
+                method: 'DELETE'
+            });
+    
+            await response.json(); // Ensure response is consumed
+            console.log('Feed deleted successfully');
+            location.reload();
+        } catch (err) {
+            console.error('Error deleting feed:', err);
+            const errorElement = document.getElementById('feedError');
+            errorElement.textContent = `Error deleting feed: ${err.message}`;
+        }
+    }
+    
+    function showDeleteModal(feedId, feedTitle) {
+        currentFeedId = feedId;
+        const modal = document.getElementById('deleteModal');
+        const message = document.getElementById('deleteMessage');
+        message.textContent = `Are you sure you want to delete "${feedTitle || 'this feed'}"?`;
+        modal.classList.add('show');
+    }
+    
+    function hideDeleteModal() {
+        const modal = document.getElementById('deleteModal');
+        modal.classList.remove('show');
+        currentFeedId = null;
+    }
+    
+    document.getElementById('confirmDelete').addEventListener('click', async () => {
+        if (!currentFeedId) return;
+        await deleteFeed(currentFeedId);
+        hideDeleteModal();
+    });
+    
+    // URL validation
+    document.getElementById('feedUrl').addEventListener('input', (e) => {
+        clearTimeout(validateTimeout);
+        const url = e.target.value;
+        const submitButton = document.getElementById('submitButton');
+        const errorElement = document.getElementById('feedError');
+        const previewElement = document.getElementById('feedPreview');
+    
+        // Reset UI state
+        errorElement.textContent = '';
+        previewElement.classList.remove('show');
+        submitButton.disabled = !url;
+    
+        if (!url) return;
+    
+        // Basic URL validation
+        try {
+            new URL(url);
+        } catch {
+            errorElement.textContent = 'Please enter a valid URL';
+            submitButton.disabled = true;
+            return;
+        }
+    
+        // Delay validation to prevent too many requests
+        validateTimeout = setTimeout(() => validateFeed(url), 500);
+    });
+    
+    // Add debugging for CSRF token availability
+    document.addEventListener('DOMContentLoaded', () => {
+        const token = csrfUtils.getToken();
+        console.log('Initial CSRF token available:', !!token);
+    });
+    </script>
+<style>
+.feeds-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.panel {
+    background: #1a2438;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.panel h3 {
+    color: #a5c5cf;
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+}
+
+/* Form styles */
+.feed-form {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.input-group {
+    display: flex;
+    position: relative;
+}
+
+.input-wrapper {
+    position: relative;
+    flex-grow: 1;
+    display: flex;
+}
+
+.feed-input {
+    flex-grow: 1;
+    height: 42px;
+    padding: 0 1rem;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-right: none;
+    color: #7da9b7;
+    font-family: inherit;
+    font-size: 1rem;
+    border-radius: 4px 0 0 4px;
+    transition: border-color 0.2s;
+}
+
+.feed-input:focus {
+    outline: none;
+    border-color: #67bb79;
+}
+
+.input-group::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 100px;
+}
+
+.submit-button {
+    height: 42px;
+    padding: 0 1.5rem;
+    background: #67bb79;
+    color: #121a2b;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 1rem;
+    white-space: nowrap;
+    transition: background-color 0.2s;
+    position: absolute;
+    right: 0;
+    top: 0;
+    z-index: 1;
+}
+
+.submit-button:hover {
+    background: #39ff64;
+}
+
+/* Table styles */
+.table-container {
+    overflow-x: auto;
+    border-radius: 4px;
+    background: #0c1220;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+th {
+    color: #a5c5cf;
+    font-weight: normal;
+    text-align: left;
+    padding: 0.75rem;
+    border-bottom: 1px solid #2a3450;
+    white-space: nowrap;
+}
+
+td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #2a3450;
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+/* Column widths */
+.title-column {
+    width: 20%;
+}
+
+.url-column {
+    width: 45%;
+}
+
+.date-column {
+    width: 25%;
+    white-space: nowrap;
+}
+
+.action-column {
+    width: 10%;
+    min-width: 100px;
+    text-align: center;
+}
+
+.feed-url {
+    color: #7da9b7;
+    text-decoration: none;
+    transition: color 0.2s;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.feed-url:hover {
+    color: #67bb79;
+}
+
+.delete-button {
+    padding: 0.5rem 1rem;
+    background: #bb6767;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.delete-button:hover {
+    background: #ff6b6b;
+}
+
+/* Loading spinner */
+.spinner {
+    display: none;
+    position: absolute;
+    right: 120px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border: 2px solid #2a3450;
+    border-top-color: #67bb79;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: translateY(-50%) rotate(360deg); }
+}
+
+.input-wrapper.loading .spinner {
+    display: block;
+}
+
+/* Feed preview */
+.feed-preview {
+    display: none;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #0c1220;
+    border-radius: 4px;
+    border: 1px solid #2a3450;
+}
+
+.feed-preview.show {
+    display: block;
+}
+
+.error-message {
+    color: #ff6b6b;
+    min-height: 1.2em;
+    margin-top: 0.5rem;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: #1a2438;
+    padding: 1.5rem;
+    border-radius: 8px;
+    max-width: 400px;
+    width: 90%;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+.cancel-button {
+    padding: 0.5rem 1rem;
+    background: #2a3450;
+    color: #7da9b7;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+/* Responsive styles */
+@media (max-width: 1024px) {
+    .title-column {
+        width: 25%;
+    }
+    
+    .url-column {
+        width: 40%;
+    }
+    
+    .date-column {
+        width: 25%;
+    }
+    
+    .action-column {
+        width: 10%;
+    }
+}
+
+@media (max-width: 768px) {
+    .panel {
+        padding: 1rem;
+    }
+
+    .feed-input {
+        border-radius: 4px 0 0 4px;
+    }
+
+    .submit-button {
+        position: absolute;
+        right: 0;
+    }
+
+    td, th {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .title-column, .url-column {
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+</style>
+{{ end }}

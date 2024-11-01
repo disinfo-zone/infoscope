@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ .Title }} - Infoscope Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{ .CSRFMeta }}
+    {{ if .CSRFToken }}
+    <meta name="csrf-token" content="{{ .CSRFToken }}">
+    {{ end }}
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #121a2b;
+            color: #7da9b7;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 250px 1fr;
+        }
+        .sidebar {
+            background: #1a2438;
+            padding: 2rem;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .main-content {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+        h1 {
+            color: #c4d3cb;
+            margin-top: 0;
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .nav-link {
+            display: block;
+            padding: 0.75rem 0;
+            color: #a5c5cf;
+            text-decoration: none;
+            transition: color 0.2s;
+            font-size: 1.1rem;
+        }
+        .nav-link:hover {
+            color: #39ff64;
+        }
+        .nav-link.active {
+            color: #67bb79;
+        }
+        .logout {
+            margin-top: 2rem;
+            padding: 0.75rem;
+            background: #67bb79;
+            color: #121a2b;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 1rem;
+            width: 100%;
+            transition: background-color 0.2s;
+        }
+        .logout:hover {
+            background: #39ff64;
+        }
+        @media (max-width: 768px) {
+            body {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+            }
+            .sidebar {
+                height: auto;
+                position: static;
+                padding: 1rem;
+            }
+            .main-content {
+                padding: 1rem;
+            }
+            h1 {
+                font-size: 1.3rem;
+                margin-bottom: 1rem;
+            }
+            .nav-link {
+                display: inline-block;
+                padding: 0.5rem 1rem;
+                margin-right: 0.5rem;
+            }
+            .logout {
+                margin-top: 1rem;
+            }
+        }
+    </style>
+<!-- This goes in web/templates/admin/layout.html -->
+<script>
+    const csrfUtils = {
+        getToken() {
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            return meta ? meta.content : null;
+        },
+
+        async fetch(url, options = {}) {
+            const token = this.getToken();
+            if (!token) {
+                throw new Error('CSRF token not found. Please refresh the page.');
+            }
+
+            const defaultHeaders = {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token
+            };
+
+            const finalOptions = {
+                ...options,
+                credentials: 'include', // Include cookies in the request
+                headers: {
+                    ...defaultHeaders,
+                    ...(options.headers || {})
+                }
+            };
+
+            const response = await fetch(url, finalOptions);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Request failed');
+            }
+
+            return response;
+        }
+    };
+</script>
+</head>
+<body>
+    <div class="sidebar">
+        <h1>Infoscope</h1>
+        <nav>
+            <a href="/admin" class="nav-link{{ if eq .Active "dashboard" }} active{{ end }}">Dashboard</a>
+            <a href="/admin/feeds" class="nav-link{{ if eq .Active "feeds" }} active{{ end }}">Manage Feeds</a>
+            <a href="/admin/settings" class="nav-link{{ if eq .Active "settings" }} active{{ end }}">Settings</a>
+        </nav>
+        <form id="logoutForm" method="POST" action="/admin/logout">
+            <button type="submit" class="logout">Logout</button>
+        </form>
+    </div>
+    <div class="main-content">
+        {{ template "content" . }}
+    </div>
+    <script>
+        document.getElementById('logoutForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Get CSRF token from meta tag
+            const token = document.querySelector('meta[name="csrf-token"]')?.content;
+            if (!token) {
+                console.error('CSRF token not found');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/admin/logout', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': token
+                    }
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/admin/login';
+                } else {
+                    console.error('Logout failed:', await response.text());
+                }
+            } catch (err) {
+                console.error('Logout failed:', err);
+            }
+        });
+
+        // Add this helper function
+        function getCSRFToken() {
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            return meta ? meta.content : '';
+        }
+    </script>
+</body>
+</html>

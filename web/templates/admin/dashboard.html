@@ -1,0 +1,187 @@
+{{ template "admin/layout.html" . }}
+{{ define "content" }}
+<div class="dashboard">
+    <h2>Dashboard</h2>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Active Feeds</h3>
+            <p class="stat-number">{{ .FeedCount }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Total Entries</h3>
+            <p class="stat-number">{{ .EntryCount }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Last Update</h3>
+            <p class="stat-value">{{ .LastUpdate }}</p>
+        </div>
+        <div class="stat-card highlight">
+            <h3>Total Clicks</h3>
+            <p class="stat-number">{{ .ClickStats.TotalClicks }}</p>
+        </div>
+    </div>
+
+    <div class="stats-panels">
+        <div class="panel">
+            <h3>Top Links (All Time)</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Clicks</th>
+                            <th>Last Clicked</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range .ClickStats.TopAllTime }}
+                        <tr>
+                            <td class="title-cell">{{ .Title }}</td>
+                            <td class="number-cell">{{ .ClickCount }}</td>
+                            <td class="date-cell">{{ .LastClicked.Format "Jan 2, 2006 15:04" }}</td>
+                        </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>Top Links (Past Week)</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Clicks</th>
+                            <th>Last Clicked</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range .ClickStats.TopPastWeek }}
+                        <tr>
+                            <td class="title-cell">{{ .Title }}</td>
+                            <td class="number-cell">{{ .ClickCount }}</td>
+                            <td class="date-cell">{{ .LastClicked.Format "Jan 2, 2006 15:04" }}</td>
+                        </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: #1a2438;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-card.highlight {
+    background: #2a3450;
+}
+
+.stat-card h3 {
+    color: #a5c5cf;
+    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-number {
+    color: #67bb79;
+    font-size: 2rem;
+    margin: 0;
+    font-weight: bold;
+}
+
+.stat-value {
+    color: #7da9b7;
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+.stats-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+}
+
+.panel {
+    background: #1a2438;
+    padding: 1.5rem;
+    border-radius: 8px;
+}
+
+.panel h3 {
+    color: #a5c5cf;
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    color: #7da9b7;
+    font-weight: normal;
+    text-align: left;
+    padding: 0.75rem;
+    border-bottom: 1px solid #2a3450;
+}
+
+td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #2a3450;
+}
+
+.title-cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.number-cell {
+    color: #67bb79;
+    font-weight: bold;
+}
+
+.date-cell {
+    color: #7da9b7;
+    white-space: nowrap;
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+</style>
+{{ end }}
