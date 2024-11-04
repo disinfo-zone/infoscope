@@ -10,6 +10,7 @@ data/*.db-*
 *.dylib
 *.test
 *.out
+*.bak
 
 # User-uploaded content
 web/static/favicons/*
