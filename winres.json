@@ -1,0 +1,59 @@
+{
+    "RT_MANIFEST": {
+      "#1": {
+        "manifest.xml": {
+          "assemblyIdentity": {
+            "name": "Infoscope",
+            "version": "1.0.0.0",
+            "type": "win32"
+          },
+          "description": "Minimalist RSS River Reader",
+          "trustInfo": {
+            "security": {
+              "requestedPrivileges": {
+                "requestedExecutionLevel": {
+                  "level": "asInvoker",
+                  "uiAccess": false
+                }
+              }
+            }
+          },
+          "application": {
+            "windowsSettings": {
+              "dpiAware": true,
+              "dpiAwareness": "PerMonitorV2"
+            }
+          }
+        }
+      }
+    },
+    "RT_VERSION": {
+      "#1": {
+        "fixed": {
+          "fileVersion": "1.0.0.0",
+          "productVersion": "1.0.0.0",
+          "fileFlagsMask": "3F",
+          "fileFlags": "00",
+          "fileOS": "040004",
+          "fileType": "01",
+          "fileSubType": "00"
+        },
+        "info": {
+          "0409": {
+            "Comments": "RSS River Reader",
+            "CompanyName": "disinfo.zone",
+            "FileDescription": "Infoscope RSS Reader",
+            "FileVersion": "",
+            "InternalName": "infoscope",
+            "LegalCopyright": "© 2024",
+            "OriginalFilename": "infoscope.exe",
+            "ProductName": "Infoscope",
+            "ProductVersion": ""
+          }
+        }
+      }
+    },
+    "RT_ICON": {
+      "#1": "icon.ico"
+    }
+  }
