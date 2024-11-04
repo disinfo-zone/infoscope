@@ -189,6 +189,8 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 			FeedID:      feed.ID,
 			Title:       item.Title,
 			URL:         item.Link,
+			Content:     item.Description,
+			GUID:        item.GUID,
 			PublishedAt: *pubDate,
 			FaviconURL:  "/static/favicons/" + faviconFile,
 		}
@@ -226,13 +228,17 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 
 	// Prepare statement for inserting entries
 	stmt, err := tx.PrepareContext(ctx, `
-        INSERT INTO entries (feed_id, title, url, published_at, favicon_url)
-        VALUES (?, ?, ?, DATETIME(?), ?)
-        ON CONFLICT(url) DO UPDATE SET
-            title = excluded.title,
-            published_at = DATETIME(excluded.published_at)
-            WHERE excluded.published_at > published_at
-    `)
+    INSERT INTO entries (
+        feed_id, title, url, content, guid, 
+        published_at, favicon_url
+    )
+    VALUES (?, ?, ?, ?, ?, DATETIME(?), ?)
+    ON CONFLICT(url) DO UPDATE SET
+        title = excluded.title,
+        content = excluded.content,
+        published_at = DATETIME(excluded.published_at)
+        WHERE excluded.published_at > published_at
+`)
 	if err != nil {
 		return err
 	}
@@ -244,6 +250,8 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 			entry.FeedID,
 			entry.Title,
 			entry.URL,
+			entry.Content,
+			entry.GUID,
 			entry.PublishedAt.UTC().Format("2006-01-02 15:04:05"),
 			entry.FaviconURL,
 		)

@@ -1,4 +1,3 @@
-// Save as: internal/config/environment.go
 package config
 
 import (
@@ -8,16 +7,18 @@ import (
 )
 
 type Config struct {
-	Port     int
-	DBPath   string
-	DataPath string
+	Port           int
+	DBPath         string
+	DataPath       string
+	ProductionMode bool
 }
 
 func GetConfig() Config {
 	config := Config{
-		Port:     8080, // default port
-		DBPath:   "data/infoscope.db",
-		DataPath: "data",
+		Port:           8080, // default port
+		DBPath:         "data/infoscope.db",
+		DataPath:       "data",
+		ProductionMode: false, // default to development mode
 	}
 
 	// Override with environment variables if present
@@ -26,13 +27,14 @@ func GetConfig() Config {
 			config.Port = p
 		}
 	}
-
 	if dbPath := os.Getenv("INFOSCOPE_DB_PATH"); dbPath != "" {
 		config.DBPath = dbPath
 	}
-
 	if dataPath := os.Getenv("INFOSCOPE_DATA_PATH"); dataPath != "" {
 		config.DataPath = dataPath
+	}
+	if prodMode := os.Getenv("INFOSCOPE_PRODUCTION"); prodMode == "true" {
+		config.ProductionMode = true
 	}
 
 	return config

@@ -122,14 +122,13 @@ func (db *DB) UpdateSetting(ctx context.Context, key, value, valueType string) e
 
 // GetRecentEntries retrieves recent entries efficiently
 func (db *DB) GetRecentEntries(ctx context.Context, limit int) ([]Entry, error) {
-	rows, err := db.QueryContext(ctx,
-		`SELECT e.id, e.feed_id, e.title, e.url, e.published_at, e.favicon_url,
-		        f.title as feed_title
-		FROM entries e
-		JOIN feeds f ON e.feed_id = f.id
-		WHERE f.status = 'active'
-		ORDER BY e.published_at DESC
-		LIMIT ?`,
+	rows, err := db.QueryContext(ctx, `
+        SELECT e.id, e.feed_id, e.title, e.url, e.published_at,
+               e.favicon_url, f.title as feed_title
+        FROM entries e
+        JOIN feeds f ON e.feed_id = f.id
+        ORDER BY e.published_at DESC
+        LIMIT ?`,
 		limit,
 	)
 	if err != nil {
@@ -149,7 +148,6 @@ func (db *DB) GetRecentEntries(ctx context.Context, limit int) ([]Entry, error) 
 		}
 		entries = append(entries, e)
 	}
-
 	return entries, rows.Err()
 }
 

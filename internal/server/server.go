@@ -4,13 +4,15 @@ package server
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"html/template"
 	"infoscope/internal/auth"
 	"infoscope/internal/feed"
 	"log"
 	"net/http"
 )
+
+type Config struct {
+	UseHTTPS bool
+}
 
 type Server struct {
 	db           *sql.DB
@@ -19,14 +21,19 @@ type Server struct {
 	settings     *SettingsManager
 	feedService  *feed.Service
 	imageHandler *ImageHandler
-	csrfManager  *CSRFManager
+	csrf         *CSRF
 }
 
-func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service) (*Server, error) {
+func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config Config) (*Server, error) {
+	// Initialize image handler
 	imageHandler, err := NewImageHandler(db, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create image handler: %w", err)
+		return nil, err
 	}
+
+	// Initialize CSRF with configuration
+	csrfConfig := DefaultConfig()
+	csrfConfig.Secure = config.UseHTTPS
 
 	return &Server{
 		db:           db,
@@ -35,7 +42,7 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service) (*Serv
 		settings:     NewSettingsManager(),
 		feedService:  feedService,
 		imageHandler: imageHandler,
-		csrfManager:  NewCSRFManager(),
+		csrf:         NewCSRF(csrfConfig),
 	}, nil
 }
 
@@ -50,10 +57,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
 	// Auth routes
-	mux.HandleFunc("/admin/login", s.setCSRFToken(s.handleLogin))
+	mux.HandleFunc("/admin/login", s.handleLogin)
 	mux.HandleFunc("/admin/logout", s.handleLogout)
 
-	// Protected admin routes with auth middleware
+	// Protected admin routes
 	mux.HandleFunc("/admin", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/admin/feeds", s.requireAuth(s.handleFeeds))
 	mux.HandleFunc("/admin/settings", s.requireAuth(s.handleSettings))
@@ -65,77 +72,54 @@ func (s *Server) Routes() http.Handler {
 	// Click Tracking
 	mux.HandleFunc("/click", s.handleClick)
 
-	// Create middleware chain using http.Handler interface
+	// Apply middleware
 	var handler http.Handler = mux
-	handler = s.dbMetricsMiddleware(handler)
-	handler = s.csrfManager.CSRFMiddleware(handler)
+	handler = s.csrf.Middleware(handler)
 
 	return handler
 }
 
-// requireAuth wraps handlers with session authentication
+// requireAuth wraps handlers with authentication and CSRF token injection
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// First check authentication
+		// Check authentication
 		cookie, err := r.Cookie("session")
 		if err != nil {
 			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 			return
 		}
 
+		// Validate session and get user ID
 		session, err := s.auth.ValidateSession(s.db, cookie.Value)
 		if err != nil {
 			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 			return
 		}
 
-		// Add user info to context
+		// Create new context with user ID
 		ctx := context.WithValue(r.Context(), contextKeyUserID, session.UserID)
 
-		// Set CSRF token
-		token, err := s.csrfManager.SetCSRFToken(w) // Capture both return values
-		if err != nil {
-			s.logger.Printf("Error setting CSRF token: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
+		// Get CSRF token
+		token := s.csrf.Token(w, r)
+
+		// Add template data
+		data := struct {
+			CSRFToken string
+			UserID    int64
+		}{
+			CSRFToken: token,
+			UserID:    session.UserID,
 		}
 
-		// Add CSRF meta to context
-		meta := template.HTML(fmt.Sprintf(`<meta name="csrf-token" content="%s">`, token))
-		ctx = context.WithValue(ctx, contextKeyCSRFMeta, meta)
+		// Add template data to context
+		ctx = context.WithValue(ctx, contextKeyTemplateData, data)
 
+		// Call next handler with updated context
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
 
-func (s *Server) setCSRFToken(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			token, err := s.csrfManager.SetCSRFToken(w) // Capture both return values
-			if err != nil {
-				s.logger.Printf("Error setting CSRF token: %v", err)
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				return
-			}
-
-			meta := template.HTML(fmt.Sprintf(`<meta name="csrf-token" content="%s">`, token))
-			ctx := context.WithValue(r.Context(), contextKeyCSRFMeta, meta)
-			r = r.WithContext(ctx)
-		}
-		next.ServeHTTP(w, r)
-	}
-}
-
 func (s *Server) Start(addr string) error {
-	// Check if setup is needed
-	isFirstRun, err := IsFirstRun(s.db)
-	if err != nil {
-		return fmt.Errorf("failed to check first run status: %w", err)
-	}
-	if isFirstRun {
-		s.logger.Println("First run detected - setup required")
-	}
-
 	s.logger.Printf("Starting server on %s", addr)
 	return http.ListenAndServe(addr, s.Routes())
 }

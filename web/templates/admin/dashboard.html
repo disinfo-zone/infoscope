@@ -6,22 +6,21 @@
     <div class="stats-grid">
         <div class="stat-card">
             <h3>Active Feeds</h3>
-            <p class="stat-number">{{ .FeedCount }}</p>
+            <p class="stat-number">{{ .Data.FeedCount }}</p>
         </div>
         <div class="stat-card">
             <h3>Total Entries</h3>
-            <p class="stat-number">{{ .EntryCount }}</p>
+            <p class="stat-number">{{ .Data.EntryCount }}</p>
         </div>
         <div class="stat-card">
             <h3>Last Update</h3>
-            <p class="stat-value">{{ .LastUpdate }}</p>
+            <p class="stat-value">{{ .Data.LastUpdate }}</p>
         </div>
         <div class="stat-card highlight">
             <h3>Total Clicks</h3>
-            <p class="stat-number">{{ .ClickStats.TotalClicks }}</p>
+            <p class="stat-number">{{ .Data.ClickStats.TotalClicks }}</p>
         </div>
     </div>
-
     <div class="stats-panels">
         <div class="panel">
             <h3>Top Links (All Time)</h3>
@@ -35,9 +34,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {{ range .ClickStats.TopAllTime }}
+                        {{ range .Data.ClickStats.TopAllTime }}
                         <tr>
-                            <td class="title-cell">{{ .Title }}</td>
+                            <td class="title-cell">
+                                <a href="{{ .URL }}" target="_blank" class="feed-url">{{ .Title }}</a>
+                            </td>
                             <td class="number-cell">{{ .ClickCount }}</td>
                             <td class="date-cell">{{ .LastClicked.Format "Jan 2, 2006 15:04" }}</td>
                         </tr>
@@ -59,9 +60,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {{ range .ClickStats.TopPastWeek }}
+                        {{ range .Data.ClickStats.TopPastWeek }}
                         <tr>
-                            <td class="title-cell">{{ .Title }}</td>
+                            <td class="title-cell">
+                                <a href="{{ .URL }}" target="_blank" class="feed-url">{{ .Title }}</a>
+                            </td>
                             <td class="number-cell">{{ .ClickCount }}</td>
                             <td class="date-cell">{{ .LastClicked.Format "Jan 2, 2006 15:04" }}</td>
                         </tr>
@@ -72,116 +75,158 @@
         </div>
     </div>
 </div>
-
+{{ end }}
+{{ define "styles" }}
 <style>
-.dashboard {
-    max-width: 1200px;
-    margin: 0 auto;
-}
+    .dashboard {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: #1a2438;
+        padding: 1.5rem;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    
+    .stat-card.highlight {
+        background: #2a3450;
+        border: 1px solid #67bb79;
+    }
+    
+    .stat-card h3 {
+        color: #a5c5cf;
+        margin: 0 0 1rem 0;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .stat-number {
+        color: #67bb79;
+        font-size: 2rem;
+        margin: 0;
+        font-weight: bold;
+    }
+    
+    .stat-value {
+        color: #7da9b7;
+        font-size: 1.2rem;
+        margin: 0;
+    }
+    
+    .stats-panels {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .panel {
+        background: #1a2438;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .table-wrapper {
+        overflow-x: auto;
+        margin-top: 1rem;
+    }
 
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 600px; /* Minimum width before scrolling */
+    }
+    
+    th {
+        color: #a5c5cf;
+        font-weight: normal;
+        text-align: left;
+        padding: 0.75rem;
+        border-bottom: 2px solid #2a3450;
+    }
+    
+    td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #2a3450;
+    }
+    
+    .title-cell {
+        width: 60%; /* Give more space to title */
+        max-width: 0; /* Forces text-overflow to work */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding-right: 1rem;
+        max-width: 400px;
+    }
 
-.stat-card {
-    background: #1a2438;
-    padding: 1.5rem;
-    border-radius: 8px;
-    text-align: center;
-    transition: transform 0.2s;
-}
+    .title-cell a.feed-url {
+        color: #7da9b7;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        display: block;
+        font-family: 'Courier New', Courier, monospace;
+        padding: 0.25rem 0;
+        position: relative;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 
-.stat-card:hover {
-    transform: translateY(-2px);
-}
+    .title-cell a.feed-url:hover {
+        color: #67bb79;
+        transform: translateX(4px);
+    }
 
-.stat-card.highlight {
-    background: #2a3450;
-}
+    .title-cell a.feed-url:before {
+        content: '→';
+        opacity: 0;
+        margin-right: 4px;
+        transition: all 0.2s ease;
+    }
 
-.stat-card h3 {
-    color: #a5c5cf;
-    margin: 0 0 1rem 0;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
+    .title-cell a.feed-url:hover:before {
+        opacity: 1;
+    }
 
-.stat-number {
-    color: #67bb79;
-    font-size: 2rem;
-    margin: 0;
-    font-weight: bold;
-}
+    .number-cell {
+        width: 20%;
+        text-align: right;
+        font-weight: bold;
+        color: #a5c5cf;
+    }
 
-.stat-value {
-    color: #7da9b7;
-    font-size: 1.2rem;
-    margin: 0;
-}
+    .date-cell {
+        width: 20%;
+        white-space: nowrap;
+        color: #4a5d6b;
+    }
+    
+    tr:hover {
+        background: #1f2b42;
+    }
 
-.stats-panels {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 1.5rem;
-}
-
-.panel {
-    background: #1a2438;
-    padding: 1.5rem;
-    border-radius: 8px;
-}
-
-.panel h3 {
-    color: #a5c5cf;
-    margin: 0 0 1rem 0;
-    font-size: 1.1rem;
-}
-
-.table-wrapper {
-    overflow-x: auto;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-th {
-    color: #7da9b7;
-    font-weight: normal;
-    text-align: left;
-    padding: 0.75rem;
-    border-bottom: 1px solid #2a3450;
-}
-
-td {
-    padding: 0.75rem;
-    border-bottom: 1px solid #2a3450;
-}
-
-.title-cell {
-    max-width: 300px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.number-cell {
-    color: #67bb79;
-    font-weight: bold;
-}
-
-.date-cell {
-    color: #7da9b7;
-    white-space: nowrap;
-}
-
-tr:last-child td {
-    border-bottom: none;
-}
-</style>
+    .stats-panels {
+        grid-template-columns: 1fr; /* Single column layout */
+        max-width: 800px; /* Limit maximum width */
+        margin: 0 auto;
+    }
+    </style>
 {{ end }}

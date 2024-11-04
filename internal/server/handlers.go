@@ -5,41 +5,159 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"expvar"
 	"fmt"
-	"html/template"
 	"infoscope/internal/feed"
 	"net/http"
 	"strconv"
 	"time"
 )
 
+// Metrics variables
 var (
 	dbQueryCount    = expvar.NewInt("db_query_count")
 	dbQueryDuration = expvar.NewFloat("db_query_duration_ms")
 )
 
-func (s *Server) dbMetricsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		duration := time.Since(start).Milliseconds()
-		dbQueryDuration.Add(float64(duration))
-		dbQueryCount.Add(1)
-	})
+// Database helper methods for the Server struct
+func (s *Server) getSettings(ctx context.Context) (map[string]string, error) {
+	settings := make(map[string]string)
+	rows, err := s.db.QueryContext(ctx, "SELECT key, value FROM settings")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, err
+		}
+		settings[key] = value
+	}
+	return settings, rows.Err()
 }
 
-// Handler functions
+func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, error) {
+	// Add debug logging
+	s.logger.Printf("Getting recent entries with limit: %d", limit)
+
+	rows, err := s.db.QueryContext(ctx, `
+        SELECT 
+            e.id,
+            e.title,
+            e.url,
+            e.favicon_url,
+            datetime(e.published_at) as date
+        FROM entries e
+        JOIN feeds f ON e.feed_id = f.id
+        WHERE f.status != 'deleted' 
+        ORDER BY e.published_at DESC
+        LIMIT ?
+    `, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []EntryView
+	for rows.Next() {
+		var e EntryView
+		var dateStr string
+		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &dateStr); err != nil {
+			return nil, fmt.Errorf("scan error: %w", err)
+		}
+		// Parse the date string
+		if date, err := time.Parse("2006-01-02 15:04:05", dateStr); err == nil {
+			e.Date = date.Format("Jan 02")
+		}
+		entries = append(entries, e)
+	}
+
+	// Add debug logging
+	s.logger.Printf("Found %d entries in query", len(entries))
+	if len(entries) > 0 {
+		s.logger.Printf("Sample entry: %+v", entries[0])
+	}
+
+	return entries, rows.Err()
+}
+
+func (s *Server) getFeeds(ctx context.Context) ([]Feed, error) {
+	rows, err := s.db.QueryContext(ctx, `
+        SELECT id, url, title, datetime(last_fetched)
+        FROM feeds
+        ORDER BY title
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var feeds []Feed
+	for rows.Next() {
+		var f Feed
+		var lastFetchedStr sql.NullString
+		if err := rows.Scan(&f.ID, &f.URL, &f.Title, &lastFetchedStr); err != nil {
+			return nil, err
+		}
+		if lastFetchedStr.Valid {
+			if date, err := time.Parse("2006-01-02 15:04:05", lastFetchedStr.String); err == nil {
+				f.LastFetched = date
+			}
+		}
+		feeds = append(feeds, f)
+	}
+	return feeds, rows.Err()
+}
+
+func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx,
+		"INSERT OR REPLACE INTO settings (key, value, type) VALUES (?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	updates := map[string]struct {
+		value string
+		type_ string
+	}{
+		"site_title":          {settings.SiteTitle, "string"},
+		"max_posts":           {strconv.Itoa(settings.MaxPosts), "int"},
+		"update_interval":     {strconv.Itoa(settings.UpdateInterval), "int"},
+		"header_link_text":    {settings.HeaderLinkText, "string"},
+		"header_link_url":     {settings.HeaderLinkURL, "string"},
+		"footer_link_text":    {settings.FooterLinkText, "string"},
+		"footer_link_url":     {settings.FooterLinkURL, "string"},
+		"footer_image_height": {settings.FooterImageHeight, "string"},
+		"tracking_code":       {settings.TrackingCode, "string"},
+	}
+
+	for key, setting := range updates {
+		if _, err := stmt.ExecContext(ctx, key, setting.value, setting.type_); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// HTTP Handlers
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
 
-	// create a context with timeout
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
+	// Debug logging
+	s.logger.Printf("Starting handleIndex...")
 
 	// Check if setup is needed
 	isFirstRun, err := IsFirstRun(s.db)
@@ -48,33 +166,22 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-
 	if isFirstRun {
 		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
 
-	// Get all settings
-	settings := make(map[string]string)
-	start := time.Now()
-	rows, err := s.db.QueryContext(ctx, "SELECT key, value FROM settings")
-	dbQueryCount.Add(1)
-	dbQueryDuration.Add(float64(time.Since(start).Milliseconds()))
+	// Get CSRF token
+	csrfToken := s.csrf.Token(w, r)
+
+	// Get settings with debug
+	settings, err := s.getSettings(r.Context())
 	if err != nil {
-		s.logger.Printf("Error querying settings: %v", err)
+		s.logger.Printf("Error getting settings: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var key, value string
-		if err := rows.Scan(&key, &value); err != nil {
-			s.logger.Printf("Error scanning setting: %v", err)
-			continue
-		}
-		settings[key] = value
-	}
+	s.logger.Printf("Retrieved settings: %+v", settings)
 
 	// Get max posts setting
 	maxPosts := 33 // default
@@ -83,42 +190,38 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 			maxPosts = max
 		}
 	}
+	s.logger.Printf("Using maxPosts: %d", maxPosts)
 
-	// Get entries with ID field
-	rows, err = s.db.QueryContext(ctx, `
-	WITH recent_entries AS (
-		SELECT id, title, url, favicon_url, published_at,
-			   ROW_NUMBER() OVER (ORDER BY published_at DESC) as rn
-		FROM entries 
-		WHERE published_at >= datetime('now', '-30 days')
-	)
-	SELECT id, title, url, favicon_url, published_at
-	FROM recent_entries 
-	WHERE rn <= ?
-	ORDER BY published_at DESC
-`, maxPosts)
+	// Debug database state
+	var feedCount, entryCount int
+	err = s.db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM feeds").Scan(&feedCount)
 	if err != nil {
-		s.logger.Printf("Error querying entries: %v", err)
+		s.logger.Printf("Error counting feeds: %v", err)
+	}
+	err = s.db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM entries").Scan(&entryCount)
+	if err != nil {
+		s.logger.Printf("Error counting entries: %v", err)
+	}
+	s.logger.Printf("Database state: %d feeds, %d entries", feedCount, entryCount)
+
+	// Get entries with debug
+	entries, err := s.getRecentEntries(r.Context(), maxPosts)
+	if err != nil {
+		s.logger.Printf("Error getting entries: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
+	s.logger.Printf("Retrieved %d entries", len(entries))
 
-	var entries []EntryView
-	for rows.Next() {
-		var entry EntryView
-		var publishedAt time.Time
-		if err := rows.Scan(&entry.ID, &entry.Title, &entry.URL, &entry.FaviconURL, &publishedAt); err != nil {
-			s.logger.Printf("Error scanning entry: %v", err)
-			continue
-		}
-		entry.Date = publishedAt.Format("January 2, 2006")
-		entries = append(entries, entry)
+	// Sample entry logging
+	if len(entries) > 0 {
+		s.logger.Printf("Sample entry: %+v", entries[0])
 	}
 
-	s.logger.Printf("Rendering index with %d entries", len(entries))
-
 	data := IndexData{
+		BaseTemplateData: BaseTemplateData{
+			CSRFToken: csrfToken,
+		},
 		Title:             settings["site_title"],
 		Entries:           entries,
 		HeaderLinkURL:     settings["header_link_url"],
@@ -130,503 +233,173 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		TrackingCode:      settings["tracking_code"],
 	}
 
-	// Create template with functions
-	funcMap := template.FuncMap{
-		"safeHTML": func(s string) template.HTML {
-			return template.HTML(s)
-		},
-	}
+	s.logger.Printf("Rendering template with data: %+v", data)
 
-	// Create and parse template with function map
-	tmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles("web/templates/index.html")
-	if err != nil {
-		s.logger.Printf("Error parsing template: %v", err)
+	if err := s.renderTemplate(w, r, "index.html", data); err != nil {
+		s.logger.Printf("Error rendering template: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if err := tmpl.Execute(w, data); err != nil {
-		s.logger.Printf("Error executing template: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
+	s.logger.Printf("handleIndex completed successfully")
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	csrfToken := s.csrf.Token(w, r)
 	switch r.Method {
 	case http.MethodGet:
-		tmpl, err := template.ParseFiles(
-			"web/templates/admin/layout.html",
-			"web/templates/admin/settings.html",
-		)
+		settings, err := s.getSettings(r.Context())
 		if err != nil {
-			s.logger.Printf("Error parsing settings templates: %v", err)
+			s.logger.Printf("Error getting settings: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
-		}
-
-		settings := make(map[string]string)
-		rows, err := s.db.Query("SELECT key, value FROM settings")
-		if err != nil {
-			s.logger.Printf("Error querying settings: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var key, value string
-			if err := rows.Scan(&key, &value); err != nil {
-				s.logger.Printf("Error scanning setting: %v", err)
-				continue
-			}
-			settings[key] = value
 		}
 
 		data := SettingsTemplateData{
+			BaseTemplateData: BaseTemplateData{
+				CSRFToken: csrfToken,
+			},
 			Title:    "Settings",
 			Active:   "settings",
 			Settings: settings,
 		}
 
-		// Add CSRF token
-		if csrfMeta, ok := getCSRFMeta(r.Context()); ok {
-			data.CSRFMeta = csrfMeta
-		}
-		// Get CSRF token from cookie
-		if cookie, err := r.Cookie("csrf_token"); err == nil {
-			data.CSRFToken = cookie.Value
-		}
-
-		if err := tmpl.Execute(w, data); err != nil {
-			s.logger.Printf("Error executing template: %v", err)
+		if err := s.renderTemplate(w, r, "admin/settings.html", data); err != nil {
+			s.logger.Printf("Error rendering settings template: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
 		}
 
 	case http.MethodPost:
+		if !s.csrf.Validate(w, r) {
+			return
+		}
+
 		var settings Settings
 		if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-
-		// Add this right after the MethodPost case
-		s.logger.Printf("Received POST request to /admin/feeds")
-		s.logger.Printf("CSRF Token from header: %s", r.Header.Get("X-CSRF-Token"))
-		s.logger.Printf("Content-Type: %s", r.Header.Get("Content-Type"))
-
-		// Validate settings
-		if settings.MaxPosts < 1 {
-			http.Error(w, "Maximum posts must be at least 1", http.StatusBadRequest)
-			return
-		}
-		if settings.UpdateInterval < 60 {
-			http.Error(w, "Update interval must be at least 60 seconds", http.StatusBadRequest)
-			return
-		}
-
-		// Update settings in database
-		tx, err := s.db.Begin()
-		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		defer tx.Rollback()
-
-		stmt, err := tx.Prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
-		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		defer stmt.Close()
-
-		// Update all settings
-		updates := []struct {
-			key, value string
-		}{
-			{"site_title", settings.SiteTitle},
-			{"max_posts", strconv.Itoa(settings.MaxPosts)},
-			{"update_interval", strconv.Itoa(settings.UpdateInterval)},
-			{"header_link_text", settings.HeaderLinkText},
-			{"header_link_url", settings.HeaderLinkURL},
-			{"footer_link_text", settings.FooterLinkText},
-			{"footer_link_url", settings.FooterLinkURL},
-			{"footer_image_height", settings.FooterImageHeight},
-			{"tracking_code", settings.TrackingCode},
-		}
-
-		// Only update footer_image_url if it's provided
-		if settings.FooterImageURL != "" {
-			updates = append(updates, struct{ key, value string }{
-				"footer_image_url", settings.FooterImageURL,
-			})
-		}
-
-		for _, update := range updates {
-			if _, err := stmt.Exec(update.key, update.value); err != nil {
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		if err := tx.Commit(); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]bool{"success": true})
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// handleLogin handles the login form submission
-func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		// Serve login page
-		tmpl, err := template.ParseFiles("web/templates/login.html")
-		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		// Create template data with CSRF meta
-		data := struct {
-			CSRFMeta template.HTML
-		}{}
-
-		// Get CSRF meta from context
-		if csrfMeta, ok := getCSRFMeta(r.Context()); ok {
-			data.CSRFMeta = csrfMeta
-		}
-
-		// Execute template with data
-		if err := tmpl.Execute(w, data); err != nil {
-			s.logger.Printf("Error executing template: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-	case http.MethodPost:
-		var req loginRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
 
-		session, err := s.auth.Authenticate(s.db, req.Username, req.Password)
-		if err != nil {
-			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		if err := s.updateSettings(r.Context(), settings); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Set session cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:     "session",
-			Value:    session.ID,
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteStrictMode,
-			Expires:  session.ExpiresAt,
-		})
-
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]bool{"success": true})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-// handleLogout handles user logout
-func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	cookie, err := r.Cookie("session")
-	if err != nil {
-		http.Error(w, "No session found", http.StatusUnauthorized)
-		return
-	}
-
-	if err := s.auth.InvalidateSession(s.db, cookie.Value); err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	// Clear session cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session",
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   -1,
-	})
-
-	w.WriteHeader(http.StatusOK)
-}
-
 // handles feed validation
 func (s *Server) handleFeedValidation(w http.ResponseWriter, r *http.Request) {
-	s.logger.Printf("Feed validation request received: %s %s", r.Method, r.URL)
-
 	if r.Method != http.MethodPost {
-		s.logger.Printf("Invalid method: %s", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Verify Content-Type
-	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
-		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
+	if !s.csrf.Validate(w, r) {
 		return
 	}
 
 	var req struct {
-		URL string `json:"url"`
+		URL       string `json:"url"`
+		CSRFToken string `json:"csrf_token"`
 	}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logger.Printf("Error decoding request body: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	s.logger.Printf("Validating feed URL: %s", req.URL)
-	result, err := feed.ValidateFeedURL(req.URL)
+	// Validate the feed URL
+	validationResult, err := feed.ValidateFeedURL(req.URL)
 	if err != nil {
-		s.logger.Printf("Feed validation error: %v", err)
-		var status int
-		var message string
-
-		switch {
-		case errors.Is(err, feed.ErrInvalidURL):
-			status = http.StatusBadRequest
-			message = "Invalid URL format"
-		case errors.Is(err, feed.ErrTimeout):
-			status = http.StatusGatewayTimeout
-			message = "Feed took too long to respond"
-		case errors.Is(err, feed.ErrNotAFeed):
-			status = http.StatusBadRequest
-			message = "URL does not point to a valid RSS/Atom feed"
-		default:
-			status = http.StatusInternalServerError
-			message = "Failed to validate feed"
-		}
-
-		http.Error(w, message, status)
+		s.logger.Printf("Feed validation failed for %s: %v", req.URL, err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	// Return validation result
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(result); err != nil {
-		s.logger.Printf("Error encoding response: %v", err)
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	if err := json.NewEncoder(w).Encode(validationResult); err != nil {
+		s.logger.Printf("Error encoding validation response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 }
 
 // handleFeeds handles the feeds management page
 func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
-	s.logger.Printf("Feeds request: %s %s", r.Method, r.URL.Path)
-	s.logger.Printf("CSRF Token from header: %s", r.Header.Get("X-CSRF-Token"))
-	s.logger.Printf("Content-Type: %s", r.Header.Get("Content-Type"))
-
+	csrfToken := s.csrf.Token(w, r)
 	switch r.Method {
 	case http.MethodGet:
-		tmpl, err := template.ParseFiles(
-			"web/templates/admin/layout.html",
-			"web/templates/admin/feeds.html",
-		)
+		feeds, err := s.getFeeds(r.Context())
 		if err != nil {
-			s.logger.Printf("Error parsing feeds templates: %v", err)
+			s.logger.Printf("Error getting feeds: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-
-		// Get all feeds from database
-		rows, err := s.db.Query(`
-            SELECT id, url, title, last_fetched 
-            FROM feeds 
-            ORDER BY title
-        `)
-		if err != nil {
-			s.logger.Printf("Error querying feeds: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		var feeds []struct {
-			ID          int64
-			URL         string
-			Title       string
-			LastFetched string
-		}
-
-		for rows.Next() {
-			var feed struct {
-				ID          int64
-				URL         string
-				Title       string
-				LastFetched sql.NullTime
-			}
-			if err := rows.Scan(&feed.ID, &feed.URL, &feed.Title, &feed.LastFetched); err != nil {
-				s.logger.Printf("Error scanning feed row: %v", err)
-				continue
-			}
-
-			lastFetchedStr := "Never"
-			if feed.LastFetched.Valid {
-				lastFetchedStr = feed.LastFetched.Time.Format("January 2, 2006 15:04:05")
-			}
-
-			feeds = append(feeds, struct {
-				ID          int64
-				URL         string
-				Title       string
-				LastFetched string
-			}{
-				ID:          feed.ID,
-				URL:         feed.URL,
-				Title:       feed.Title,
-				LastFetched: lastFetchedStr,
-			})
-		}
-
 		data := struct {
-			BaseTemplateData
-			Title  string
-			Active string
-			Feeds  []struct {
-				ID          int64
-				URL         string
-				Title       string
-				LastFetched string
-			}
+			Title     string
+			Active    string
+			Feeds     []Feed
+			Settings  map[string]string
+			CSRFToken string
 		}{
-			Title:  "Manage Feeds",
-			Active: "feeds",
-			Feeds:  feeds,
+			Title:     "Manage Feeds",
+			Active:    "feeds",
+			Feeds:     feeds,
+			Settings:  make(map[string]string),
+			CSRFToken: csrfToken,
 		}
-
-		// Set CSRF Meta from context
-		if csrfMeta, ok := getCSRFMeta(r.Context()); ok {
-			data.CSRFMeta = csrfMeta
-		}
-
-		if err := tmpl.Execute(w, data); err != nil {
-			s.logger.Printf("Error executing template: %v", err)
+		if err := s.renderTemplate(w, r, "admin/feeds.html", data); err != nil {
+			s.logger.Printf("Error rendering feeds template: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
 		}
 
 	case http.MethodPost:
-		// Manual CSRF check for POST
-		token := r.Header.Get("X-CSRF-Token")
-		if token == "" {
-			s.logger.Printf("Missing CSRF token in POST request")
-			http.Error(w, "Missing CSRF token", http.StatusForbidden)
+		if !s.csrf.Validate(w, r) {
 			return
 		}
 
-		cookie, err := r.Cookie(csrfCookieName)
-		if err != nil {
-			s.logger.Printf("No CSRF cookie found: %v", err)
-			http.Error(w, "Missing CSRF cookie", http.StatusForbidden)
-			return
-		}
-
-		if !s.csrfManager.validateToken(token, cookie.Value) {
-			s.logger.Printf("Invalid CSRF token. Header: %s, Cookie: %s", token, cookie.Value)
-			http.Error(w, "Invalid CSRF token", http.StatusForbidden)
-			return
-		}
-
-		// Verify Content-Type
-		if ct := r.Header.Get("Content-Type"); ct != "application/json" {
-			s.logger.Printf("Invalid Content-Type: %s", ct)
-			http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
-			return
-		}
-
-		// Decode request body
-		var feedData struct {
+		var req struct {
 			URL string `json:"url"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&feedData); err != nil {
-			s.logger.Printf("Error decoding feed data: %v", err)
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
 
-		// Validate URL
-		if feedData.URL == "" {
-			http.Error(w, "Feed URL is required", http.StatusBadRequest)
+		if err := s.feedService.AddFeed(req.URL); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		// Add feed
-		if err := s.feedService.AddFeed(feedData.URL); err != nil {
-			s.logger.Printf("Error adding feed: %v", err)
-			http.Error(w, fmt.Sprintf("Failed to add feed: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+		w.WriteHeader(http.StatusOK)
 
 	case http.MethodDelete:
-		// Manual CSRF check for DELETE
-		token := r.Header.Get("X-CSRF-Token")
-		if token == "" {
-			s.logger.Printf("Missing CSRF token in DELETE request")
-			http.Error(w, "Missing CSRF token", http.StatusForbidden)
+		if !s.csrf.Validate(w, r) {
 			return
 		}
 
-		cookie, err := r.Cookie(csrfCookieName)
-		if err != nil {
-			s.logger.Printf("No CSRF cookie found: %v", err)
-			http.Error(w, "Missing CSRF cookie", http.StatusForbidden)
+		var req struct {
+			ID int64 `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
 
-		if !s.csrfManager.validateToken(token, cookie.Value) {
-			s.logger.Printf("Invalid CSRF token. Header: %s, Cookie: %s", token, cookie.Value)
-			http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		if err := s.feedService.DeleteFeed(req.ID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Get feed ID from query parameter
-		feedID := r.URL.Query().Get("id")
-		if feedID == "" {
-			http.Error(w, "Missing feed ID", http.StatusBadRequest)
-			return
-		}
-
-		// Parse and validate feed ID
-		id, err := strconv.ParseInt(feedID, 10, 64)
-		if err != nil {
-			s.logger.Printf("Invalid feed ID: %v", err)
-			http.Error(w, "Invalid feed ID", http.StatusBadRequest)
-			return
-		}
-
-		// Delete feed
-		if err := s.feedService.DeleteFeed(id); err != nil {
-			s.logger.Printf("Error deleting feed: %v", err)
-			http.Error(w, "Failed to delete feed", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+		w.WriteHeader(http.StatusOK)
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -636,6 +409,17 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 // Handle Metrics
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Only allow authenticated users
+	if _, ok := getUserID(r.Context()); !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
@@ -644,5 +428,9 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		"query_duration_ms": dbQueryDuration.String(),
 	}
 
-	json.NewEncoder(w).Encode(metrics)
+	if err := json.NewEncoder(w).Encode(metrics); err != nil {
+		s.logger.Printf("Error encoding metrics: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 }

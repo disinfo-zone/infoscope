@@ -1,12 +1,9 @@
+{{ define "layout" }}
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{ .Title }} - Infoscope Admin</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {{ .CSRFMeta }}
-    {{ if .CSRFToken }}
+    <title>{{ .Data.Title }}</title>
     <meta name="csrf-token" content="{{ .CSRFToken }}">
-    {{ end }}
     <style>
         body {
             font-family: 'Courier New', Courier, monospace;
@@ -93,95 +90,76 @@
             }
         }
     </style>
-<!-- This goes in web/templates/admin/layout.html -->
-<script>
-    const csrfUtils = {
-        getToken() {
-            const meta = document.querySelector('meta[name="csrf-token"]');
-            return meta ? meta.content : null;
-        },
-
-        async fetch(url, options = {}) {
-            const token = this.getToken();
-            if (!token) {
-                throw new Error('CSRF token not found. Please refresh the page.');
-            }
-
-            const defaultHeaders = {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': token
-            };
-
-            const finalOptions = {
-                ...options,
-                credentials: 'include', // Include cookies in the request
-                headers: {
-                    ...defaultHeaders,
-                    ...(options.headers || {})
+    {{ block "styles" . }}{{ end }}
+    <script>
+        // CSRF utility functions
+        const csrf = {
+            getToken() {
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                const input = document.querySelector('input[name="csrf_token"]');
+                return (meta && meta.content) || (input && input.value);
+            },
+    
+            getHeaders() {
+                const token = this.getToken();
+                return {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': token || ''
+                };
+            },
+    
+            async fetch(url, options = {}) {
+                const headers = this.getHeaders();
+                const finalOptions = {
+                    ...options,
+                    headers: {
+                        ...headers,
+                        ...(options.headers || {})
+                    },
+                    credentials: 'same-origin'
+                };
+    
+                const response = await fetch(url, finalOptions);
+                if (!response.ok) {
+                    throw new Error(`Request failed: ${response.status}`);
                 }
-            };
-
-            const response = await fetch(url, finalOptions);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || 'Request failed');
+                return response;
             }
-
-            return response;
+        };
+    
+        // Click tracking function
+        function trackClick(entryId, url) {
+            csrf.fetch('/click?id=' + entryId, {
+                method: 'POST'
+            }).catch(err => {
+                console.error('Error tracking click:', err);
+            });
+    
+            // Open link in new tab
+            window.open(url, '_blank');
+            return false;
         }
-    };
-</script>
+        </script>
 </head>
 <body>
     <div class="sidebar">
         <h1>Infoscope</h1>
         <nav>
-            <a href="/admin" class="nav-link{{ if eq .Active "dashboard" }} active{{ end }}">Dashboard</a>
-            <a href="/admin/feeds" class="nav-link{{ if eq .Active "feeds" }} active{{ end }}">Manage Feeds</a>
-            <a href="/admin/settings" class="nav-link{{ if eq .Active "settings" }} active{{ end }}">Settings</a>
+            <a href="/admin" class="nav-link{{ if eq .Data.Active "dashboard" }} active{{ end }}">Dashboard</a>
+            <a href="/admin/feeds" class="nav-link{{ if eq .Data.Active "feeds" }} active{{ end }}">Manage Feeds</a>
+            <a href="/admin/settings" class="nav-link{{ if eq .Data.Active "settings" }} active{{ end }}">Settings</a>
         </nav>
         <form id="logoutForm" method="POST" action="/admin/logout">
+            <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
             <button type="submit" class="logout">Logout</button>
         </form>
     </div>
     <div class="main-content">
         {{ template "content" . }}
     </div>
-    <script>
-        document.getElementById('logoutForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            // Get CSRF token from meta tag
-            const token = document.querySelector('meta[name="csrf-token"]')?.content;
-            if (!token) {
-                console.error('CSRF token not found');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/admin/logout', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-Token': token
-                    }
-                });
-                
-                if (response.ok) {
-                    window.location.href = '/admin/login';
-                } else {
-                    console.error('Logout failed:', await response.text());
-                }
-            } catch (err) {
-                console.error('Logout failed:', err);
-            }
-        });
-
-        // Add this helper function
-        function getCSRFToken() {
-            const meta = document.querySelector('meta[name="csrf-token"]');
-            return meta ? meta.content : '';
-        }
-    </script>
+    {{ block "scripts" . }}{{ end }}
 </body>
 </html>
+{{ end }}
+
+{{ define "content" }}{{ end }}

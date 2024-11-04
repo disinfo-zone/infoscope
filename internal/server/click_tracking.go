@@ -2,14 +2,16 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 )
 
 type ClickStats struct {
-	EntryID     int64     `json:"entryId"`
-	Title       string    `json:"title"`
+	EntryID     int64  `json:"entryId"`
+	Title       string `json:"title"`
+	URL         string
 	ClickCount  int       `json:"clickCount"`
 	LastClicked time.Time `json:"lastClicked"`
 }
@@ -26,8 +28,7 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate CSRF token
-	if !validateCSRFToken(s.csrfManager, w, r) {
+	if !s.csrf.Validate(w, r) {
 		return
 	}
 
@@ -36,11 +37,13 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing entry ID", http.StatusBadRequest)
 		return
 	}
+
 	id, err := strconv.ParseInt(entryID, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid entry ID", http.StatusBadRequest)
 		return
 	}
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		s.logger.Printf("Error beginning transaction: %v", err)
@@ -51,12 +54,12 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 
 	// Update click count
 	_, err = tx.Exec(`
-        INSERT INTO clicks (entry_id, click_count, last_clicked)
-        VALUES (?, 1, CURRENT_TIMESTAMP)
-        ON CONFLICT(entry_id) DO UPDATE SET
-        click_count = click_count + 1,
-        last_clicked = CURRENT_TIMESTAMP
-    `, id)
+		INSERT INTO clicks (entry_id, click_count, last_clicked)
+		VALUES (?, 1, CURRENT_TIMESTAMP)
+		ON CONFLICT(entry_id) DO UPDATE SET
+			click_count = click_count + 1,
+			last_clicked = CURRENT_TIMESTAMP
+	`, id)
 	if err != nil {
 		s.logger.Printf("Error updating click count: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -74,25 +77,25 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getClickStats() (*DashboardStats, error) {
 	stats := &DashboardStats{}
-
 	// Get total clicks
 	err := s.db.QueryRow(`
-        SELECT value FROM click_stats WHERE key = 'total_clicks'
+        SELECT COALESCE(SUM(click_count), 0) FROM clicks
     `).Scan(&stats.TotalClicks)
 	if err != nil {
-		return nil, err
+		stats.TotalClicks = 0
 	}
 
-	// Get top 5 all time
+	// Get top all time
 	rows, err := s.db.Query(`
-        SELECT e.id, e.title, c.click_count, DATETIME(c.last_clicked)
-        FROM clicks c
-        JOIN entries e ON e.id = c.entry_id
+        SELECT e.id, e.title, e.url, c.click_count,
+               strftime('%Y-%m-%d %H:%M:%S', c.last_clicked) as last_clicked
+        FROM entries e
+        INNER JOIN clicks c ON e.id = c.entry_id 
         ORDER BY c.click_count DESC, c.last_clicked DESC
         LIMIT 5
     `)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting top clicks: %w", err)
 	}
 	defer rows.Close()
 
@@ -100,28 +103,29 @@ func (s *Server) getClickStats() (*DashboardStats, error) {
 	for rows.Next() {
 		var stat ClickStats
 		var lastClickedStr string
-		if err := rows.Scan(&stat.EntryID, &stat.Title, &stat.ClickCount, &lastClickedStr); err != nil {
-			return nil, err
+		if err := rows.Scan(&stat.EntryID, &stat.Title, &stat.URL, &stat.ClickCount, &lastClickedStr); err != nil {
+			return nil, fmt.Errorf("error scanning click stats: %w", err)
 		}
-		lastClicked, err := time.Parse("2006-01-02 15:04:05", lastClickedStr)
+		lastClicked, err := time.ParseInLocation("2006-01-02 15:04:05", lastClickedStr, time.Local)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing last clicked time: %w", err)
 		}
 		stat.LastClicked = lastClicked
 		stats.TopAllTime = append(stats.TopAllTime, stat)
 	}
 
-	// Get top 5 past week
+	// Get weekly top with same timestamp format
 	rows, err = s.db.Query(`
-        SELECT e.id, e.title, c.click_count, DATETIME(c.last_clicked)
-        FROM clicks c
-        JOIN entries e ON e.id = c.entry_id
-        WHERE c.last_clicked > DATETIME('now', '-7 days')
+        SELECT e.id, e.title, e.url, c.click_count,
+               strftime('%Y-%m-%d %H:%M:%S', c.last_clicked) as last_clicked
+        FROM entries e
+        INNER JOIN clicks c ON e.id = c.entry_id
+        WHERE c.last_clicked >= datetime('now', '-7 days')
         ORDER BY c.click_count DESC, c.last_clicked DESC
         LIMIT 5
     `)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting weekly stats: %w", err)
 	}
 	defer rows.Close()
 
@@ -129,12 +133,12 @@ func (s *Server) getClickStats() (*DashboardStats, error) {
 	for rows.Next() {
 		var stat ClickStats
 		var lastClickedStr string
-		if err := rows.Scan(&stat.EntryID, &stat.Title, &stat.ClickCount, &lastClickedStr); err != nil {
-			return nil, err
+		if err := rows.Scan(&stat.EntryID, &stat.Title, &stat.URL, &stat.ClickCount, &lastClickedStr); err != nil {
+			return nil, fmt.Errorf("error scanning weekly stats: %w", err)
 		}
-		lastClicked, err := time.Parse("2006-01-02 15:04:05", lastClickedStr)
+		lastClicked, err := time.ParseInLocation("2006-01-02 15:04:05", lastClickedStr, time.Local)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing last clicked time: %w", err)
 		}
 		stat.LastClicked = lastClicked
 		stats.TopPastWeek = append(stats.TopPastWeek, stat)

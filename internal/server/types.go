@@ -1,7 +1,7 @@
 // internal/server/types.go
 package server
 
-import "html/template"
+import "time"
 
 type loginRequest struct {
 	Username string `json:"username"`
@@ -18,14 +18,15 @@ const (
 )
 
 type EntryView struct {
-	ID         int64
-	Title      string
-	URL        string
-	FaviconURL string
-	Date       string
+	ID         int64  `json:"id"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+	FaviconURL string `json:"faviconUrl"`
+	Date       string `json:"date"`
 }
 
 type IndexData struct {
+	BaseTemplateData
 	Title             string
 	Entries           []EntryView
 	HeaderLinkURL     string
@@ -38,7 +39,7 @@ type IndexData struct {
 }
 
 type BaseTemplateData struct {
-	CSRFMeta template.HTML
+	CSRFToken string
 }
 
 type AdminPageData struct {
@@ -71,4 +72,16 @@ type Settings struct {
 	FooterImageURL    string `json:"footerImageURL"`
 	FooterImageHeight string `json:"footerImageHeight"`
 	TrackingCode      string `json:"trackingCode"`
+}
+
+type Feed struct {
+	ID          int64     `json:"id"`
+	URL         string    `json:"url"`
+	Title       string    `json:"title"`
+	LastFetched time.Time `json:"lastFetched,omitempty"`
+}
+
+type LoginTemplateData struct {
+	BaseTemplateData
+	Error string
 }

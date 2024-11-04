@@ -6,6 +6,7 @@
     <div class="panel add-feed">
         <h3>Add New Feed</h3>
         <form id="addFeedForm" class="feed-form">
+            <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
             <div class="input-group">
                 <div class="input-wrapper">
                     <input type="url" 
@@ -23,7 +24,6 @@
             <div id="feedPreview" class="feed-preview"></div>
         </form>
     </div>
-
     <div class="panel">
         <h3>Current Feeds</h3>
         <div class="table-container">
@@ -37,7 +37,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {{ range .Feeds }}
+                    {{ range .Data.Feeds }}
                     <tr>
                         <td class="title-column">{{ .Title }}</td>
                         <td class="url-column">
@@ -54,7 +54,6 @@
         </div>
     </div>
 </div>
-
 <!-- Delete Modal -->
 <div id="deleteModal" class="modal">
     <div class="modal-content">
@@ -66,103 +65,145 @@
         </div>
     </div>
 </div>
-
 <script>
     let currentFeedId = null;
     let validateTimeout = null;
     
-    // Feed form submission
-    document.getElementById('addFeedForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        console.log('Submit form triggered');
-        
-        const url = document.getElementById('feedUrl').value;
-        const errorElement = document.getElementById('feedError');
-        const inputWrapper = document.querySelector('.input-wrapper');
-        const submitButton = document.getElementById('submitButton');
-    
-        errorElement.textContent = '';
-        inputWrapper.classList.add('loading');
-        submitButton.disabled = true;
-    
-        try {
-            console.log('Attempting to add feed:', url);
-            const response = await csrfUtils.fetch('/admin/feeds', {
-                method: 'POST',
-                body: JSON.stringify({ url })
-            });
-    
-            await response.json(); // Ensure response is consumed
-            console.log('Feed added successfully');
-            location.reload();
-        } catch (err) {
-            console.error('Error adding feed:', err);
-            errorElement.textContent = err.message;
-            submitButton.disabled = false;
-        } finally {
-            inputWrapper.classList.remove('loading');
+// Add Feed Form Submission
+document.getElementById('addFeedForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = document.getElementById('feedUrl').value;
+    const token = document.querySelector('input[name="csrf_token"]').value;
+    const errorElement = document.getElementById('feedError');
+    const previewElement = document.getElementById('feedPreview');
+    const inputWrapper = document.querySelector('.input-wrapper');
+    const submitButton = document.getElementById('submitButton');
+
+    // Clear previous state
+    errorElement.textContent = '';
+    previewElement.classList.remove('show');
+    inputWrapper.classList.add('loading');
+    submitButton.disabled = true;
+
+    // Add this right before the fetch call
+console.log('Submitting with URL:', url);
+console.log('CSRF Token:', token);
+
+    try {
+        const response = await fetch('/admin/feeds', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token
+            },
+            body: JSON.stringify({ url: url }),
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type');
+            let errorMsg = 'Failed to add feed';
+            
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                errorMsg = data.message || errorMsg;
+            } else {
+                const text = await response.text();
+                errorMsg = text || errorMsg;
+            }
+            throw new Error(`${errorMsg} (Status: ${response.status})`);
         }
-    });
-    
+
+        // Handle successful feed addition
+        console.log('Feed added successfully');
+        location.reload();
+    } catch (err) {
+        console.error('Error adding feed:', err);
+        errorElement.textContent = err.message;
+    } finally {
+        inputWrapper.classList.remove('loading');
+        submitButton.disabled = false;
+    }
+});
+
     // Feed validation
     async function validateFeed(url) {
-        const inputWrapper = document.querySelector('.input-wrapper');
-        const submitButton = document.getElementById('submitButton');
-        const errorElement = document.getElementById('feedError');
-        const previewElement = document.getElementById('feedPreview');
-    
-        inputWrapper.classList.add('loading');
-        submitButton.disabled = true;
-    
-        try {
-            console.log('Validating feed URL:', url);
-            const response = await csrfUtils.fetch('/admin/feeds/validate', {
-                method: 'POST',
-                body: JSON.stringify({ url })
-            });
-    
-            const data = await response.json();
-            console.log('Feed validation successful:', data);
-    
-            // Update preview
-            previewElement.innerHTML = `
-                <h4>${data.title || 'Untitled Feed'}</h4>
-                <p>${data.description || 'No description available'}</p>
-                <div class="feed-meta">
-                    <span>${data.itemCount} items</span>
-                    ${data.lastUpdated ? `<span>Last updated: ${data.lastUpdated}</span>` : ''}
-                </div>
-            `;
-            previewElement.classList.add('show');
-            submitButton.disabled = false;
-        } catch (err) {
-            console.error('Feed validation failed:', err);
-            errorElement.textContent = err.message;
-            previewElement.classList.remove('show');
-            submitButton.disabled = true;
-        } finally {
-            inputWrapper.classList.remove('loading');
+    const inputWrapper = document.querySelector('.input-wrapper');
+    const submitButton = document.getElementById('submitButton');
+    const errorElement = document.getElementById('feedError');
+    const previewElement = document.getElementById('feedPreview');
+    inputWrapper.classList.add('loading');
+    submitButton.disabled = true;
+    try {
+        const response = await csrf.fetch('/admin/feeds/validate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url })
+        });
+        if (!response.ok) {
+            let errorMsg = 'Failed to validate feed';
+            try {
+                const data = await response.json();
+                errorMsg = data.message || errorMsg;
+            } catch {
+                const text = await response.text();
+                errorMsg = text || errorMsg;
+            }
+            throw new Error(errorMsg);
         }
+        const data = await response.json();
+        // Update preview
+        previewElement.innerHTML = `
+            <h4>${data.title || 'Untitled Feed'}</h4>
+            <p>${data.description || 'No description available'}</p>
+            <div class="feed-meta">
+                <span>${data.itemCount} items</span>
+                ${data.lastUpdated ? `<span>Last updated: ${data.lastUpdated}</span>` : ''}
+            </div>
+        `;
+        previewElement.classList.add('show');
+        submitButton.disabled = false;
+    } catch (err) {
+        console.error('Feed validation failed:', err);
+        errorElement.textContent = err.message;
+        submitButton.disabled = true;
+        previewElement.classList.remove('show');
+    } finally {
+        inputWrapper.classList.remove('loading');
     }
-    
-    // Delete feed functionality
+}
+
+    // Delete Feed Function
     async function deleteFeed(feedId) {
         try {
-            console.log('Attempting to delete feed:', feedId);
-            const response = await csrfUtils.fetch(`/admin/feeds?id=${feedId}`, {
-                method: 'DELETE'
+            const token = document.querySelector('input[name="csrf_token"]').value;
+            const response = await csrf.fetch('/admin/feeds', {
+                method: 'DELETE',
+                body: JSON.stringify({ id: feedId })
             });
-    
-            await response.json(); // Ensure response is consumed
+            if (!response.ok) {
+                let errorMsg = 'Failed to delete feed';
+                try {
+                    const data = await response.json();
+                    errorMsg = data.message || errorMsg;
+                } catch {
+                    const text = await response.text();
+                    errorMsg = text || errorMsg;
+                }
+                throw new Error(errorMsg);
+            }
+            // Handle successful response
             console.log('Feed deleted successfully');
             location.reload();
         } catch (err) {
             console.error('Error deleting feed:', err);
-            const errorElement = document.getElementById('feedError');
-            errorElement.textContent = `Error deleting feed: ${err.message}`;
+            // Display error message to the user
+            alert(err.message);
         }
     }
-    
+
     function showDeleteModal(feedId, feedTitle) {
         currentFeedId = feedId;
         const modal = document.getElementById('deleteModal');
@@ -170,19 +211,19 @@
         message.textContent = `Are you sure you want to delete "${feedTitle || 'this feed'}"?`;
         modal.classList.add('show');
     }
-    
+
     function hideDeleteModal() {
         const modal = document.getElementById('deleteModal');
         modal.classList.remove('show');
         currentFeedId = null;
     }
-    
+
     document.getElementById('confirmDelete').addEventListener('click', async () => {
         if (!currentFeedId) return;
         await deleteFeed(currentFeedId);
         hideDeleteModal();
     });
-    
+
     // URL validation
     document.getElementById('feedUrl').addEventListener('input', (e) => {
         clearTimeout(validateTimeout);
@@ -190,14 +231,14 @@
         const submitButton = document.getElementById('submitButton');
         const errorElement = document.getElementById('feedError');
         const previewElement = document.getElementById('feedPreview');
-    
+
         // Reset UI state
         errorElement.textContent = '';
         previewElement.classList.remove('show');
         submitButton.disabled = !url;
-    
+
         if (!url) return;
-    
+
         // Basic URL validation
         try {
             new URL(url);
@@ -206,36 +247,35 @@
             submitButton.disabled = true;
             return;
         }
-    
+
         // Delay validation to prevent too many requests
         validateTimeout = setTimeout(() => validateFeed(url), 500);
     });
-    
+
     // Add debugging for CSRF token availability
     document.addEventListener('DOMContentLoaded', () => {
-        const token = csrfUtils.getToken();
-        console.log('Initial CSRF token available:', !!token);
+        const token = document.querySelector('input[name="csrf_token"]').value;
+        console.log('CSRF token available:', !!token);
     });
-    </script>
+</script>
+{{end}}
+{{ define "styles" }}
 <style>
 .feeds-container {
     max-width: 1200px;
     margin: 0 auto;
 }
-
 .panel {
     background: #1a2438;
     padding: 1.5rem;
     border-radius: 8px;
     margin-bottom: 1.5rem;
 }
-
 .panel h3 {
     color: #a5c5cf;
     margin: 0 0 1rem 0;
     font-size: 1.1rem;
 }
-
 /* Form styles */
 .feed-form {
     position: relative;
@@ -243,18 +283,15 @@
     flex-direction: column;
     gap: 0.5rem;
 }
-
 .input-group {
     display: flex;
     position: relative;
 }
-
 .input-wrapper {
     position: relative;
     flex-grow: 1;
     display: flex;
 }
-
 .feed-input {
     flex-grow: 1;
     height: 42px;
@@ -268,21 +305,10 @@
     border-radius: 4px 0 0 4px;
     transition: border-color 0.2s;
 }
-
 .feed-input:focus {
     outline: none;
     border-color: #67bb79;
 }
-
-.input-group::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 100px;
-}
-
 .submit-button {
     height: 42px;
     padding: 0 1.5rem;
@@ -300,94 +326,16 @@
     top: 0;
     z-index: 1;
 }
-
 .submit-button:hover {
     background: #39ff64;
 }
-
-/* Table styles */
-.table-container {
-    overflow-x: auto;
-    border-radius: 4px;
-    background: #0c1220;
+/* Error message */
+.error-message {
+    color: #ff6b6b;
+    min-height: 1.2em;
+    margin-top: 0.5rem;
 }
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-}
-
-th {
-    color: #a5c5cf;
-    font-weight: normal;
-    text-align: left;
-    padding: 0.75rem;
-    border-bottom: 1px solid #2a3450;
-    white-space: nowrap;
-}
-
-td {
-    padding: 0.75rem;
-    border-bottom: 1px solid #2a3450;
-}
-
-tr:last-child td {
-    border-bottom: none;
-}
-
-/* Column widths */
-.title-column {
-    width: 20%;
-}
-
-.url-column {
-    width: 45%;
-}
-
-.date-column {
-    width: 25%;
-    white-space: nowrap;
-}
-
-.action-column {
-    width: 10%;
-    min-width: 100px;
-    text-align: center;
-}
-
-.feed-url {
-    color: #7da9b7;
-    text-decoration: none;
-    transition: color 0.2s;
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.feed-url:hover {
-    color: #67bb79;
-}
-
-.delete-button {
-    padding: 0.5rem 1rem;
-    background: #bb6767;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 0.9rem;
-    transition: background-color 0.2s;
-    white-space: nowrap;
-}
-
-.delete-button:hover {
-    background: #ff6b6b;
-}
-
-/* Loading spinner */
+/* Spinner */
 .spinner {
     display: none;
     position: absolute;
@@ -401,15 +349,12 @@ tr:last-child td {
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
-
 @keyframes spin {
     to { transform: translateY(-50%) rotate(360deg); }
 }
-
 .input-wrapper.loading .spinner {
     display: block;
 }
-
 /* Feed preview */
 .feed-preview {
     display: none;
@@ -419,17 +364,77 @@ tr:last-child td {
     border-radius: 4px;
     border: 1px solid #2a3450;
 }
-
 .feed-preview.show {
     display: block;
 }
-
-.error-message {
-    color: #ff6b6b;
-    min-height: 1.2em;
-    margin-top: 0.5rem;
+/* Table styles */
+.table-container {
+    overflow-x: auto;
+    border-radius: 4px;
+    background: #0c1220;
 }
-
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+th {
+    color: #a5c5cf;
+    font-weight: normal;
+    text-align: left;
+    padding: 0.75rem;
+    border-bottom: 1px solid #2a3450;
+    white-space: nowrap;
+}
+td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #2a3450;
+}
+tr:last-child td {
+    border-bottom: none;
+}
+/* Column widths */
+.title-column {
+    width: 20%;
+}
+.url-column {
+    width: 45%;
+}
+.date-column {
+    width: 25%;
+    white-space: nowrap;
+}
+.action-column {
+    width: 10%;
+    min-width: 100px;
+    text-align: center;
+}
+.feed-url {
+    color: #7da9b7;
+    text-decoration: none;
+    transition: color 0.2s;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.feed-url:hover {
+    color: #67bb79;
+}
+.delete-button {
+    padding: 0.5rem 1rem;
+    background: #bb6767;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+.delete-button:hover {
+    background: #ff6b6b;
+}
 /* Modal styles */
 .modal {
     display: none;
@@ -443,11 +448,9 @@ tr:last-child td {
     justify-content: center;
     z-index: 1000;
 }
-
 .modal.show {
     display: flex;
 }
-
 .modal-content {
     background: #1a2438;
     padding: 1.5rem;
@@ -455,25 +458,11 @@ tr:last-child td {
     max-width: 400px;
     width: 90%;
 }
-
 .modal-actions {
     display: flex;
     gap: 1rem;
     justify-content: flex-end;
-    margin-top: 1.5rem;
 }
-
-.cancel-button {
-    padding: 0.5rem 1rem;
-    background: #2a3450;
-    color: #7da9b7;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 0.9rem;
-}
-
 /* Responsive styles */
 @media (max-width: 1024px) {
     .title-column {
@@ -492,30 +481,22 @@ tr:last-child td {
         width: 10%;
     }
 }
-
 @media (max-width: 768px) {
     .panel {
         padding: 1rem;
     }
-
     .feed-input {
         border-radius: 4px 0 0 4px;
     }
-
     .submit-button {
         position: absolute;
         right: 0;
     }
-
     td, th {
         padding: 0.75rem 0.5rem;
     }
-
     .title-column, .url-column {
-        max-width: 150px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        width: auto;
     }
 }
 </style>

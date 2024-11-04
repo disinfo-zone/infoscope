@@ -108,10 +108,9 @@ func (s *Service) AddFeed(url string) error {
 	if err != nil {
 		return fmt.Errorf("feed validation failed: %w", err)
 	}
-
-	// Insert the feed
+	// Insert the feed with active status
 	result, err := s.db.Exec(
-		"INSERT INTO feeds (url, title) VALUES (?, ?)",
+		"INSERT INTO feeds (url, title, status) VALUES (?, ?, 'active')", // Add status
 		url, validationResult.Title,
 	)
 	if err != nil {

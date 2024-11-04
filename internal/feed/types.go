@@ -17,8 +17,11 @@ type Entry struct {
 	FeedID      int64     `json:"feedId"`
 	Title       string    `json:"title"`
 	URL         string    `json:"url"`
+	Content     string    `json:"content,omitempty"`
+	GUID        string    `json:"guid,omitempty"`
 	PublishedAt time.Time `json:"publishedAt"`
-	FaviconURL  string    `json:"faviconURL"`
+	FaviconURL  string    `json:"faviconUrl,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type FetchResult struct {

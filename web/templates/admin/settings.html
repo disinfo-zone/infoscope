@@ -6,48 +6,48 @@
         <form id="settingsForm">
             <div class="setting-group">
                 <label for="siteTitle">Site Title</label>
-                <input type="text" id="siteTitle" name="siteTitle" value="{{ index .Settings "site_title" }}" required>
+                <input type="text" id="siteTitle" name="siteTitle" value="{{ index .Data.Settings "site_title" }}" required>
             </div>
             <div class="setting-group">
                 <label for="maxPosts">Maximum Posts</label>
-                <input type="number" id="maxPosts" name="maxPosts" value="{{ index .Settings "max_posts" }}" min="1" required>
+                <input type="number" id="maxPosts" name="maxPosts" value="{{ index .Data.Settings "max_posts" }}" min="1" required>
             </div>
             <div class="setting-group">
                 <label for="updateInterval">Update Interval (seconds)</label>
-                <input type="number" id="updateInterval" name="updateInterval" value="{{ index .Settings "update_interval" }}" min="60" required>
+                <input type="number" id="updateInterval" name="updateInterval" value="{{ index .Data.Settings "update_interval" }}" min="60" required>
             </div>
             <div class="setting-group">
                 <label for="headerLinkText">Header Link Text</label>
-                <input type="text" id="headerLinkText" name="headerLinkText" value="{{ index .Settings "header_link_text" }}" required>
+                <input type="text" id="headerLinkText" name="headerLinkText" value="{{ index .Data.Settings "header_link_text" }}" required>
             </div>
             <div class="setting-group">
                 <label for="headerLinkURL">Header Link URL</label>
-                <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Settings "header_link_url" }}" required>
+                <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Data.Settings "header_link_url" }}" required>
             </div>
             <div class="setting-group">
                 <label for="footerLinkText">Footer Link Text</label>
-                <input type="text" id="footerLinkText" name="footerLinkText" value="{{ index .Settings "footer_link_text" }}" required>
+                <input type="text" id="footerLinkText" name="footerLinkText" value="{{ index .Data.Settings "footer_link_text" }}" required>
             </div>
             <div class="setting-group">
                 <label for="footerLinkURL">Footer Link URL</label>
-                <input type="url" id="footerLinkURL" name="footerLinkURL" value="{{ index .Settings "footer_link_url" }}" required>
+                <input type="url" id="footerLinkURL" name="footerLinkURL" value="{{ index .Data.Settings "footer_link_url" }}" required>
             </div>
             <div class="setting-group">
                 <label for="footerImageHeight">Footer Image Height</label>
-                <input type="text" id="footerImageHeight" name="footerImageHeight" value="{{ index .Settings "footer_image_height" }}" required>
+                <input type="text" id="footerImageHeight" name="footerImageHeight" value="{{ index .Data.Settings "footer_image_height" }}" required>
             </div>
             <div class="setting-group">
                 <label>Footer Image</label>
-                {{ if index .Settings "footer_image_url" }}
+                {{ if index .Data.Settings "footer_image_url" }}
                 <div class="current-image">
-                    <img src="/static/images/{{ index .Settings "footer_image_url" }}" alt="Footer image" style="max-height: 100px">
+                    <img src="/static/images/{{ index .Data.Settings "footer_image_url" }}" alt="Footer image" style="max-height: 100px">
                 </div>
                 {{ end }}
                 <input type="file" id="footerImage" name="footerImage" accept="image/*" class="file-input">
             </div>
             <div class="setting-group">
                 <label for="trackingCode">Tracking Code</label>
-                <textarea id="trackingCode" name="trackingCode" rows="5" placeholder="Paste your analytics or tracking code here">{{ index .Settings "tracking_code" }}</textarea>
+                <textarea id="trackingCode" name="trackingCode" rows="5" placeholder="Paste your analytics or tracking code here">{{ index .Data.Settings "tracking_code" }}</textarea>
                 <div class="help-text">
                     Paste your analytics code (e.g., Google Analytics, Umami) here. It will be added to the bottom of every page.
                 </div>
@@ -68,13 +68,17 @@
         </form>
     </div>
 </div>
-
+{{ end }}
+{{ define "styles" }}
 <style>
+/* Container */
 .settings-container {
     max-width: 800px;
     margin: 0 auto;
+    padding: 1rem;
 }
 
+/* Panel styling */
 .panel {
     background: #1a2438;
     padding: 2rem;
@@ -82,6 +86,7 @@
     margin-top: 1.5rem;
 }
 
+/* Form groups */
 .setting-group {
     margin-bottom: 1.5rem;
 }
@@ -93,6 +98,7 @@
     font-size: 0.95rem;
 }
 
+/* Form inputs */
 .setting-group input[type="text"],
 .setting-group input[type="number"],
 .setting-group input[type="url"],
@@ -106,6 +112,7 @@
     font-family: inherit;
     font-size: 1rem;
     transition: border-color 0.2s;
+    box-sizing: border-box;
 }
 
 .setting-group input:focus,
@@ -114,12 +121,7 @@
     border-color: #67bb79;
 }
 
-.setting-group textarea {
-    resize: vertical;
-    min-height: 100px;
-    font-family: 'Courier New', Courier, monospace;
-}
-
+/* File input */
 .file-input {
     display: block;
     width: 100%;
@@ -128,9 +130,9 @@
     border: 1px solid #2a3450;
     border-radius: 4px;
     color: #7da9b7;
-    margin-top: 0.5rem;
 }
 
+/* Current image preview */
 .current-image {
     margin: 1rem 0;
     padding: 1rem;
@@ -144,12 +146,14 @@
     height: auto;
 }
 
+/* Help text */
 .help-text {
     margin-top: 0.5rem;
     font-size: 0.9rem;
     color: #7da9b7;
 }
 
+/* Submit button */
 .submit-button {
     background: #67bb79;
     color: #121a2b;
@@ -167,6 +171,7 @@
     background: #39ff64;
 }
 
+/* Status messages */
 .status {
     margin-top: 1rem;
     padding: 0.75rem;
@@ -186,12 +191,7 @@
     color: #fff;
 }
 
-@media (max-width: 768px) {
-    .panel {
-        padding: 1.5rem;
-    }
-}
-
+/* Backup section */
 .backup-section {
     margin-top: 2rem;
     padding-top: 2rem;
@@ -217,9 +217,6 @@
     font-family: inherit;
     font-size: 1rem;
     transition: background-color 0.2s;
-}
-
-.backup-button {
     background: #2a3450;
     color: #7da9b7;
 }
@@ -237,92 +234,100 @@
     background: #39ff64;
 }
 
-.backup-status {
-    margin-top: 1rem;
-    padding: 0.75rem;
-    border-radius: 4px;
-    display: none;
-}
-
-.backup-status.success {
-    display: block;
-    background: #67bb79;
-    color: #121a2b;
-}
-
-.backup-status.error {
-    display: block;
-    background: #bb6767;
-    color: #fff;
+/* Responsive design */
+@media (max-width: 768px) {
+    .panel {
+        padding: 1.5rem;
+    }
+    
+    .backup-actions {
+        flex-direction: column;
+    }
 }
 </style>
+{{ end }}
+{{ define "scripts" }}
 <script>
+    // Form submission handler
     document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    console.log('Settings form submitted');
-    const status = document.getElementById('status');
-
-    try {
-        // Handle image upload first if there's a new image
-        const imageInput = document.getElementById('footerImage');
-        let imageFilename = '{{ index .Settings "footer_image_url" }}';
+        e.preventDefault();
+        console.log('Settings form submitted');
+        const status = document.getElementById('status');
         
-        if (imageInput.files.length > 0) {
-            console.log('Uploading new image...');
-            const formData = new FormData();
-            formData.append('image', imageInput.files[0]);
+        try {
+            // Handle image upload first if there's a new image
+            const imageInput = document.getElementById('footerImage');
+            let imageFilename = '{{ index .Data.Settings "footer_image_url" }}';
             
-            const token = getCSRFToken();
-            console.log('Using token for image upload:', token);
-            
-            const response = await fetch('/admin/upload-image', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-Token': token
-                },
-                body: formData
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Image upload failed:', errorText);
-                throw new Error(errorText);
+            if (imageInput.files.length > 0) {
+                console.log('Uploading new image...');
+                const formData = new FormData();
+                formData.append('image', imageInput.files[0]);
+                
+                const token = csrf.getToken();
+                console.log('Using token for image upload:', token);
+                
+                const response = await fetch('/admin/upload-image', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': token
+                    },
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Image upload failed:', errorText);
+                    throw new Error(errorText);
+                }
+                
+                imageFilename = await response.text();
+                console.log('Image uploaded successfully:', imageFilename);
             }
-            
-            imageFilename = await response.text();
-            console.log('Image uploaded successfully:', imageFilename);
+    
+            // Build settings data
+            const formData = {
+                siteTitle: document.getElementById('siteTitle').value,
+                maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
+                updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
+                headerLinkText: document.getElementById('headerLinkText').value,
+                headerLinkURL: document.getElementById('headerLinkURL').value,
+                footerLinkText: document.getElementById('footerLinkText').value,
+                footerLinkURL: document.getElementById('footerLinkURL').value,
+                footerImageHeight: document.getElementById('footerImageHeight').value,
+                footerImageURL: imageFilename,
+                trackingCode: document.getElementById('trackingCode').value
+            };
+    
+            const response = await csrf.fetch('/admin/settings', {
+                method: 'POST',
+                body: JSON.stringify(formData)
+            });
+            showStatus('Settings saved successfully!', 'success');
+        } catch (err) {
+            console.error('Settings save failed:', err);
+            showStatus('Error saving settings: ' + err.message, 'error');
         }
-
-        // Build settings data
-        const formData = {
-            siteTitle: document.getElementById('siteTitle').value,
-            maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
-            updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
-            headerLinkText: document.getElementById('headerLinkText').value,
-            headerLinkURL: document.getElementById('headerLinkURL').value,
-            footerLinkText: document.getElementById('footerLinkText').value,
-            footerLinkURL: document.getElementById('footerLinkURL').value,
-            footerImageHeight: document.getElementById('footerImageHeight').value,
-            footerImageURL: imageFilename,
-            trackingCode: document.getElementById('trackingCode').value
-        };
-
-        console.log('Saving settings:', formData);
-
-        const response = await fetchWithCSRF('/admin/settings', {
-            method: 'POST',
-            body: JSON.stringify(formData)
-        });
-
-        console.log('Settings saved successfully');
-        showStatus('Settings saved successfully!', 'success');
-    } catch (err) {
-        console.error('Settings save failed:', err);
-        showStatus('Error saving settings: ' + err.message, 'error');
+    });
+    
+    function showStatus(message, type) {
+        const status = document.getElementById('status');
+        status.textContent = message;
+        status.className = 'status ' + type;
+        setTimeout(() => {
+            status.className = 'status';
+        }, 3000);
     }
-});
-</script>
-<script>
+    
+    function showBackupStatus(message, type) {
+        const status = document.getElementById('backupStatus');
+        status.textContent = message;
+        status.className = 'backup-status ' + type;
+        setTimeout(() => {
+            status.className = 'backup-status';
+        }, 3000);
+    }
+    
     async function exportBackup() {
         try {
             const response = await fetch('/admin/backup', {
@@ -333,7 +338,6 @@
                 throw new Error('Failed to create backup');
             }
             
-            // Create download
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -361,7 +365,7 @@
                 try {
                     const backup = JSON.parse(e.target.result);
                     
-                    const response = await fetch('/admin/backup', {
+                    const response = await csrf.fetch('/admin/backup', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -383,15 +387,6 @@
         } catch (err) {
             showBackupStatus('Error reading backup file: ' + err.message, 'error');
         }
-    }
-    
-    function showBackupStatus(message, type) {
-        const status = document.getElementById('backupStatus');
-        status.textContent = message;
-        status.className = 'backup-status ' + type;
-        setTimeout(() => {
-            status.className = 'backup-status';
-        }, 3000);
     }
     </script>
 {{ end }}

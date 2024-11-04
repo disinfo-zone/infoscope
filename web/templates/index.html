@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{ .Title }}</title>
+    <title>{{ .Data.Title }}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ .CSRFToken }}">
     <style>
         body {
             font-family: 'Courier New', Courier, monospace;
@@ -9,153 +12,194 @@
             color: #7da9b7;
             margin: 0;
             padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-
-        .header-link, .footer-link {
-            display: block;
-            color: #7da9b7;
-            text-decoration: none;
-            margin: 20px 0;
-            text-align: center;  /* Add this line */
-        }
-
-        .return {
-            text-decoration: none;
-            color: #7da9b7;
-        }
-
+    
         h1 {
             color: #c4d3cb;
             text-align: center;
+            margin-bottom: 1rem;
         }
-
+    
+        .header-link, .footer-link {
+            color: #67bb79;
+            text-decoration: none;
+            text-align: center;
+            margin: 1rem 0;
+            display: block;
+            font-size: 0.97em;
+        }
+    
         .feed {
             max-width: 960px;
-            margin: 0 auto;
+            margin: 2rem auto;
+            flex: 1;
         }
-
+    
         .entry {
             display: grid;
             grid-template-columns: auto auto 1fr auto;
-            align-items: center;
             gap: 10px;
-            margin-bottom: 15px;
-            padding: 10px;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 4px;
+            transition: background-color 0.2s;
         }
-
+    
+        .entry:hover {
+            background-color: #1a2438;
+        }
+    
         .favicon {
-            height: 1em;
-            width: 1em;
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
         }
-
-        .link-container a {
-            color: #a5c5cf;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-        .dots {
+    
+        .link-container {
             overflow: hidden;
+            text-overflow: ellipsis;
             white-space: nowrap;
-            text-overflow: clip;
         }
-
+    
+        .link-container a {
+        color: #7da9b7;
+        text-decoration: none;
+        transition: color 0.2s;
+        font-weight: bold;
+        }
+    
+        .link-container a:hover {
+            color: #67bb79;
+        }
+    
+        .dots {
+            color: #2a3450;
+            margin: 0 8px;
+            overflow: hidden;
+        }
+    
         .date {
-            color: #7da9b7;
+            color: #4a5d6b;
+            white-space: nowrap;
+            font-size: 0.9em;
         }
-
+    
         .footer {
             text-align: center;
-            margin-top: 40px;
+            margin-top: auto;
+            padding: 2rem 0;
         }
-
-        .footer-image {
-            margin: 20px 0;
-            text-align: center;
-        }
-
+    
         .footer-image img {
-            display: block;
-            margin: 0 auto;
-            height: {{ .FooterImageHeight }};
+            height: {{ .Data.FooterImageHeight }};
             width: auto;
             max-width: 100%;
+            margin-bottom: 1rem;
         }
-
+    
+        .no-entries {
+            text-align: center;
+            padding: 2rem;
+            color: #4a5d6b;
+        }
+    
         @media (max-width: 600px) {
             .entry {
-                grid-template-columns: auto auto 1fr;
+                grid-template-columns: auto 1fr;
                 grid-template-rows: auto auto;
+                gap: 5px;
             }
-
+    
+            .favicon {
+                grid-row: 1;
+                grid-column: 1;
+            }
+    
             .link-container {
                 grid-row: 1;
-                grid-column: 2 / span 2;
+                grid-column: 2;
             }
-
+    
             .dots {
                 display: none;
             }
-
+    
             .date {
                 grid-row: 2;
-                grid-column: 2 / span 2;
+                grid-column: 2;
+                justify-self: start;
             }
         }
     </style>
-    <script>
-    function getCSRFToken() {
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        return meta ? meta.content : null;
-    }
-
-    function trackClick(entryId, url) {
-        const csrfToken = getCSRFToken();
-        if (!csrfToken) {
-            console.error('CSRF token not found');
-            return true; // Allow link to open even if tracking fails
-        }
-
-        fetch('/click?id=' + entryId, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken
-            },
-            credentials: 'include' // Include cookies
-        }).catch(console.error);
-
-        // Open the link in a new tab
-        window.open(url, '_blank');
-        return false; // Prevent default link behavior
-    }
-    </script>
 </head>
 <body>
-    <h1>{{ .Title }}</h1>
-    <a href="{{ .HeaderLinkURL }}" class="header-link return">{{ .HeaderLinkText }}</a>
+    <h1>{{ .Data.Title }}</h1>
+    <a href="{{ .Data.HeaderLinkURL }}" class="header-link return">{{ .Data.HeaderLinkText }}</a>
+
     <div class="feed">
-        {{ range .Entries }}
+        <!-- Debug output -->
+        <script>console.log('Feed entries:', {{ .Data.Entries | printf "%#v" }})</script>
+        
+        {{ range .Data.Entries }}
         <div class="entry">
-            <img class="favicon" src="{{ .FaviconURL }}" alt="favicon">
+            <!-- Debug output per entry -->
+            <script>console.log('Processing entry:', {{ . | printf "%#v" }})</script>
+            
+            <img class="favicon" src="{{ .FaviconURL }}" onerror="this.style.display='none'" alt="favicon">
             <div class="link-container">
                 <a href="{{ .URL }}" onclick="return trackClick({{ .ID }}, '{{ .URL }}')" target="_blank">{{ .Title }}</a>
             </div>
-            <span class="dots">......................................................................</span>
+            <span class="dots">.........................................................................</span>
             <span class="date">{{ .Date }}</span>
         </div>
+        {{ else }}
+        <!-- Show when no entries -->
+        <div class="no-entries">No entries found</div>
         {{ end }}
     </div>
+
     <div class="footer">
-        {{ if .FooterImageURL }}
+        {{ if .Data.FooterImageURL }}
         <div class="footer-image">
-            <img src="/static/images/{{ .FooterImageURL }}" alt="Footer image">
+            <img src="/static/images/{{ .Data.FooterImageURL }}" alt="Footer image">
         </div>
         {{ end }}
-        <a href="{{ .FooterLinkURL }}" class="footer-link return">{{ .FooterLinkText }}</a>
+        <a href="{{ .Data.FooterLinkURL }}" class="footer-link return">{{ .Data.FooterLinkText }}</a>
     </div>
-    {{ if .TrackingCode }}
-        {{ .TrackingCode | safeHTML }}
+
+    <script>
+        function getCSRFToken() {
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            return meta ? meta.content : null;
+        }
+
+        function trackClick(entryId, url) {
+            const csrfToken = getCSRFToken();
+            if (!csrfToken) {
+                console.error('CSRF token not found');
+                return true; // Allow link to open even if tracking fails
+            }
+
+            fetch('/click?id=' + entryId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                credentials: 'include' // Include cookies
+            }).catch(console.error);
+
+            window.open(url, '_blank');
+            return false; // Prevent default link behavior
+        }
+    </script>
+
+    {{ if .Data.TrackingCode }}
+    {{ .Data.TrackingCode | safeHTML }}
     {{ end }}
 </body>
 </html>

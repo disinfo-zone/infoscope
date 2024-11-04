@@ -2,7 +2,7 @@
 <html>
 <head>
     <title>Infoscope Login</title>
-    {{ .CSRFMeta }}
+    <meta name="csrf-token" content="{{ .CSRFToken }}">
     <style>
         body {
             font-family: 'Courier New', Courier, monospace;
@@ -79,6 +79,7 @@
     <div class="login-container">
         <h1>Infoscope Login</h1>
         <form id="loginForm">
+            <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
             <div class="form-group">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" required>
@@ -88,45 +89,48 @@
                 <input type="password" id="password" name="password" required>
             </div>
             <button type="submit">Login</button>
-            <div id="error" class="error"></div>
+            <div id="error" class="error">{{ if .Data.Error }}{{ .Data.Error }}{{ end }}</div>
         </form>
     </div>
-
+    
     <script>
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const error = document.getElementById('error');
             error.textContent = '';
-
-            const token = document.querySelector('meta[name="csrf-token"]')?.content;
-            if (!token) {
-                error.textContent = 'Security token not found. Please refresh the page.';
-                return;
-            }
-
+    
+            const token = document.querySelector('meta[name="csrf-token"]').content;
+            console.log("CSRF Token:", token); // Debug logging
+    
             try {
+                const formData = {
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value,
+                    csrf_token: token // Add CSRF token to request body
+                };
+    
                 const response = await fetch('/admin/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': token
                     },
-                    body: JSON.stringify({
-                        username: document.getElementById('username').value,
-                        password: document.getElementById('password').value
-                    })
+                    credentials: 'include', // Important: include cookies
+                    body: JSON.stringify(formData)
                 });
-
+    
+                console.log("Login response status:", response.status); // Debug logging
+    
                 if (!response.ok) {
-                    throw new Error(await response.text());
+                    const errorText = await response.text();
+                    console.error("Login error:", errorText); // Debug logging
+                    throw new Error(errorText || 'Login failed');
                 }
-
-                // Redirect to admin dashboard on success
+    
                 window.location.href = '/admin';
             } catch (err) {
+                console.error("Login error:", err); // Debug logging
                 error.textContent = err.message;
             }
         });
     </script>
-</body>
-</html>

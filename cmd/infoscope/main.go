@@ -24,6 +24,7 @@ var (
 	dbPath   = flag.String("db", "", "Path to database file (default: data/infoscope.db or INFOSCOPE_DB_PATH)")
 	dataPath = flag.String("data", "", "Path to data directory (default: data or INFOSCOPE_DATA_PATH)")
 	version  = flag.Bool("version", false, "Print version information")
+	prodMode = flag.Bool("prod", false, "Enable production mode (HTTPS-only features including strict CSRF)")
 )
 
 func main() {
@@ -53,11 +54,15 @@ func main() {
 		cfg.DataPath = *dataPath
 	}
 
+	// Set production mode
+	cfg.ProductionMode = *prodMode
+
 	// Log startup configuration
 	logger.Printf("Starting Infoscope v%s", Version)
 	logger.Printf("Port: %d", cfg.Port)
 	logger.Printf("Database: %s", cfg.DBPath)
 	logger.Printf("Data directory: %s", cfg.DataPath)
+	logger.Printf("Mode: %s", map[bool]string{true: "production", false: "development"}[cfg.ProductionMode])
 
 	// Create necessary directories
 	if err := os.MkdirAll(filepath.Dir(cfg.DBPath), 0755); err != nil {
@@ -99,12 +104,15 @@ func main() {
 		logger.Printf("Initial feed update failed: %v", err)
 	}
 
-	// Initialize server with error handling
-	srv, err := server.NewServer(db.DB, logger, feedService)
+	// Initialize server with configuration
+	srv, err := server.NewServer(db.DB, logger, feedService, server.Config{
+		UseHTTPS: cfg.ProductionMode,
+	})
 	if err != nil {
 		logger.Fatalf("Failed to initialize server: %v", err)
 	}
 
+	// Start server
 	logger.Printf("Starting server on port %d", cfg.Port)
 	if err := srv.Start(cfg.GetAddress()); err != nil {
 		logger.Fatalf("Server error: %v", err)
