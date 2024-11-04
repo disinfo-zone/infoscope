@@ -6,7 +6,7 @@ Infoscope is a minimalist public RSS river reader designed to reduce information
 
 Traditional RSS readers can create anxiety:
 - Unread counts become a constant reminder of "falling behind"
-- The pressure to "catch up" turns reading into a chore
+- The pressure to "catch up" turns reading into a chore 
 - Private feed lists keep valuable curation hidden from others
 - Infinite archives make it hard to "let go" of old content
 
@@ -25,25 +25,36 @@ Instead of treating content as something to be collected and archived, Infoscope
 Most RSS readers are private, treating feed selection as a personal choice. Infoscope takes a different approach. Feed selection becomes a form of public curation and curators can share their expertise through feed choices.
 
 ### Privacy-First Design
-While curation is public, reader privacy is paramount. Infoscope has no required user accounts, no personal data collection, and no cookies for basic functionality. The only statistics collected (clicks on links) is fully anonymous with no user data recorded at all.
+While curation is public, reader privacy is paramount. Infoscope has no required user accounts, no personal data collection, and minimal cookie usage (only for admin authentication and CSRF protection). The only statistics collected (clicks on links) are fully anonymous with no user data recorded.
+
+### Security Features
+- CSRF protection for all forms and API endpoints
+- Secure session handling for admin access
+- SQLite database with proper SQL injection prevention
+- Configurable production mode with enhanced security
 
 ### Minimalist Interface
-The interface is intentionally simple in keeping with the guiding ethos. It is a clean, distraction-free retro design with a focus on content discovery. This means no infinite scroll (admins define the number of links shown), no pagination, no unread counts, no retention of old entries.
+The interface is intentionally simple in keeping with the guiding ethos. It is a clean, distraction-free retro design with a focus on content discovery. This means:
+- No infinite scroll (admins define the number of links shown)
+- No pagination
+- No unread counts
+- No retention of old entries
+- Customizable header/footer links and images
 
-## Running Infoscope
+## Installation
 
 ### Quick Start
-
-A docker container as well as autobuilds of the go application are forthcoming, in the meantime you can build and deploy as follow:
-
 ```bash
 # Download and build
 git clone https://github.com/yourusername/infoscope.git
 cd infoscope
 go build ./cmd/infoscope
 
-# Run
+# Run in development mode
 ./infoscope
+
+# Run in production mode
+./infoscope -prod
 ```
 
 Visit `http://localhost:8080/setup` to complete installation. It should default to this page until an admin account has been created.
@@ -54,20 +65,34 @@ Command line flags:
 - `-port`: HTTP port (default: 8080)
 - `-db`: Database path (default: data/infoscope.db)
 - `-version`: Print version information
+- `prod`: Enable production mode with enhanced security
 
 Environment variables:
 - `INFOSCOPE_PORT`: HTTP port
 - `INFOSCOPE_DB_PATH`: Database path
+- `INFOSCOPE_DATA_PATH`: Data directory path
+
+### Development vs Production Mode:
+
+Development mode: Relaxed security and verbose debug information for testing
+Production mode: Enforces HTTPS-only features including strict CSRF protection
 
 ### Administration
 
 1. Access `/admin` and log in
 2. Add RSS feeds
 3. Configure settings:
-   - Site title
+   - Site title and appearance
    - Maximum posts to retain
    - Update interval
-   - Visual customization
+   - Header/footer customization
+   - Analytics/tracking code integration
+4. Manage feeds:
+   - Add/remove feeds
+   - Preview feed content before adding
+5. Backup/restore:
+   - Export settings and feed lists
+   - Import configuration from backup
 
 ## License
 
