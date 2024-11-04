@@ -124,3 +124,4 @@ SOFTWARE.
 - Built with assistance from Anthropic's Claude
 - [gofeed](https://github.com/mmcdole/gofeed) for RSS parsing
 - [go-sqlite3](https://github.com/mattn/go-sqlite3) for database operations
+- [Illuminati icon]((https://www.flaticon.com/free-icons/illuminati)) created by smalllikeart - Flaticon
