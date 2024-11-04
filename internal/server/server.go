@@ -60,8 +60,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/login", s.handleLogin)
 	mux.HandleFunc("/admin/logout", s.handleLogout)
 
-	// Protected admin routes
-	mux.HandleFunc("/admin", s.requireAuth(s.handleAdmin))
+	// Admin dashboard route (authentication handled inside)
+	mux.HandleFunc("/admin", s.handleAdmin)
+
+	// Protected admin routes (middleware enforced)
 	mux.HandleFunc("/admin/feeds", s.requireAuth(s.handleFeeds))
 	mux.HandleFunc("/admin/settings", s.requireAuth(s.handleSettings))
 	mux.HandleFunc("/admin/upload-image", s.requireAuth(s.imageHandler.HandleUpload))

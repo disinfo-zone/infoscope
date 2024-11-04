@@ -133,3 +133,7 @@ func CleanExpiredSessions(db *sql.DB) error {
 	_, err := db.Exec("DELETE FROM sessions WHERE expires_at <= ?", time.Now())
 	return err
 }
+
+func (s *Session) IsExpired() bool {
+	return s.ExpiresAt.Before(time.Now())
+}

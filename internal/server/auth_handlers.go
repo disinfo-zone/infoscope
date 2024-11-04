@@ -90,12 +90,24 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 
 // Main handler functions
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
-	userID, ok := getUserID(r.Context())
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	// Check authentication
+	cookie, err := r.Cookie("session")
+	if err != nil || cookie.Value == "" {
+		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return
 	}
 
+	// Validate session
+	session, err := s.auth.ValidateSession(s.db, cookie.Value)
+	if err != nil || session == nil || session.IsExpired() {
+		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+		return
+	}
+
+	// Proceed to render the admin dashboard
+	userID := session.UserID
+
+	// Get dashboard counts
 	feedCount, entryCount, err := s.getDashboardCounts(r.Context())
 	if err != nil {
 		s.logger.Printf("Error getting counts (user %d): %v", userID, err)
@@ -103,18 +115,21 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get last update time
 	lastUpdateStr, err := s.getLastUpdateTime(r.Context())
 	if err != nil {
 		s.logger.Printf("Error getting last update (user %d): %v", userID, err)
 		lastUpdateStr = "Never"
 	}
 
+	// Get click statistics
 	clickStats, err := s.getClickStats()
 	if err != nil {
 		s.logger.Printf("Error getting click stats (user %d): %v", userID, err)
-		clickStats = &DashboardStats{} // Empty stats if there's an error
+		clickStats = &DashboardStats{} // Initialize with empty stats
 	}
 
+	// Prepare data for the template
 	data := struct {
 		CSRFToken  string
 		Title      string
@@ -135,10 +150,12 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		ClickStats: clickStats,
 	}
 
+	// Render the template
 	if err := s.renderTemplate(w, r, "admin/dashboard.html", data); err != nil {
 		s.logger.Printf("Error rendering template (user %d): %v", userID, err)
 		if !headerWritten(w) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
 		}
 	}
 }
@@ -221,35 +238,36 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		// Redirect to login page if method is not POST
+		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return
 	}
 
 	if !s.csrf.Validate(w, r) {
+		// Redirect to login page if CSRF validation fails
+		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return
 	}
 
 	cookie, err := r.Cookie("session")
-	if err != nil {
-		http.Error(w, "No session found", http.StatusUnauthorized)
-		return
+	if err == nil && cookie.Value != "" {
+		// Invalidate the session in the database
+		if err := s.auth.InvalidateSession(s.db, cookie.Value); err != nil {
+			s.logger.Printf("Error invalidating session: %v", err)
+		}
+
+		// Clear the session cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session",
+			Value:    "",
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   s.csrf.config.Secure,
+			SameSite: http.SameSiteStrictMode,
+			MaxAge:   -1,
+		})
 	}
 
-	if err := s.auth.InvalidateSession(s.db, cookie.Value); err != nil {
-		s.logger.Printf("Error invalidating session: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session",
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   s.csrf.config.Secure,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   -1,
-	})
-
-	w.WriteHeader(http.StatusOK)
+	// Redirect to login page after logout
+	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
