@@ -43,16 +43,33 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		// Serve setup page
+		// Get CSRF token
+		csrfToken := s.csrf.Token(w, r)
+
+		// Serve setup page with CSRF token
+		data := struct {
+			CSRFToken string
+		}{
+			CSRFToken: csrfToken,
+		}
+
 		tmpl, err := template.ParseFiles("web/templates/setup.html")
 		if err != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		tmpl.Execute(w, nil)
+
+		if err := tmpl.Execute(w, data); err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodPost:
-		// Handle setup submission
+		// Validate CSRF token
+		if !s.csrf.Validate(w, r) {
+			return
+		}
+
 		var req setupRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -86,7 +103,6 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 				"site_title", req.SiteTitle,
 			)
 			if err != nil {
-				// Log error but don't fail setup
 				s.logger.Printf("Failed to set site title: %v", err)
 			}
 		}

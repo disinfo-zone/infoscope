@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Infoscope Setup</title>
+    <meta name="csrf-token" content="{{ .CSRFToken }}">
     <style>
         body {
             font-family: 'Courier New', Courier, monospace;
@@ -112,29 +113,33 @@
             e.preventDefault();
             const error = document.getElementById('error');
             error.textContent = '';
-
+    
+            // Get CSRF token from meta tag
+            const token = document.querySelector('meta[name="csrf-token"]').content;
+            
             const formData = {
                 siteTitle: document.getElementById('siteTitle').value,
                 username: document.getElementById('username').value,
                 password: document.getElementById('password').value,
                 confirmPassword: document.getElementById('confirmPassword').value
             };
-
+    
             try {
                 const response = await fetch('/setup', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': token
                     },
+                    credentials: 'same-origin',
                     body: JSON.stringify(formData)
                 });
-
+    
                 if (!response.ok) {
                     const data = await response.text();
                     throw new Error(data);
                 }
-
-                // Redirect to login page on success
+                
                 window.location.href = '/admin/login';
             } catch (err) {
                 error.textContent = err.message;

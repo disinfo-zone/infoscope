@@ -50,7 +50,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	// Setup route - must be checked before other routes
-	mux.HandleFunc("/setup", s.handleSetup)
+	mux.Handle("/setup", s.csrf.Middleware(http.HandlerFunc(s.handleSetup)))
 
 	// Public routes
 	mux.HandleFunc("/", s.handleIndex)
