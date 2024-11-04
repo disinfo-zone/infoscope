@@ -33,3 +33,7 @@ Thumbs.db
 
 # Environment variables
 .env
+
+# Build artifacts
+dist/
+*.syso
