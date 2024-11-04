@@ -1,4 +1,7 @@
-// cmd/infoscope/main.go
+//go:build windows
+// +build windows
+
+//go:generate go run github.com/tc-hib/go-winres make --in winres.json
 package main
 
 import (

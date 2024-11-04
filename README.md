@@ -15,11 +15,7 @@ Traditional RSS readers can create anxiety:
 Infoscope approaches these challenges differently:
 
 ### The River Metaphor
-Instead of treating content as something to be collected and archived, Infoscope presents it as a flowing river. Like a real river, you can:
-- Stop by whenever you want to see what's flowing past
-- Take what interests you in the moment
-- Let the rest flow by without worry
-- Return tomorrow to find fresh content
+Instead of treating content as something to be collected and archived, Infoscope presents it as a flowing river. Like a real river, you can stop by whenever you want to see what's flowing past and take what interests you in the moment. Let the rest flow by without worry and return tomorrow to find fresh content.
 
 ### Public Curation
 Most RSS readers are private, treating feed selection as a personal choice. Infoscope takes a different approach. Feed selection becomes a form of public curation and curators can share their expertise through feed choices.
@@ -65,7 +61,7 @@ Command line flags:
 - `-port`: HTTP port (default: 8080)
 - `-db`: Database path (default: data/infoscope.db)
 - `-version`: Print version information
-- `prod`: Enable production mode with enhanced security
+- `-prod`: Enable production mode with enhanced security
 
 Environment variables:
 - `INFOSCOPE_PORT`: HTTP port
@@ -75,6 +71,7 @@ Environment variables:
 ### Development vs Production Mode:
 
 Development mode: Relaxed security and verbose debug information for testing
+
 Production mode: Enforces HTTPS-only features including strict CSRF protection
 
 ### Administration
@@ -124,3 +121,4 @@ SOFTWARE.
 - Built with assistance from Anthropic's Claude
 - [gofeed](https://github.com/mmcdole/gofeed) for RSS parsing
 - [go-sqlite3](https://github.com/mattn/go-sqlite3) for database operations
+- [Illuminati icon]((https://www.flaticon.com/free-icons/illuminati)) created by smalllikeart - Flaticon
