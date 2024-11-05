@@ -40,20 +40,32 @@ The interface is intentionally simple in keeping with the guiding ethos. It is a
 ## Installation
 
 ### Quick Start
+
+Download Linux and Windows AMD64 binaries from the releases page or build from scratch:
+
 ```bash
 # Download and build
 git clone https://github.com/yourusername/infoscope.git
 cd infoscope
 go build ./cmd/infoscope
 ```
-or download Linux and Windows AMD64 binaries from the releases page. To start:
-
+To run on linux:
 ```
 # Run in development mode
 ./infoscope
-
+```
+```
 # Run in production mode
 ./infoscope -prod
+```
+On windows:
+```
+# Run in development mode
+infoscope.exe
+```
+```
+# Run in production mode
+infoscope.exe -prod
 ```
 
 Visit `http://localhost:8080/setup` to complete installation. It should default to this page until an admin account has been created. Once created, admin page is accessed at `/admin`.
@@ -72,6 +84,33 @@ Environment variables:
 - `INFOSCOPE_PORT`: HTTP port
 - `INFOSCOPE_DB_PATH`: Database path
 - `INFOSCOPE_DATA_PATH`: Data directory path
+
+## Docker Installation
+
+Run Infoscopeion in production mode using Docker:
+
+```bash
+docker run -d \
+  --name infoscope \
+  -p 8080:8080 \
+  -v infoscope-data:/app/data \
+  -v infoscope-web:/app/web \
+  -e INFOSCOPE_PRODUCTION=true \
+  ghcr.io/yourusername/infoscope:latest
+```
+### Environment variables supported in Docker:
+
+- `INFOSCOPE_PORT`: HTTP port (default: 8080)
+- `INFOSCOPE_DB_PATH`: Database path (default: /app/data/infoscope.db)
+- `INFOSCOPE_DATA_PATH`: Data directory (default: /app/data)
+- `INFOSCOPE_WEB_PATH`: Web content path (default: /app/web)
+- `INFOSCOPE_PRODUCTION`: Enable production mode (true/false)
+- `INFOSCOPE_NO_TEMPLATE_UPDATES`: Disable template updates (true/false)
+
+### Volumes:
+
+- `/app/data`: Database and data files
+- `/app/web`: Web content and templates
 
 ### Template Management
 
