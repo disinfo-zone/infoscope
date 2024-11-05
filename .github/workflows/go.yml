@@ -54,11 +54,15 @@ jobs:
         New-Item -ItemType Directory -Force -Path web\static\images
       shell: powershell
 
-    - name: Setup MinGW (Windows)
+    - name: Setup MSYS2 (Windows)
       if: runner.os == 'Windows'
-      uses: egor-tensin/setup-mingw@v2
+      uses: msys2/setup-msys2@v2
       with:
-        platform: x64
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-pkg-config
 
     - name: Build (Linux)
       if: runner.os == 'Linux'
@@ -75,7 +79,8 @@ jobs:
         GOOS: ${{ matrix.target.os }}
         GOARCH: ${{ matrix.target.arch }}
         CGO_ENABLED: 1
-        CC: x86_64-w64-mingw32-gcc
+        CC: gcc
+      shell: msys2 {0}
       run: |
         go build -v -ldflags="-X main.Version=${{ github.ref_name }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
 
