@@ -15,7 +15,6 @@ jobs:
         target:
           - {os: windows, arch: amd64, ext: '.exe'}
           - {os: linux, arch: amd64, ext: ''}
-          - {os: linux, arch: arm64, ext: ''}
 
     steps:
     - uses: actions/checkout@v4
