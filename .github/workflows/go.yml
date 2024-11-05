@@ -2,7 +2,8 @@ name: Release Build
 
 on:
   release:
-    types: [created]
+    types: [published]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -72,6 +73,7 @@ jobs:
         go build -v -ldflags="-X main.Version=${{ github.ref_name }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
 
     - name: Upload Release Asset
+      if: github.event_name == 'release'
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,3 +82,10 @@ jobs:
         asset_path: ./infoscope${{ matrix.target.ext }}
         asset_name: infoscope-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.ext }}
         asset_content_type: application/octet-stream
+
+    - name: Upload Build Artifact
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: infoscope-${{ matrix.target.os }}-${{ matrix.target.arch }}
+        path: infoscope${{ matrix.target.ext }}
