@@ -79,9 +79,10 @@ jobs:
         GOOS: ${{ matrix.target.os }}
         GOARCH: ${{ matrix.target.arch }}
         CGO_ENABLED: 1
-        CC: gcc
-      shell: msys2 {0}
+        CC: C:/msys64/mingw64/bin/gcc.exe
+      shell: powershell
       run: |
+        $env:PATH = "C:\msys64\mingw64\bin;$env:PATH"
         go build -v -ldflags="-X main.Version=${{ github.ref_name }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
 
     - name: Upload Release Asset
