@@ -1,14 +1,11 @@
 name: Release
-
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
-
 permissions:
   contents: write
   id-token: write
-
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
@@ -27,7 +24,7 @@ jobs:
         run: sudo apt-get install -y upx-ucl
       
       - name: SLSA Go Builder
-        uses: slsa-framework/slsa-github-generator/actions/builder/go@v1
+        uses: slsa-framework/slsa-github-generator/actions/golang/release@v1
         with:
           go-version: '1.22'
           config: .slsa-goreleaser.yml
