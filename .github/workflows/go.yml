@@ -1,0 +1,103 @@
+name: Release Build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target:
+          - os: windows
+            arch: amd64
+            ext: '.exe'
+            runner: windows-latest
+            shell: powershell
+          - os: linux
+            arch: amd64
+            ext: ''
+            runner: ubuntu-latest
+            shell: bash
+
+    runs-on: ${{ matrix.target.runner }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22.4'
+
+    - name: Install dependencies
+      run: |
+        go get github.com/mattn/go-sqlite3@v1.14.24
+        go get github.com/mmcdole/gofeed@v1.3.0
+        go get golang.org/x/crypto@v0.28.0
+        go get golang.org/x/net@v0.30.0
+
+    - name: Create Directories (Linux) 
+      if: runner.os == 'Linux'
+      run: |
+        mkdir -p data
+        mkdir -p web/static/favicons
+        mkdir -p web/static/images
+      shell: bash
+
+    - name: Create Directories (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        New-Item -ItemType Directory -Force -Path data
+        New-Item -ItemType Directory -Force -Path web\static\favicons
+        New-Item -ItemType Directory -Force -Path web\static\images
+      shell: powershell
+
+    - name: Setup MSYS2 (Windows)
+      if: runner.os == 'Windows'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-pkg-config
+
+    - name: Build (Linux)
+      if: runner.os == 'Linux'
+      env:
+        GOOS: ${{ matrix.target.os }}
+        GOARCH: ${{ matrix.target.arch }}
+        CGO_ENABLED: 1
+      run: |
+        go build -v -ldflags="-X main.Version=${{ github.ref_name }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
+
+    - name: Build (Windows) 
+      if: runner.os == 'Windows'
+      env:
+        GOOS: ${{ matrix.target.os }}
+        GOARCH: ${{ matrix.target.arch }}
+        CGO_ENABLED: 1
+        CC: gcc
+      shell: msys2 {0}
+      run: |
+        go build -v -ldflags="-X main.Version=${{ github.ref_name }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
+
+    - name: Upload Release Asset
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./infoscope${{ matrix.target.ext }}
+        asset_name: infoscope-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.ext }}
+        asset_content_type: application/octet-stream
+
+    - name: Upload Build Artifact
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: infoscope-${{ matrix.target.os }}-${{ matrix.target.arch }}
+        path: infoscope${{ matrix.target.ext }}
