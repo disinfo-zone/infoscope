@@ -1,10 +1,12 @@
-name: Go Build & Test
+name: Go Build & Release
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  release:
+    types: [created]
 
 jobs:
   build:
@@ -63,7 +65,6 @@ jobs:
         CGO_ENABLED: 1
       run: |
         go build -v -ldflags="-X main.Version=${{ github.sha }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
-      shell: bash
 
     - name: Build (Windows) 
       if: runner.os == 'Windows'
@@ -73,7 +74,6 @@ jobs:
         CGO_ENABLED: 1
       run: |
         go build -v -ldflags="-X main.Version=${{ github.sha }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
-      shell: powershell
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
@@ -83,3 +83,14 @@ jobs:
           infoscope${{ matrix.target.ext }}
           web/
           data/
+
+    - name: Upload Release Binary
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./infoscope${{ matrix.target.ext }}
+        asset_name: infoscope-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.ext }}
+        asset_content_type: application/octet-stream
