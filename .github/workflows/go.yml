@@ -33,28 +33,27 @@ jobs:
         go-version: '1.22.4'
 
     - name: Install dependencies
-      shell: ${{ matrix.target.shell }}
       run: |
         go get github.com/mattn/go-sqlite3@v1.14.24
         go get github.com/mmcdole/gofeed@v1.3.0
         go get golang.org/x/crypto@v0.28.0
         go get golang.org/x/net@v0.30.0
 
-    - name: Create Directories (Linux)
+    - name: Create Directories (Linux) 
       if: runner.os == 'Linux'
-      shell: bash
       run: |
         mkdir -p data
         mkdir -p web/static/favicons
         mkdir -p web/static/images
+      shell: bash
 
     - name: Create Directories (Windows)
       if: runner.os == 'Windows'
-      shell: powershell
       run: |
         New-Item -ItemType Directory -Force -Path data
         New-Item -ItemType Directory -Force -Path web\static\favicons
         New-Item -ItemType Directory -Force -Path web\static\images
+      shell: powershell
 
     - name: Build (Linux)
       if: runner.os == 'Linux'
@@ -62,19 +61,19 @@ jobs:
         GOOS: ${{ matrix.target.os }}
         GOARCH: ${{ matrix.target.arch }}
         CGO_ENABLED: 1
-      shell: bash
       run: |
         go build -v -ldflags="-X main.Version=${{ github.sha }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
+      shell: bash
 
-    - name: Build (Windows)
+    - name: Build (Windows) 
       if: runner.os == 'Windows'
       env:
         GOOS: ${{ matrix.target.os }}
         GOARCH: ${{ matrix.target.arch }}
         CGO_ENABLED: 1
-      shell: powershell
       run: |
         go build -v -ldflags="-X main.Version=${{ github.sha }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
+      shell: powershell
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
