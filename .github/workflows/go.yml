@@ -8,13 +8,21 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    
     strategy:
       matrix:
         target:
-          - {os: windows, arch: amd64, ext: '.exe'}
-          - {os: linux, arch: amd64, ext: ''}
+          - os: windows
+            arch: amd64
+            ext: '.exe'
+            runner: windows-latest
+            shell: powershell
+          - os: linux
+            arch: amd64
+            ext: ''
+            runner: ubuntu-latest
+            shell: bash
+
+    runs-on: ${{ matrix.target.runner }}
 
     steps:
     - uses: actions/checkout@v4
@@ -25,23 +33,46 @@ jobs:
         go-version: '1.22.4'
 
     - name: Install dependencies
+      shell: ${{ matrix.target.shell }}
       run: |
         go get github.com/mattn/go-sqlite3@v1.14.24
         go get github.com/mmcdole/gofeed@v1.3.0
         go get golang.org/x/crypto@v0.28.0
         go get golang.org/x/net@v0.30.0
 
-    - name: Create Directories
+    - name: Create Directories (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
       run: |
         mkdir -p data
         mkdir -p web/static/favicons
         mkdir -p web/static/images
 
-    - name: Build
+    - name: Create Directories (Windows)
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        New-Item -ItemType Directory -Force -Path data
+        New-Item -ItemType Directory -Force -Path web\static\favicons
+        New-Item -ItemType Directory -Force -Path web\static\images
+
+    - name: Build (Linux)
+      if: runner.os == 'Linux'
       env:
         GOOS: ${{ matrix.target.os }}
         GOARCH: ${{ matrix.target.arch }}
         CGO_ENABLED: 1
+      shell: bash
+      run: |
+        go build -v -ldflags="-X main.Version=${{ github.sha }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
+
+    - name: Build (Windows)
+      if: runner.os == 'Windows'
+      env:
+        GOOS: ${{ matrix.target.os }}
+        GOARCH: ${{ matrix.target.arch }}
+        CGO_ENABLED: 1
+      shell: powershell
       run: |
         go build -v -ldflags="-X main.Version=${{ github.sha }}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
 
