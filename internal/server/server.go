@@ -50,7 +50,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	// Setup route - must be checked before other routes
-	mux.Handle("/setup", s.csrf.Middleware(http.HandlerFunc(s.handleSetup)))
+	mux.HandleFunc("/setup", s.handleSetup)
 
 	// Public routes
 	mux.HandleFunc("/", s.handleIndex)
@@ -74,9 +74,9 @@ func (s *Server) Routes() http.Handler {
 	// Click Tracking
 	mux.HandleFunc("/click", s.handleClick)
 
-	// Apply middleware
-	var handler http.Handler = mux
-	handler = s.csrf.Middleware(handler)
+	// Apply CSRF middleware to all routes except /setup
+	handler := http.Handler(mux)
+	handler = s.csrf.MiddlewareExceptPaths(handler, []string{"/setup"})
 
 	return handler
 }
