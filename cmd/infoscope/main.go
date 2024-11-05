@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"infoscope/internal/config"
@@ -19,11 +18,13 @@ var (
 	Version = "dev"
 
 	// Command line flags
-	port     = flag.Int("port", 0, "Port to run the server on (default: 8080 or INFOSCOPE_PORT)")
-	dbPath   = flag.String("db", "", "Path to database file (default: data/infoscope.db or INFOSCOPE_DB_PATH)")
-	dataPath = flag.String("data", "", "Path to data directory (default: data or INFOSCOPE_DATA_PATH)")
-	version  = flag.Bool("version", false, "Print version information")
-	prodMode = flag.Bool("prod", false, "Enable production mode (HTTPS-only features including strict CSRF)")
+	port              = flag.Int("port", 0, "Port to run the server on (default: 8080 or INFOSCOPE_PORT)")
+	dbPath            = flag.String("db", "", "Path to database file (default: data/infoscope.db or INFOSCOPE_DB_PATH)")
+	dataPath          = flag.String("data", "", "Path to data directory (default: data or INFOSCOPE_DATA_PATH)")
+	version           = flag.Bool("version", false, "Print version information")
+	prodMode          = flag.Bool("prod", false, "Enable production mode (HTTPS-only features including strict CSRF)")
+	noTemplateUpdates = flag.Bool("no-template-updates", false, "Disable automatic template updates")
+	webPath           = flag.String("web", "", "Path to web content directory (default: web or INFOSCOPE_WEB_PATH)")
 )
 
 func main() {
@@ -52,6 +53,12 @@ func main() {
 	if *dataPath != "" {
 		cfg.DataPath = *dataPath
 	}
+	if *webPath != "" {
+		cfg.WebPath = *webPath
+	}
+
+	// Disable template updates if flag is set
+	cfg.DisableTemplateUpdates = *noTemplateUpdates
 
 	// Set production mode
 	cfg.ProductionMode = *prodMode
@@ -63,12 +70,12 @@ func main() {
 	logger.Printf("Data directory: %s", cfg.DataPath)
 	logger.Printf("Mode: %s", map[bool]string{true: "production", false: "development"}[cfg.ProductionMode])
 
-	// Create necessary directories
+	// Create database directory
 	if err := os.MkdirAll(filepath.Dir(cfg.DBPath), 0755); err != nil {
 		logger.Fatalf("Failed to create database directory: %v", err)
 	}
 
-	// Initialize database with optimized configuration
+	// Initialize database
 	dbConfig := database.DefaultConfig()
 	db, err := database.NewDB(cfg.DBPath, dbConfig)
 	if err != nil {
@@ -76,19 +83,21 @@ func main() {
 	}
 	defer db.Close()
 
-	// Create static directories
-	staticDirs := []string{
-		filepath.Join("web", "static"),
-		filepath.Join("web", "static", "favicons"),
+	// Create required directories with configured web path
+	requiredDirs := []string{
+		filepath.Join(cfg.WebPath, "static"),
+		filepath.Join(cfg.WebPath, "static", "favicons"),
+		filepath.Join(cfg.WebPath, "templates"),
+		filepath.Join(cfg.WebPath, "templates", "admin"),
 	}
-	for _, dir := range staticDirs {
+	for _, dir := range requiredDirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			logger.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
 	}
 
-	// Initialize favicon service
-	faviconSvc, err := favicon.NewService(filepath.Join("web", "static", "favicons"))
+	// Initialize favicon service with configured path
+	faviconSvc, err := favicon.NewService(filepath.Join(cfg.WebPath, "static", "favicons"))
 	if err != nil {
 		logger.Fatalf("Failed to initialize favicon service: %v", err)
 	}
@@ -98,22 +107,20 @@ func main() {
 	feedService.Start()
 	defer feedService.Stop()
 
-	// Do initial feed fetch
-	if err := feedService.UpdateFeeds(context.Background()); err != nil {
-		logger.Printf("Initial feed update failed: %v", err)
-	}
-
 	// Initialize server with configuration
 	srv, err := server.NewServer(db.DB, logger, feedService, server.Config{
-		UseHTTPS: cfg.ProductionMode,
+		UseHTTPS:               cfg.ProductionMode,
+		DisableTemplateUpdates: cfg.DisableTemplateUpdates,
+		WebPath:                cfg.WebPath,
 	})
 	if err != nil {
 		logger.Fatalf("Failed to initialize server: %v", err)
 	}
 
-	// Start server
-	logger.Printf("Starting server on port %d", cfg.Port)
-	if err := srv.Start(cfg.GetAddress()); err != nil {
+	// Start the server
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	logger.Printf("Server listening on %s", addr)
+	if err := srv.Start(addr); err != nil {
 		logger.Fatalf("Server error: %v", err)
 	}
 }

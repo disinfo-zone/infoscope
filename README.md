@@ -45,7 +45,10 @@ The interface is intentionally simple in keeping with the guiding ethos. It is a
 git clone https://github.com/yourusername/infoscope.git
 cd infoscope
 go build ./cmd/infoscope
+```
+or download Linux and Windows AMD64 binaries from the releases page. To start:
 
+```
 # Run in development mode
 ./infoscope
 
@@ -53,20 +56,30 @@ go build ./cmd/infoscope
 ./infoscope -prod
 ```
 
-Visit `http://localhost:8080/setup` to complete installation. It should default to this page until an admin account has been created.
+Visit `http://localhost:8080/setup` to complete installation. It should default to this page until an admin account has been created. Once created, admin page is accessed at `/admin`.
 
 ### Configuration
 
 Command line flags:
 - `-port`: HTTP port (default: 8080)
 - `-db`: Database path (default: data/infoscope.db)
+- `-data`: Data directory path (default: data)
 - `-version`: Print version information
 - `-prod`: Enable production mode with enhanced security
+- `-no-template-updates`: Disable automatic template updates (for example if you edit the html)
 
 Environment variables:
 - `INFOSCOPE_PORT`: HTTP port
 - `INFOSCOPE_DB_PATH`: Database path
 - `INFOSCOPE_DATA_PATH`: Data directory path
+
+### Template Management
+
+By default, Infoscope automatically extracts and updates its web templates and static files on startup to ensure you're always running the latest version. This behavior can be disabled with the `-no-template-updates` flag, which is useful for:
+
+- Production environments where templates shouldn't change without explicit deployment
+- Customized installations where you've modified the templates
+- Environments where file writes should be minimized
 
 ### Development vs Production Mode:
 

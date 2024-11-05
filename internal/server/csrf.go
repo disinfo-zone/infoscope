@@ -190,3 +190,18 @@ func (c *CSRF) startCleanupLoop() {
 func isSafeMethod(method string) bool {
 	return method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
 }
+
+func (c *CSRF) MiddlewareExceptPaths(next http.Handler, excludePaths []string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip CSRF for excluded paths
+		for _, path := range excludePaths {
+			if r.URL.Path == path {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// Apply CSRF middleware for all other paths
+		c.Middleware(next).ServeHTTP(w, r)
+	})
+}

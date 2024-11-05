@@ -1,24 +1,29 @@
 // internal/server/setup.go
+
 package server
 
 import (
 	"database/sql"
 	"encoding/json"
-	"html/template"
-	"net/http"
-
+	"fmt"
 	"infoscope/internal/auth"
+	"net/http"
+	"os"
+	"path/filepath"
 )
 
-// IsFirstRun checks if there are any admin users in the system
 func IsFirstRun(db *sql.DB) (bool, error) {
 	var count int
 	err := db.QueryRow("SELECT COUNT(*) FROM admin_users").Scan(&count)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("error checking admin users: %w", err)
 	}
 	return count == 0, nil
 }
+
+const (
+	WebRoot = "web"
+)
 
 type setupRequest struct {
 	Username        string `json:"username"`
@@ -28,14 +33,16 @@ type setupRequest struct {
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
-	// Check if setup is needed
+	// Add debug logging
+	s.logger.Printf("Setup handler called: %s %s", r.Method, r.URL.Path)
+
 	isFirstRun, err := IsFirstRun(s.db)
 	if err != nil {
+		s.logger.Printf("Error checking first run: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// If setup is already complete, redirect to login
 	if !isFirstRun {
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return
@@ -46,21 +53,26 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		// Get CSRF token
 		csrfToken := s.csrf.Token(w, r)
 
-		// Serve setup page with CSRF token
+		// Check working directory and template path
+		wd, _ := os.Getwd()
+		templatePath := filepath.Join(WebRoot, "templates", "setup.html")
+		s.logger.Printf("Working directory: %s, looking for template: %s", wd, templatePath)
+
+		if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+			s.logger.Printf("Template not found: %s", templatePath)
+			http.Error(w, "Template file not found", http.StatusInternalServerError)
+			return
+		}
+
 		data := struct {
 			CSRFToken string
 		}{
 			CSRFToken: csrfToken,
 		}
 
-		tmpl, err := template.ParseFiles("web/templates/setup.html")
-		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		if err := tmpl.Execute(w, data); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		if err := s.renderTemplate(w, r, "setup.html", data); err != nil {
+			s.logger.Printf("Error rendering setup template: %v", err)
+			http.Error(w, "Error rendering template", http.StatusInternalServerError)
 			return
 		}
 
@@ -92,6 +104,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 		// Create admin user
 		if err := auth.CreateUser(s.db, req.Username, req.Password); err != nil {
+			s.logger.Printf("Failed to create user: %v", err)
 			http.Error(w, "Failed to create user", http.StatusInternalServerError)
 			return
 		}

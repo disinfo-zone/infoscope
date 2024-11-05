@@ -4,14 +4,18 @@ package server
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"infoscope/internal/auth"
 	"infoscope/internal/feed"
 	"log"
 	"net/http"
+	"path/filepath"
 )
 
 type Config struct {
-	UseHTTPS bool
+	UseHTTPS               bool
+	DisableTemplateUpdates bool
+	WebPath                string
 }
 
 type Server struct {
@@ -22,20 +26,22 @@ type Server struct {
 	feedService  *feed.Service
 	imageHandler *ImageHandler
 	csrf         *CSRF
+	config       Config
 }
 
 func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config Config) (*Server, error) {
 	// Initialize image handler
 	imageHandler, err := NewImageHandler(db, logger)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize image handler: %w", err)
 	}
 
 	// Initialize CSRF with configuration
 	csrfConfig := DefaultConfig()
 	csrfConfig.Secure = config.UseHTTPS
 
-	return &Server{
+	// Create server instance
+	s := &Server{
 		db:           db,
 		logger:       logger,
 		auth:         auth.NewService(),
@@ -43,18 +49,28 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 		feedService:  feedService,
 		imageHandler: imageHandler,
 		csrf:         NewCSRF(csrfConfig),
-	}, nil
+		config:       config,
+	}
+
+	// Extract web content if needed, force update if not disabled
+	if err := s.extractWebContent(!config.DisableTemplateUpdates); err != nil {
+		return nil, fmt.Errorf("failed to extract web content: %w", err)
+	}
+
+	s.logger.Printf("Server initialized successfully")
+	return s, nil
 }
 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	// Setup route - must be checked before other routes
-	mux.Handle("/setup", s.csrf.Middleware(http.HandlerFunc(s.handleSetup)))
+	mux.HandleFunc("/setup", s.handleSetup)
 
 	// Public routes
 	mux.HandleFunc("/", s.handleIndex)
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+	staticPath := filepath.Join(s.config.WebPath, "static")
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticPath))))
 
 	// Auth routes
 	mux.HandleFunc("/admin/login", s.handleLogin)
@@ -74,9 +90,9 @@ func (s *Server) Routes() http.Handler {
 	// Click Tracking
 	mux.HandleFunc("/click", s.handleClick)
 
-	// Apply middleware
-	var handler http.Handler = mux
-	handler = s.csrf.Middleware(handler)
+	// Apply CSRF middleware to all routes except /setup
+	handler := http.Handler(mux)
+	handler = s.csrf.MiddlewareExceptPaths(handler, []string{"/setup"})
 
 	return handler
 }
