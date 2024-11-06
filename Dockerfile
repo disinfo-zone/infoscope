@@ -7,11 +7,12 @@ ARG VERSION
 ENV VERSION=${VERSION:-dev}
 
 # Install build dependencies
-RUN echo "deb http://deb.debian.org/debian bookworm contrib" >> /etc/apt/sources.list && \
-    apt-get update && apt-get install -y \
-    gcc \
-    pkg-config \
-    upx-ucl \
+RUN sed -i 's/main$/main contrib/' /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y \
+        gcc \
+        pkg-config \
+        upx \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy go.mod and go.sum first for better caching
