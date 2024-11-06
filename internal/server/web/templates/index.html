@@ -39,7 +39,7 @@
         }
     
         .entry {
-            display: grid;
+           display: grid;
             grid-template-columns: auto auto 1fr auto;
             gap: 10px;
             align-items: center;
@@ -61,8 +61,6 @@
     
         .link-container {
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
         }
     
         .link-container a {
@@ -70,6 +68,11 @@
         text-decoration: none;
         transition: color 0.2s;
         font-weight: bold;
+        /* Add these new properties for desktop */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
         }
     
         .link-container a:hover {
@@ -134,6 +137,15 @@
                 justify-self: start;
             }
         }
+        @media screen and (max-width: 768px) {
+            .link-container a {
+                white-space: normal;
+                    overflow-wrap: break-word;
+                     word-wrap: break-word;
+                     word-break: break-word;
+                     hyphens: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -149,7 +161,7 @@
             <!-- Debug output per entry -->
             <script>console.log('Processing entry:', {{ . | printf "%#v" }})</script>
             
-            <img class="favicon" src="{{ .FaviconURL }}" onerror="this.style.display='none'" alt="favicon">
+            <img class="favicon" src="{{ .FaviconURL }}" onerror="this.src='/static/favicons/default.ico'" alt="favicon">
             <div class="link-container">
                 <a href="{{ .URL }}" onclick="return trackClick({{ .ID }}, '{{ .URL }}')" target="_blank">{{ .Title }}</a>
             </div>
