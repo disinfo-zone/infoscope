@@ -3,7 +3,11 @@ FROM golang:1.22.4-bookworm AS builder
 WORKDIR /build
 
 # Install required system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    echo "deb http://deb.debian.org/debian bookworm contrib non-free" >> /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y \
     gcc \
     pkg-config \
     upx \
@@ -12,6 +16,8 @@ RUN apt-get update && apt-get install -y \
 # Copy go.mod and go.sum first for better caching
 COPY go.mod go.sum ./
 RUN go mod download
+
+# Copy source code
 
 # Copy source code
 COPY . .
