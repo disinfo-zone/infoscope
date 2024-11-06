@@ -6,9 +6,7 @@ on:
     workflow_dispatch:
       inputs:
         version:
-          description: 'Version number (defaults to latest tag)'
-          required: false
-          default: ''
+          required: true
 
 env:
   REGISTRY: ghcr.io
