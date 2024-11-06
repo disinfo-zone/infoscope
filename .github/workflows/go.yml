@@ -16,6 +16,8 @@ permissions:
 
 env:
   VERSION: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.version }}
+  CGO_ENABLED: 1
+  LDFLAGS: "-s -w" # Strip debug info and DWARF tables
 
 jobs:
   build:
@@ -27,11 +29,13 @@ jobs:
             ext: '.exe'
             runner: windows-latest
             shell: powershell
+            name: 'windows-amd64'
           - os: linux
             arch: amd64
             ext: ''
             runner: ubuntu-latest
             shell: bash
+            name: 'linux-amd64'
 
     runs-on: ${{ matrix.target.runner }}
     steps:
@@ -80,30 +84,32 @@ jobs:
       env:
         GOOS: ${{ matrix.target.os }}
         GOARCH: ${{ matrix.target.arch }}
+        BINARY_NAME: "infoscope_${{ matrix.target.name }}_${{ env.VERSION }}${{ matrix.target.ext }}"
         CGO_ENABLED: 1
       run: |
-        go build -v -ldflags="-X main.Version=${VERSION}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
+        go build -v -trimpath -ldflags="${LDFLAGS} -X main.Version=${{ env.VERSION }}" -o "${BINARY_NAME}" ./cmd/infoscope
+        upx --best --lzma "${BINARY_NAME}"
 
     - name: Build (Windows) 
       if: runner.os == 'Windows'
       env:
         GOOS: ${{ matrix.target.os }}
         GOARCH: ${{ matrix.target.arch }}
+        BINARY_NAME: "infoscope_${{ matrix.target.name }}_${{ env.VERSION }}${{ matrix.target.ext }}"
         CGO_ENABLED: 1
       shell: powershell
       run: |
         $env:PATH = "C:\msys64\mingw64\bin;C:\msys64\usr\bin;$env:PATH"
         gcc --version
         $env:CC = "gcc"
-        go build -v -ldflags="-X main.Version=${env:VERSION}" -o infoscope${{ matrix.target.ext }} ./cmd/infoscope
+        go build -v -trimpath -ldflags="${env:LDFLAGS} -X main.Version=${{ env.VERSION }}" -o "${env:BINARY_NAME}" ./cmd/infoscope
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: infoscope${{ matrix.target.ext }}
+        files: |
+          infoscope_*-amd64_${{ env.VERSION }}*
         name: Release ${{ env.VERSION }}
         tag_name: ${{ github.event_name == 'workflow_dispatch' && env.VERSION || github.ref_name }}
-        draft: false
-        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
