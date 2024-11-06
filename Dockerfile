@@ -1,12 +1,13 @@
 # Build stage
-FROM golang:1.22.4 AS builder
+FROM ubuntu:22.04 AS builder
 WORKDIR /build
 
-# Install required system dependencies
+# Install Go and build dependencies
 RUN apt-get update && apt-get install -y \
+    golang \
     gcc \
     pkg-config \
-    upx-ucl \
+    upx \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy go.mod and go.sum first for better caching
