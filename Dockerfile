@@ -1,10 +1,9 @@
 # Build stage
-FROM ubuntu:22.04 AS builder
+FROM golang:1.22.4 AS builder
 WORKDIR /build
 
-# Install Go and build dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
-    golang \
     gcc \
     pkg-config \
     upx \
