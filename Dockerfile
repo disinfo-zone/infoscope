@@ -1,13 +1,17 @@
 # Build stage
-FROM ubuntu:22.04 AS builder
+FROM golang:1.22.4-bullseye AS builder
 WORKDIR /build
 
-# Install Go and build dependencies
-RUN apt-get update && apt-get install -y \
-    golang \
-    gcc \
-    pkg-config \
-    upx \
+# Add build arg for version
+ARG VERSION
+ENV VERSION=${VERSION:-dev}
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y \
+        gcc \
+        pkg-config \
+        upx \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy go.mod and go.sum first for better caching
