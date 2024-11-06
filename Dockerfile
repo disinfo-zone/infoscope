@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.22.4 AS builder
+FROM golang:1.22.4-bullseye AS builder
 WORKDIR /build
 
 # Add build arg for version
@@ -7,8 +7,7 @@ ARG VERSION
 ENV VERSION=${VERSION:-dev}
 
 # Install build dependencies
-RUN sed -i 's/main$/main contrib/' /etc/apt/sources.list && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y \
         gcc \
         pkg-config \
