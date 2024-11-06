@@ -2,11 +2,16 @@
 FROM golang:1.22.4 AS builder
 WORKDIR /build
 
+# Add build arg for version
+ARG VERSION
+ENV VERSION=${VERSION:-dev}
+
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
+RUN echo "deb http://deb.debian.org/debian bookworm contrib" >> /etc/apt/sources.list && \
+    apt-get update && apt-get install -y \
     gcc \
     pkg-config \
-    upx \
+    upx-ucl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy go.mod and go.sum first for better caching
