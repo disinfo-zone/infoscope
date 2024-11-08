@@ -1,8 +1,6 @@
 {{ template "admin/layout.html" . }}
 {{ define "content" }}
-<div class="dashboard">
-    <h2>Dashboard</h2>
-    
+<div class="dashboard">    
     <div class="stats-grid">
         <div class="stat-card">
             <h3>Active Feeds</h3>
@@ -78,155 +76,196 @@
 {{ end }}
 {{ define "styles" }}
 <style>
+    /* Dashboard container */
     .dashboard {
-        max-width: 1200px;
-        margin: 0 auto;
+      padding: 1rem;
+      color: #c9d1d9;
     }
-    
+  
+    .dashboard h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: #c9d1d9;
+      text-transform: uppercase;
+    }
+  
+    /* Stats Grid */
     .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
     }
-    
+  
     .stat-card {
-        background: #1a2438;
-        padding: 1.5rem;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        transition: transform 0.2s, box-shadow 0.2s;
+      background: #1a1f2e;
+      border-radius: 8px;
+      padding: 1.25rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
-    
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    }
-    
+  
     .stat-card.highlight {
-        background: #2a3450;
-        border: 1px solid #67bb79;
+      border: 1px solid #4ade80;
+      background: #1a1f2e;
     }
-    
+  
     .stat-card h3 {
-        color: #a5c5cf;
-        margin: 0 0 1rem 0;
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+      color: #8b949e;
+      font-size: 0.875rem;
+      margin: 0 0 0.5rem 0;
+      font-weight: normal;
+      text-transform: uppercase;
     }
-    
-    .stat-number {
-        color: #67bb79;
-        font-size: 2rem;
-        margin: 0;
-        font-weight: bold;
+  
+    /* Stats value styling */
+    .stat-card > :last-child {
+      font-size: 1.5rem;
+      color: #67bb79;
+      margin: 0;
     }
-    
-    .stat-value {
-        color: #7da9b7;
-        font-size: 1.2rem;
-        margin: 0;
-    }
-    
+  
+    /* Panels Layout */
     .stats-panels {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-        gap: 1.5rem;
+      display: grid;
+      gap: 1.5rem;
+      margin-top: 2rem;
     }
-    
+  
     .panel {
-        background: #1a2438;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      background: #1a1f2e;
+      border-radius: 8px;
+      padding: 1.25rem;
     }
-    
+  
+    .panel h3 {
+      color: #c9d1d9;
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+      font-weight: normal;
+      text-transform: uppercase;
+    }
+  
+    /* Table Styling */
     .table-wrapper {
-        overflow-x: auto;
-        margin-top: 1rem;
+      width: 100%;
+      overflow-x: auto;
     }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 600px; /* Minimum width before scrolling */
+  
+    .table-wrapper table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
     }
-    
-    th {
-        color: #a5c5cf;
-        font-weight: normal;
-        text-align: left;
-        padding: 0.75rem;
-        border-bottom: 2px solid #2a3450;
+  
+    .table-wrapper th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      color: #8b949e;
+      border-bottom: 1px solid #30363d;
+      font-weight: 500;
     }
-    
-    td {
-        padding: 0.75rem;
-        border-bottom: 1px solid #2a3450;
+  
+    .table-wrapper td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #21262d;
+      vertical-align: middle;
     }
-    
-    .title-cell {
-        width: 60%; /* Give more space to title */
-        max-width: 0; /* Forces text-overflow to work */
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        padding-right: 1rem;
-        max-width: 400px;
+  
+    .table-wrapper tbody tr {
+      transition: background-color 0.2s ease;
     }
-
-    .title-cell a.feed-url {
-        color: #7da9b7;
-        text-decoration: none;
-        transition: all 0.2s ease;
-        display: block;
-        font-family: 'Courier New', Courier, monospace;
-        padding: 0.25rem 0;
-        position: relative;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+  
+    .table-wrapper tbody tr:hover {
+      background-color: rgba(49, 109, 179, 0.1);
     }
-
-    .title-cell a.feed-url:hover {
-        color: #67bb79;
-        transform: translateX(4px);
+  
+    /* Column widths */
+    .table-wrapper th:nth-child(1),
+    .table-wrapper td:nth-child(1) {
+      width: 60%;
     }
-
-    .title-cell a.feed-url:before {
-        content: '→';
-        opacity: 0;
-        margin-right: 4px;
-        transition: all 0.2s ease;
+  
+    .table-wrapper th:nth-child(2),
+    .table-wrapper td:nth-child(2) {
+      width: 15%;
+      text-align: center;
     }
-
-    .title-cell a.feed-url:hover:before {
-        opacity: 1;
+  
+    .table-wrapper th:nth-child(3),
+    .table-wrapper td:nth-child(3) {
+      width: 25%;
+      text-align: right;
     }
-
-    .number-cell {
-        width: 20%;
-        text-align: right;
-        font-weight: bold;
-        color: #a5c5cf;
+  
+    /* Link Styling */
+    .feed-url {
+      color: #7da9b7;
+      text-decoration: none;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.3;
+      transition: color 0.2s ease;
     }
-
-    .date-cell {
-        width: 20%;
-        white-space: nowrap;
-        color: #4a5d6b;
+  
+    .feed-url:hover {
+      color: #67bb79;
     }
-    
-    tr:hover {
-        background: #1f2b42;
+  
+    /* Responsive Layout */
+    @media (min-width: 768px) {
+      .stats-panels {
+        grid-template-columns: repeat(2, 1fr);
+      }
+  
+      .dashboard {
+        padding: 1.5rem;
+      }
     }
-
-    .stats-panels {
-        grid-template-columns: 1fr; /* Single column layout */
-        max-width: 800px; /* Limit maximum width */
-        margin: 0 auto;
+  
+    @media (max-width: 767px) {
+      .dashboard {
+        padding: 1rem;
+      }
+  
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+  
+      .table-wrapper th:last-child,
+      .table-wrapper td:last-child {
+        display: none;
+      }
+  
+      .table-wrapper th:nth-child(1),
+      .table-wrapper td:nth-child(1) {
+        width: 75%;
+      }
+  
+      .table-wrapper th:nth-child(2),
+      .table-wrapper td:nth-child(2) {
+        width: 25%;
+      }
+  
+      .panel {
+        margin-bottom: 1rem;
+      }
+  
+      .stats-panels {
+        gap: 1rem;
+      }
+  
+      .feed-url {
+        min-height: 2.6em; /* Ensures space for two lines */
+      }
     }
-    </style>
+  
+    /* Handle dark mode system preference */
+    @media (prefers-color-scheme: dark) {
+      .stat-card, .panel {
+        background: #1a1f2e;
+      }
+    }
+  </style>
 {{ end }}

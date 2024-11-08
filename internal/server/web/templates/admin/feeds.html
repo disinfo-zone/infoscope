@@ -1,9 +1,7 @@
 {{ template "admin/layout.html" . }}
 {{ define "content" }}
 <div class="feeds-container">
-    <h2>Manage Feeds</h2>
-    
-    <div class="panel add-feed">
+<div class="panel add-feed">
         <h3>Add New Feed</h3>
         <form id="addFeedForm" class="feed-form">
             <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
@@ -39,12 +37,12 @@
                 <tbody>
                     {{ range .Data.Feeds }}
                     <tr>
-                        <td class="title-column">{{ .Title }}</td>
-                        <td class="url-column">
+                        <td class="title-col" data-label="Title">{{ .Title }}</td>
+                        <td class="url-column" data-label="URL">
                             <a href="{{ .URL }}" class="feed-url" target="_blank" rel="noopener noreferrer">{{ .URL }}</a>
                         </td>
-                        <td class="date-column">{{ .LastFetched }}</td>
-                        <td class="action-column">
+                        <td class="date-column" data-label="Fetched">{{ .LastFetched.Format "06-01-02 15:04" }}</td>
+                        <td class="action-column" data-label="Actions">
                             <button onclick="showDeleteModal({{ .ID }}, '{{ .Title }}')" class="delete-button">Delete</button>
                         </td>
                     </tr>
@@ -61,7 +59,7 @@
         <p id="deleteMessage"></p>
         <div class="modal-actions">
             <button id="confirmDelete" class="delete-button">Delete</button>
-            <button onclick="hideDeleteModal()" class="cancel-button">Cancel</button>
+            <button class="modal-button cancel-delete" onclick="hideDeleteModal()">Cancel</button>
         </div>
     </div>
 </div>
@@ -205,18 +203,19 @@ console.log('CSRF Token:', token);
     }
 
     function showDeleteModal(feedId, feedTitle) {
-        currentFeedId = feedId;
-        const modal = document.getElementById('deleteModal');
-        const message = document.getElementById('deleteMessage');
-        message.textContent = `Are you sure you want to delete "${feedTitle || 'this feed'}"?`;
-        modal.classList.add('show');
-    }
+    currentFeedId = feedId;
+    const modal = document.getElementById('deleteModal');
+    const message = document.getElementById('deleteMessage');
+    message.textContent = `Are you sure you want to delete "${feedTitle || 'this feed'}"?`;
+    modal.classList.add('active');
+}
 
-    function hideDeleteModal() {
-        const modal = document.getElementById('deleteModal');
-        modal.classList.remove('show');
-        currentFeedId = null;
-    }
+
+function hideDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    modal.classList.remove('active');
+    currentFeedId = null;
+}
 
     document.getElementById('confirmDelete').addEventListener('click', async () => {
         if (!currentFeedId) return;
@@ -264,18 +263,24 @@ console.log('CSRF Token:', token);
 .feeds-container {
     max-width: 1200px;
     margin: 0 auto;
+    padding: 0 1rem;
 }
+
 .panel {
     background: #1a2438;
     padding: 1.5rem;
     border-radius: 8px;
     margin-bottom: 1.5rem;
 }
+
 .panel h3 {
-    color: #a5c5cf;
-    margin: 0 0 1rem 0;
-    font-size: 1.1rem;
+  color: #c9d1d9;
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: normal;
+  text-transform: uppercase;
 }
+
 /* Form styles */
 .feed-form {
     position: relative;
@@ -283,15 +288,18 @@ console.log('CSRF Token:', token);
     flex-direction: column;
     gap: 0.5rem;
 }
+
 .input-group {
     display: flex;
     position: relative;
 }
+
 .input-wrapper {
     position: relative;
     flex-grow: 1;
     display: flex;
 }
+
 .feed-input {
     flex-grow: 1;
     height: 42px;
@@ -305,10 +313,12 @@ console.log('CSRF Token:', token);
     border-radius: 4px 0 0 4px;
     transition: border-color 0.2s;
 }
+
 .feed-input:focus {
     outline: none;
     border-color: #67bb79;
 }
+
 .submit-button {
     height: 42px;
     padding: 0 1.5rem;
@@ -326,15 +336,24 @@ console.log('CSRF Token:', token);
     top: 0;
     z-index: 1;
 }
+
 .submit-button:hover {
     background: #39ff64;
 }
+
+.submit-button:disabled {
+    background: #2a3450;
+    color: #5d7988;
+    cursor: not-allowed;
+}
+
 /* Error message */
 .error-message {
     color: #ff6b6b;
     min-height: 1.2em;
     margin-top: 0.5rem;
 }
+
 /* Spinner */
 .spinner {
     display: none;
@@ -349,12 +368,15 @@ console.log('CSRF Token:', token);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
+
 @keyframes spin {
     to { transform: translateY(-50%) rotate(360deg); }
 }
+
 .input-wrapper.loading .spinner {
     display: block;
 }
+
 /* Feed preview */
 .feed-preview {
     display: none;
@@ -364,51 +386,80 @@ console.log('CSRF Token:', token);
     border-radius: 4px;
     border: 1px solid #2a3450;
 }
+
 .feed-preview.show {
     display: block;
 }
+
 /* Table styles */
 .table-container {
     overflow-x: auto;
     border-radius: 4px;
     background: #0c1220;
 }
+
 table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
 }
+
 th {
     color: #a5c5cf;
     font-weight: normal;
     text-align: left;
     padding: 0.75rem;
     border-bottom: 1px solid #2a3450;
-    white-space: nowrap;
+    background: #151f36;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-transform: uppercase;
 }
+
 td {
     padding: 0.75rem;
     border-bottom: 1px solid #2a3450;
 }
+
 tr:last-child td {
     border-bottom: none;
 }
+
+tr:hover td {
+    background-color: #1a2438;
+}
+
 /* Column widths */
-.title-column {
-    width: 20%;
-}
-.url-column {
-    width: 45%;
-}
-.date-column {
+
+th.title-column {
     width: 25%;
+}
+
+th.url-column {
+    width: 55%;
+}
+
+th.date-column {
+    width: 15%;
+}
+
+th.action-column {
+    width: 10%;
+}
+
+
+.date-column {
+    width: 15%;
     white-space: nowrap;
 }
+
 .action-column {
     width: 10%;
     min-width: 100px;
     text-align: center;
 }
+
 .feed-url {
     color: #7da9b7;
     text-decoration: none;
@@ -417,9 +468,11 @@ tr:last-child td {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
 .feed-url:hover {
     color: #67bb79;
 }
+
 .delete-button {
     padding: 0.5rem 1rem;
     background: #bb6767;
@@ -432,37 +485,85 @@ tr:last-child td {
     transition: background-color 0.2s;
     white-space: nowrap;
 }
+
 .delete-button:hover {
     background: #ff6b6b;
 }
+
 /* Modal styles */
 .modal {
     display: none;
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    align-items: center;
-    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(2px);
     z-index: 1000;
 }
+
+.modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .modal.show {
     display: flex;
 }
+
 .modal-content {
     background: #1a2438;
-    padding: 1.5rem;
+    padding: 2rem;
     border-radius: 8px;
-    max-width: 400px;
-    width: 90%;
+    max-width: 90%;
+    width: 400px;
+    text-align: center;
 }
+
 .modal-actions {
     display: flex;
     gap: 1rem;
     justify-content: flex-end;
+    margin-top: 1rem;
 }
+
+.modal-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    justify-content: center;
+}
+
+.modal-button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    border: none;
+    font-family: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.confirm-delete {
+    background: #ff6b6b;
+    color: #fff;
+}
+
+.confirm-delete:hover {
+    background: #ff5252;
+}
+
+.cancel-delete {
+    background: #2a3450;
+    color: #7da9b7;
+}
+
+.cancel-delete:hover {
+    background: #354264;
+}
+
 /* Responsive styles */
 @media (max-width: 1024px) {
     .title-column {
@@ -481,23 +582,158 @@ tr:last-child td {
         width: 10%;
     }
 }
+
 @media (max-width: 768px) {
+    .feeds-container {
+        padding: 0;
+    }
+
     .panel {
         padding: 1rem;
+        border-radius: 0;
+        margin: 0 0 1rem 0;
     }
-    .feed-input {
-        border-radius: 4px 0 0 4px;
+
+    /* Table to card conversion */
+    .table-container {
+        margin: 0;
+        border-radius: 0;
+        background: transparent;
     }
-    .submit-button {
-        position: absolute;
-        right: 0;
+
+    table, thead, tbody, tr, th, td {
+        display: block;
     }
-    td, th {
-        padding: 0.75rem 0.5rem;
+
+    thead {
+        display: none;
     }
-    .title-column, .url-column {
+
+    tr {
+        margin-bottom: 0.5rem;
+        padding: 1rem;
+        background: #0c1220;
+        border-bottom: 1px solid #2a3450;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    td {
+        padding: 0;
+        border: none;
+        min-height: unset;
+        display: grid;
+        grid-template-columns: 80px 1fr;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    td::before {
+        content: attr(data-label);
+        position: static;
         width: auto;
+        color: #a5c5cf;
+        font-size: 0.85rem;
+        padding-right: 0.5rem;
     }
+
+    .title-column, .url-column, .date-column {
+        width: 100%;
+    }
+
+    .url-column {
+        word-break: break-all;
+        font-size: 0.9rem;
+    }
+
+    .date-column {
+        font-size: 0.85rem;
+        color: #5d7988;
+    }
+
+    .action-column {
+        display: block !important;
+        width: 100%;
+        padding: 0.5rem !important;
+        background: inherit;
+    }
+
+    .action-column::before {
+        display: none;
+    }
+
+    .delete-button {
+        display: block;
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+
+    .feed-form {
+        padding: 0 1rem;
+    }
+
+    .feed-input {
+        font-size: 16px;
+    }
+
+    .feed-table td {
+        display: block;
+        width: 100%;
+        padding: 0.5rem;
+        position: relative;
+    }
+
+    .feed-table tr {
+        display: block;
+        margin-bottom: 1rem;
+        background: #1a2438;
+        border-radius: 8px;
+        transition: background-color 0.2s;
+    }
+
+    .feed-table tr:active,
+    .feed-table tr:focus {
+        background: #2a3450;
+    }
+
+    .modal-content {
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+
+    /* Make links more tappable on mobile */
+    .feed-url {
+        color: #7da9b7;
+        text-decoration: none;
+        word-break: break-all;
+        font-size: 0.9rem;
+    }
+
+    .date-cell {
+        white-space: normal;
+        word-break: break-word;
+    }
+}
+
+/* Dark theme scrollbar */
+.table-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #0c1220;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #2a3450;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #3a4460;
 }
 </style>
 {{ end }}
