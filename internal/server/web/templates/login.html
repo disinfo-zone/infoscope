@@ -1,9 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Infoscope Login</title>
+    <title>infoscope_ login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ .CSRFToken }}">
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: 'Courier New', Courier, monospace;
             background-color: #121a2b;
@@ -14,45 +21,59 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            font-size: 16px;
         }
 
         .login-container {
             background: #1a2438;
-            padding: 2rem;
+            padding: clamp(1.5rem, 5vw, 2.5rem);
             border-radius: 8px;
-            max-width: 400px;
-            width: 100%;
+            width: min(90%, 400px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(122, 169, 183, 0.1);
         }
 
         h1 {
             color: #c4d3cb;
-            margin-top: 0;
+            margin-bottom: 1.5rem;
             text-align: center;
+            font-size: clamp(1.5rem, 5vw, 2rem);
+            text-shadow: 0 0 10px rgba(196, 211, 203, 0.3);
         }
 
         .form-group {
-            margin-bottom: 1rem;
+            margin-bottom: 1.25rem;
         }
 
         label {
             display: block;
             margin-bottom: 0.5rem;
             color: #a5c5cf;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
         }
 
         input {
             width: 100%;
-            padding: 0.5rem;
+            padding: 0.75rem;
             background: #0c1220;
             border: 1px solid #2a3450;
             color: #7da9b7;
             font-family: inherit;
-            box-sizing: border-box;
+            border-radius: 4px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #67bb79;
+            box-shadow: 0 0 0 2px rgba(103, 187, 121, 0.2);
         }
 
         button {
             width: 100%;
-            padding: 0.75rem;
+            padding: 0.875rem;
             background: #67bb79;
             color: #121a2b;
             border: none;
@@ -60,35 +81,73 @@
             cursor: pointer;
             font-family: inherit;
             font-size: 1rem;
-            margin-top: 1rem;
+            margin-top: 1.5rem;
+            font-weight: bold;
+            transition: background-color 0.2s, transform 0.1s;
+            letter-spacing: 0.5px;
         }
 
         button:hover {
             background: #39ff64;
         }
 
+        button:active {
+            transform: translateY(1px);
+        }
+
         .error {
             color: #ff6b6b;
-            margin-top: 0.5rem;
+            margin-top: 0.75rem;
             font-size: 0.9rem;
             text-align: center;
+            min-height: 1.2em;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+
+            .login-container {
+                padding: 1.25rem;
+            }
+
+            input {
+                font-size: 16px; /* Prevents zoom on iOS */
+                padding: 0.625rem;
+            }
+
+            button {
+                padding: 0.75rem;
+            }
+        }
+
+        /* Add subtle animation for feedback */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .error:not(:empty) {
+            animation: shake 0.4s ease-in-out;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <h1>Infoscope Login</h1>
+        <h1>infoscope_</h1>
         <form id="loginForm">
             <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
             <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required>
+                <label for="username">USERNAME</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
             </div>
             <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <label for="password">PASSWORD</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
             </div>
-            <button type="submit">Login</button>
+            <button type="submit">LOGIN</button>
             <div id="error" class="error">{{ if .Data.Error }}{{ .Data.Error }}{{ end }}</div>
         </form>
     </div>
@@ -106,7 +165,7 @@
                 const formData = {
                     username: document.getElementById('username').value,
                     password: document.getElementById('password').value,
-                    csrf_token: token // Add CSRF token to request body
+                    csrf_token: token
                 };
     
                 const response = await fetch('/admin/login', {
@@ -115,22 +174,23 @@
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': token
                     },
-                    credentials: 'include', // Important: include cookies
+                    credentials: 'include',
                     body: JSON.stringify(formData)
                 });
     
-                console.log("Login response status:", response.status); // Debug logging
+                console.log("Login response status:", response.status);
     
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error("Login error:", errorText); // Debug logging
+                    console.error("Login error:", errorText);
                     throw new Error(errorText || 'Login failed');
                 }
     
                 window.location.href = '/admin';
             } catch (err) {
-                console.error("Login error:", err); // Debug logging
+                console.error("Login error:", err);
                 error.textContent = err.message;
             }
         });
     </script>
+</html>

@@ -1,69 +1,70 @@
 {{ template "admin/layout.html" . }}
 {{ define "content" }}
 <div class="settings-container">
-    <h2>Settings</h2>
     <div class="panel">
         <form id="settingsForm">
             <div class="setting-group">
-                <label for="siteTitle">Site Title</label>
+                <label for="siteTitle">SITE TITLE</label>
                 <input type="text" id="siteTitle" name="siteTitle" value="{{ index .Data.Settings "site_title" }}" required>
             </div>
             <div class="setting-group">
-                <label for="maxPosts">Maximum Posts</label>
+                <label for="maxPosts">MAXIMUM POSTS</label>
                 <input type="number" id="maxPosts" name="maxPosts" value="{{ index .Data.Settings "max_posts" }}" min="1" required>
             </div>
             <div class="setting-group">
-                <label for="updateInterval">Update Interval (seconds)</label>
+                <label for="updateInterval">UPDATE INTERVAL (SECONDS)</label>
                 <input type="number" id="updateInterval" name="updateInterval" value="{{ index .Data.Settings "update_interval" }}" min="60" required>
             </div>
             <div class="setting-group">
-                <label for="headerLinkText">Header Link Text</label>
+                <label for="headerLinkText">HEADER LINK TEXT</label>
                 <input type="text" id="headerLinkText" name="headerLinkText" value="{{ index .Data.Settings "header_link_text" }}" required>
             </div>
             <div class="setting-group">
-                <label for="headerLinkURL">Header Link URL</label>
+                <label for="headerLinkURL">HEADER LINK URL</label>
                 <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Data.Settings "header_link_url" }}" required>
             </div>
             <div class="setting-group">
-                <label for="footerLinkText">Footer Link Text</label>
+                <label for="footerLinkText">FOOTER LINK TEXT</label>
                 <input type="text" id="footerLinkText" name="footerLinkText" value="{{ index .Data.Settings "footer_link_text" }}" required>
             </div>
             <div class="setting-group">
-                <label for="footerLinkURL">Footer Link URL</label>
+                <label for="footerLinkURL">FOOTER LINK URL</label>
                 <input type="url" id="footerLinkURL" name="footerLinkURL" value="{{ index .Data.Settings "footer_link_url" }}" required>
             </div>
             <div class="setting-group">
-                <label for="footerImageHeight">Footer Image Height</label>
+                <label for="footerImageHeight">FOOTER IMAGE HEIGHT</label>
                 <input type="text" id="footerImageHeight" name="footerImageHeight" value="{{ index .Data.Settings "footer_image_height" }}" required>
             </div>
             <div class="setting-group">
-                <label>Footer Image</label>
+                <label>FOOTER IMAGE</label>
                 {{ if index .Data.Settings "footer_image_url" }}
                 <div class="current-image">
                     <img src="/static/images/{{ index .Data.Settings "footer_image_url" }}" alt="Footer image" style="max-height: 100px">
                 </div>
                 {{ end }}
-                <input type="file" id="footerImage" name="footerImage" accept="image/*" class="file-input">
+                <div class="file-input-wrapper">
+                    <input type="file" id="footerImage" name="footerImage" accept="image/*" class="file-input">
+                </div>
             </div>
             <div class="setting-group">
-                <label for="trackingCode">Tracking Code</label>
+                <label for="trackingCode">TRACKING CODE</label>
                 <textarea id="trackingCode" name="trackingCode" rows="5" placeholder="Paste your analytics or tracking code here">{{ index .Data.Settings "tracking_code" }}</textarea>
                 <div class="help-text">
                     Paste your analytics code (e.g., Google Analytics, Umami) here. It will be added to the bottom of every page.
                 </div>
             </div>
             <div class="setting-group backup-section">
-                <h3>Backup & Restore</h3>
+                <h3>BACKUP & RESTORE</h3>
                 <div class="backup-actions">
-                    <button type="button" onclick="exportBackup()" class="backup-button">Export Backup</button>
+                    <button type="button" onclick="exportBackup()" class="backup-button export">EXPORT BACKUP</button>
                     <div class="import-container">
                         <input type="file" id="importFile" accept=".json" style="display: none" onchange="handleImport()">
-                        <button type="button" onclick="document.getElementById('importFile').click()" class="backup-button import">Import Backup</button>
+                        <button type="button" onclick="document.getElementById('importFile').click()" class="backup-button import">IMPORT BACKUP</button>
                     </div>
                 </div>
                 <div id="backupStatus" class="backup-status"></div>
             </div>
-            <button type="submit" class="submit-button">Save Settings</button>
+            <button type="submit" class="submit-button">SAVE SETTINGS</button>
             <div id="status" class="status"></div>
         </form>
     </div>
@@ -78,12 +79,21 @@
     padding: 1rem;
 }
 
+.settings-container h2 {
+    color: #a5c5cf;
+    font-size: 1.25rem;
+    letter-spacing: 0.1em;
+    font-weight: normal;
+    margin-bottom: 1.5rem;
+}
+
 /* Panel styling */
 .panel {
     background: #1a2438;
     padding: 2rem;
     border-radius: 8px;
     margin-top: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 /* Form groups */
@@ -93,9 +103,11 @@
 
 .setting-group label {
     display: block;
-    color: #a5c5cf;
-    margin-bottom: 0.5rem;
-    font-size: 0.95rem;
+    color: #7da9b7;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    font-weight: normal;
 }
 
 /* Form inputs */
@@ -109,27 +121,106 @@
     border: 1px solid #2a3450;
     border-radius: 4px;
     color: #7da9b7;
-    font-family: inherit;
-    font-size: 1rem;
-    transition: border-color 0.2s;
-    box-sizing: border-box;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
 }
 
-.setting-group input:focus,
-.setting-group textarea:focus {
-    outline: none;
-    border-color: #67bb79;
+/* Number input styling */
+input[type="number"] {
+    -moz-appearance: textfield;
 }
 
-/* File input */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    background: #2a3450;
+    border-left: 1px solid #3a4460;
+    opacity: 1;
+    position: absolute;
+    right: 0;
+    height: 50%;
+    cursor: pointer;
+}
+
+/* File input styling */
+.file-input-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+    width: 100%;
+}
+
 .file-input {
-    display: block;
     width: 100%;
     padding: 0.75rem;
     background: #0c1220;
     border: 1px solid #2a3450;
     border-radius: 4px;
     color: #7da9b7;
+    cursor: pointer;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+}
+
+/* Webkit (Chrome, Safari, newer Edge) */
+.file-input::-webkit-file-upload-button {
+    -webkit-appearance: none;
+    background: #2a3450;
+    border: none;
+    border-radius: 3px;
+    color: #7da9b7;
+    padding: 0.5rem 1rem;
+    margin-right: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.file-input::-webkit-file-upload-button:hover {
+    background: #3a4460;
+}
+
+/* Firefox */
+.file-input::file-selector-button {
+    background: #2a3450;
+    border: none;
+    border-radius: 3px;
+    color: #7da9b7;
+    padding: 0.5rem 1rem;
+    margin-right: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.file-input::file-selector-button:hover {
+    background: #3a4460;
+}
+
+/* States */
+.file-input:hover {
+    border-color: #3a4460;
+}
+
+.file-input:focus {
+    outline: none;
+    border-color: #67bb79;
+    box-shadow: 0 0 0 1px #67bb79;
+}
+
+@media (max-width: 768px) {
+    .file-input {
+        font-size: 0.85rem;
+    }
+    
+    .file-input::-webkit-file-upload-button,
+    .file-input::file-selector-button {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+    }
 }
 
 /* Current image preview */
@@ -149,11 +240,12 @@
 /* Help text */
 .help-text {
     margin-top: 0.5rem;
-    font-size: 0.9rem;
-    color: #7da9b7;
+    font-size: 0.8rem;
+    color: #576c75;
+    line-height: 1.4;
 }
 
-/* Submit button */
+/* Buttons */
 .submit-button {
     background: #67bb79;
     color: #121a2b;
@@ -161,34 +253,16 @@
     padding: 0.75rem 1.5rem;
     border-radius: 4px;
     cursor: pointer;
-    font-family: inherit;
-    font-size: 1rem;
-    transition: background-color 0.2s;
-    margin-top: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    transition: all 0.2s ease;
+    width: 100%;
+    margin-top: 2rem;
 }
 
 .submit-button:hover {
     background: #39ff64;
-}
-
-/* Status messages */
-.status {
-    margin-top: 1rem;
-    padding: 0.75rem;
-    border-radius: 4px;
-    display: none;
-}
-
-.status.success {
-    display: block;
-    background: #67bb79;
-    color: #121a2b;
-}
-
-.status.error {
-    display: block;
-    background: #bb6767;
-    color: #fff;
 }
 
 /* Backup section */
@@ -199,29 +273,38 @@
 }
 
 .backup-section h3 {
-    color: #a5c5cf;
-    margin-bottom: 1rem;
+    color: #7da9b7;
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+    margin-bottom: 1.5rem;
+    font-weight: normal;
 }
 
 .backup-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
     margin-bottom: 1rem;
 }
 
 .backup-button {
-    padding: 0.75rem 1.5rem;
+    padding: 0.75rem 1rem;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-family: inherit;
-    font-size: 1rem;
-    transition: background-color 0.2s;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.backup-button.export {
     background: #2a3450;
     color: #7da9b7;
 }
 
-.backup-button:hover {
+.backup-button.export:hover {
     background: #3a4460;
 }
 
@@ -234,14 +317,60 @@
     background: #39ff64;
 }
 
+/* Status messages */
+.status, .backup-status {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    display: none;
+}
+
+.status.success, .backup-status.success {
+    display: block;
+    background: rgba(103, 187, 121, 0.2);
+    color: #67bb79;
+    border: 1px solid #67bb79;
+}
+
+.status.error, .backup-status.error {
+    display: block;
+    background: rgba(187, 103, 103, 0.2);
+    color: #bb6767;
+    border: 1px solid #bb6767;
+}
+
+/* Focus states */
+input:focus,
+textarea:focus {
+    outline: none;
+    border-color: #67bb79;
+    box-shadow: 0 0 0 1px #67bb79;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
+    .settings-container {
+        padding: 0.5rem;
+    }
+    
     .panel {
-        padding: 1.5rem;
+        padding: 1.25rem;
+        border-radius: 0;
+        margin: 0 -0.5rem;
     }
     
     .backup-actions {
-        flex-direction: column;
+        grid-template-columns: 1fr;
+    }
+    
+    .setting-group label {
+        font-size: 0.8rem;
+    }
+    
+    .submit-button,
+    .backup-button {
+        padding: 0.875rem 1rem;
     }
 }
 </style>
