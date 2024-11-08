@@ -12,10 +12,7 @@ Traditional RSS readers can create anxiety:
 
 ## The Solution
 
-Infoscope approaches these challenges differently:
-
-### The River Metaphor
-Instead of treating content as something to be collected and archived, Infoscope presents it as a flowing river. Like a real river, you can stop by whenever you want to see what's flowing past and take what interests you in the moment. Let the rest flow by without worry and return tomorrow to find fresh content.
+Infoscope approaches these challenges differently. Instead of treating content as something to be collected and archived, Infoscope presents it as a flowing river. Like a real river, you can stop by whenever you want to see what's flowing past and take what interests you in the moment. Let the rest flow by without worry and return tomorrow to find fresh content.
 
 ### Public Curation
 Most RSS readers are private, treating feed selection as a personal choice. Infoscope takes a different approach. Feed selection becomes a form of public curation and curators can share their expertise through feed choices.
@@ -37,6 +34,22 @@ The interface is intentionally simple in keeping with the guiding ethos. It is a
 - No retention of old entries
 - Customizable header/footer links and images
 
+## Screenshots
+
+### Desktop Views
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+    <img src="https://images.disinfo.zone/uploads/uwclLqRY5NXaf2hlqQICUlYyDP5ieGsDJRsbXshF.jpg" alt="Desktop Homepage" width="600px"/>
+    <img src="https://images.disinfo.zone/uploads/AC5iiYk1kiYJJv2e9pAsFgAxPLZzJXD2hmVxs0gw.jpg" alt="Dashboard" width="600px"/>
+    <img src="https://images.disinfo.zone/uploads/OYJZLkh5eoLb1VM1XLzaPLVIT36Hi02OFgxMMOXE.jpg" alt="Feed Management" width="600px"/>
+</div>
+
+### Mobile Views
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+    <img src="https://images.disinfo.zone/uploads/7Hs0R2XpFxoCla1rNidfp45W5cprCtG8FtQFAvNH.png" alt="Mobile Homepage" width="300px"/>
+    <img src="https://images.disinfo.zone/uploads/JSqsLfN9QMy6AUEpqMfa83iRAHIzbT6L1K8s7GRI.png" alt="Mobile Dashboard" width="300px"/>
+    <img src="https://images.disinfo.zone/uploads/qaq39EnCisnCMulDW8ukdJXlheQJ8zUD9fxl8R1v.png" alt="Mobile Settings" width="300px"/>
+</div>
+
 ## Installation
 
 ### Quick Start
@@ -45,7 +58,7 @@ Download Linux and Windows AMD64 binaries from the releases page or build from s
 
 ```bash
 # Download and build
-git clone https://github.com/yourusername/infoscope.git
+git clone https://github.com/disinfo-zone/infoscope.git
 cd infoscope
 go build ./cmd/infoscope
 ```
@@ -96,7 +109,7 @@ docker run -d \
   -v infoscope-data:/app/data \
   -v infoscope-web:/app/web \
   -e INFOSCOPE_PRODUCTION=true \
-  ghcr.io/davidtorcivia/infoscope:latest
+  ghcr.io/disinfo-zone/infoscope:latest
 ```
 ### Environment variables supported in Docker:
 
