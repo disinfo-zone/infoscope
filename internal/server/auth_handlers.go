@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"net/http"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -59,28 +60,32 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 		Data:      data,
 	}
 
-	// Create template with the actual name instead of empty string
 	tmpl := template.New(name)
 	tmpl = tmpl.Funcs(funcMap)
 
 	var files []string
-	if strings.HasPrefix(name, "admin/") {
+	switch {
+	case strings.HasPrefix(name, "admin/"):
 		files = []string{
-			"web/templates/admin/layout.html",
-			"web/templates/" + name,
+			filepath.Join(s.config.WebPath, "templates/admin/layout.html"),
+			filepath.Join(s.config.WebPath, "templates", name),
 		}
-	} else {
+	case name == "404.html":
 		files = []string{
-			"web/templates/" + name,
+			filepath.Join(s.config.WebPath, "templates/404.html"),
+		}
+	default:
+		files = []string{
+			filepath.Join(s.config.WebPath, "templates", name),
 		}
 	}
 
 	tmpl, err := tmpl.ParseFiles(files...)
 	if err != nil {
+		s.logger.Printf("Error parsing template %s: %v", name, err)
 		return fmt.Errorf("error parsing template: %w", err)
 	}
 
-	// Execute the template with its base name (without path)
 	baseName := path.Base(name)
 	if strings.HasPrefix(name, "admin/") {
 		return tmpl.ExecuteTemplate(w, "layout", wrappedData)

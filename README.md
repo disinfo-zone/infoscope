@@ -96,7 +96,7 @@ docker run -d \
   -v infoscope-data:/app/data \
   -v infoscope-web:/app/web \
   -e INFOSCOPE_PRODUCTION=true \
-  ghcr.io/yourusername/infoscope:latest
+  ghcr.io/davidtorcivia/infoscope:latest
 ```
 ### Environment variables supported in Docker:
 
