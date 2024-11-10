@@ -11,8 +11,14 @@
             <p class="stat-number">{{ .Data.EntryCount }}</p>
         </div>
         <div class="stat-card">
-            <h3>Last Update</h3>
-            <p class="stat-value">{{ .Data.LastUpdate }}</p>
+          <h3>Last Update</h3>
+          <div class="stat-value">
+            {{ if .Data.LastUpdate.IsZero }}
+                Never
+            {{ else }}
+                {{ formatTimeInZone .Data.Settings.timezone .Data.LastUpdate }}
+            {{ end }}
+          </div>
         </div>
         <div class="stat-card highlight">
             <h3>Total Clicks</h3>
@@ -38,7 +44,9 @@
                                 <a href="{{ .URL }}" target="_blank" class="feed-url">{{ .Title }}</a>
                             </td>
                             <td class="number-cell">{{ .ClickCount }}</td>
-                            <td class="date-cell">{{ .LastClicked.Format "Jan 2, 2006 15:04" }}</td>
+                            <td class="date-cell">
+                              {{ formatTimeInZone $.Data.Settings.timezone .LastClicked }}
+                          </td>
                         </tr>
                         {{ end }}
                     </tbody>
@@ -64,7 +72,9 @@
                                 <a href="{{ .URL }}" target="_blank" class="feed-url">{{ .Title }}</a>
                             </td>
                             <td class="number-cell">{{ .ClickCount }}</td>
-                            <td class="date-cell">{{ .LastClicked.Format "Jan 2, 2006 15:04" }}</td>
+                            <td class="date-cell">
+                              {{ formatTimeInZone $.Data.Settings.timezone .LastClicked }}
+                          </td>
                         </tr>
                         {{ end }}
                     </tbody>

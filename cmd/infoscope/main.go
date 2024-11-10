@@ -86,7 +86,8 @@ func main() {
 	// Create required directories with configured web path
 	requiredDirs := []string{
 		filepath.Join(cfg.WebPath, "static"),
-		filepath.Join(cfg.WebPath, "static", "favicons"),
+		filepath.Join(cfg.WebPath, "static", "images"),
+		filepath.Join(cfg.WebPath, "static", "images", "favicon"),
 		filepath.Join(cfg.WebPath, "templates"),
 		filepath.Join(cfg.WebPath, "templates", "admin"),
 	}

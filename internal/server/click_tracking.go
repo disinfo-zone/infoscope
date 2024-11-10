@@ -106,7 +106,7 @@ func (s *Server) getClickStats() (*DashboardStats, error) {
 		if err := rows.Scan(&stat.EntryID, &stat.Title, &stat.URL, &stat.ClickCount, &lastClickedStr); err != nil {
 			return nil, fmt.Errorf("error scanning click stats: %w", err)
 		}
-		lastClicked, err := time.ParseInLocation("2006-01-02 15:04:05", lastClickedStr, time.Local)
+		lastClicked, err := time.ParseInLocation("2006-01-02 15:04:05", lastClickedStr, time.UTC)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing last clicked time: %w", err)
 		}
@@ -136,7 +136,7 @@ func (s *Server) getClickStats() (*DashboardStats, error) {
 		if err := rows.Scan(&stat.EntryID, &stat.Title, &stat.URL, &stat.ClickCount, &lastClickedStr); err != nil {
 			return nil, fmt.Errorf("error scanning weekly stats: %w", err)
 		}
-		lastClicked, err := time.ParseInLocation("2006-01-02 15:04:05", lastClickedStr, time.Local)
+		lastClicked, err := time.ParseInLocation("2006-01-02 15:04:05", lastClickedStr, time.UTC)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing last clicked time: %w", err)
 		}

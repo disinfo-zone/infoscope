@@ -137,7 +137,10 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"footer_link_text":    {settings.FooterLinkText, "string"},
 		"footer_link_url":     {settings.FooterLinkURL, "string"},
 		"footer_image_height": {settings.FooterImageHeight, "string"},
+		"footer_image_url":    {settings.FooterImageURL, "string"},
 		"tracking_code":       {settings.TrackingCode, "string"},
+		"favicon_url":         {settings.FaviconURL, "string"},
+		"timezone":            {settings.Timezone, "string"},
 	}
 
 	for key, setting := range updates {
@@ -231,6 +234,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		FooterImageURL:    settings["footer_image_url"],
 		FooterImageHeight: settings["footer_image_height"],
 		TrackingCode:      settings["tracking_code"],
+		Settings:          settings,
 	}
 
 	s.logger.Printf("Rendering template with data: %+v", data)
@@ -342,20 +346,29 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		data := struct {
-			Title     string
-			Active    string
-			Feeds     []Feed
-			Settings  map[string]string
+
+		settings, err := s.getSettings(r.Context())
+		if err != nil {
+			s.logger.Printf("Error getting settings: %v", err)
+			settings = make(map[string]string)
+		}
+
+		data := AdminPageData{
+			Title:    "Manage Feeds",
+			Active:   "feeds",
+			Settings: settings,
+			Feeds:    feeds,
+		}
+
+		wrappedData := struct {
+			Data      AdminPageData
 			CSRFToken string
 		}{
-			Title:     "Manage Feeds",
-			Active:    "feeds",
-			Feeds:     feeds,
-			Settings:  make(map[string]string),
+			Data:      data,
 			CSRFToken: csrfToken,
 		}
-		if err := s.renderTemplate(w, r, "admin/feeds.html", data); err != nil {
+
+		if err := s.renderTemplate(w, r, "admin/feeds.html", wrappedData); err != nil {
 			s.logger.Printf("Error rendering feeds template: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return

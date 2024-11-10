@@ -24,6 +24,17 @@
                 <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Data.Settings "header_link_url" }}" required>
             </div>
             <div class="setting-group">
+                <label>FAVICON</label>
+                {{ if index .Data.Settings "favicon_url" }}
+                <div class="current-image">
+                    <img src="/static/images/favicon/{{ index .Data.Settings "favicon_url" }}" alt="Favicon" style="max-height: 32px">
+                </div>
+                {{ end }}
+                <div class="file-input-wrapper">
+                    <input type="file" id="favicon" name="favicon" accept="image/x-icon,image/png,image/ico" class="file-input">
+                </div>
+            </div>
+            <div class="setting-group">
                 <label for="footerLinkText">FOOTER LINK TEXT</label>
                 <input type="text" id="footerLinkText" name="footerLinkText" value="{{ index .Data.Settings "footer_link_text" }}" required>
             </div>
@@ -52,6 +63,66 @@
                 <div class="help-text">
                     Paste your analytics code (e.g., Google Analytics, Umami) here. It will be added to the bottom of every page.
                 </div>
+            </div>
+            <div class="setting-group">
+                <label for="timezone">TIMEZONE</label>
+                <select id="timezone" name="timezone" class="timezone-select">
+                    {{ $currentTZ := index .Data.Settings "timezone" }}
+                    <option value="UTC" {{ if eq $currentTZ "UTC" }}selected{{ end }}>UTC</option>
+                    <optgroup label="Africa">
+                        <option value="Africa/Abidjan" {{ if eq $currentTZ "Africa/Abidjan" }}selected{{ end }}>Abidjan</option>
+                        <option value="Africa/Accra" {{ if eq $currentTZ "Africa/Accra" }}selected{{ end }}>Accra</option>
+                        <option value="Africa/Addis_Ababa" {{ if eq $currentTZ "Africa/Addis_Ababa" }}selected{{ end }}>Addis Ababa</option>
+                        <option value="Africa/Algiers" {{ if eq $currentTZ "Africa/Algiers" }}selected{{ end }}>Algiers</option>
+                        <option value="Africa/Cairo" {{ if eq $currentTZ "Africa/Cairo" }}selected{{ end }}>Cairo</option>
+                        <option value="Africa/Casablanca" {{ if eq $currentTZ "Africa/Casablanca" }}selected{{ end }}>Casablanca</option>
+                        <option value="Africa/Johannesburg" {{ if eq $currentTZ "Africa/Johannesburg" }}selected{{ end }}>Johannesburg</option>
+                        <option value="Africa/Lagos" {{ if eq $currentTZ "Africa/Lagos" }}selected{{ end }}>Lagos</option>
+                        <!-- Additional African time zones -->
+                    </optgroup>
+                    <optgroup label="America">
+                        <option value="America/Adak" {{ if eq $currentTZ "America/Adak" }}selected{{ end }}>Adak</option>
+                        <option value="America/Anchorage" {{ if eq $currentTZ "America/Anchorage" }}selected{{ end }}>Anchorage</option>
+                        <option value="America/Chicago" {{ if eq $currentTZ "America/Chicago" }}selected{{ end }}>Chicago</option>
+                        <option value="America/Denver" {{ if eq $currentTZ "America/Denver" }}selected{{ end }}>Denver</option>
+                        <option value="America/Honolulu" {{ if eq $currentTZ "America/Honolulu" }}selected{{ end }}>Honolulu</option>
+                        <option value="America/Los_Angeles" {{ if eq $currentTZ "America/Los_Angeles" }}selected{{ end }}>Los Angeles</option>
+                        <option value="America/New_York" {{ if eq $currentTZ "America/New_York" }}selected{{ end }}>New York</option>
+                        <option value="America/Phoenix" {{ if eq $currentTZ "America/Phoenix" }}selected{{ end }}>Phoenix</option>
+                        <option value="America/Sao_Paulo" {{ if eq $currentTZ "America/Sao_Paulo" }}selected{{ end }}>São Paulo</option>
+                        <!-- Additional American time zones -->
+                    </optgroup>
+                    <optgroup label="Asia">
+                        <option value="Asia/Bangkok" {{ if eq $currentTZ "Asia/Bangkok" }}selected{{ end }}>Bangkok</option>
+                        <option value="Asia/Dubai" {{ if eq $currentTZ "Asia/Dubai" }}selected{{ end }}>Dubai</option>
+                        <option value="Asia/Hong_Kong" {{ if eq $currentTZ "Asia/Hong_Kong" }}selected{{ end }}>Hong Kong</option>
+                        <option value="Asia/Kolkata" {{ if eq $currentTZ "Asia/Kolkata" }}selected{{ end }}>Kolkata</option>
+                        <option value="Asia/Seoul" {{ if eq $currentTZ "Asia/Seoul" }}selected{{ end }}>Seoul</option>
+                        <option value="Asia/Shanghai" {{ if eq $currentTZ "Asia/Shanghai" }}selected{{ end }}>Shanghai</option>
+                        <option value="Asia/Singapore" {{ if eq $currentTZ "Asia/Singapore" }}selected{{ end }}>Singapore</option>
+                        <option value="Asia/Tokyo" {{ if eq $currentTZ "Asia/Tokyo" }}selected{{ end }}>Tokyo</option>
+                        <!-- Additional Asian time zones -->
+                    </optgroup>
+                    <optgroup label="Europe">
+                        <option value="Europe/Amsterdam" {{ if eq $currentTZ "Europe/Amsterdam" }}selected{{ end }}>Amsterdam</option>
+                        <option value="Europe/Berlin" {{ if eq $currentTZ "Europe/Berlin" }}selected{{ end }}>Berlin</option>
+                        <option value="Europe/Istanbul" {{ if eq $currentTZ "Europe/Istanbul" }}selected{{ end }}>Istanbul</option>
+                        <option value="Europe/London" {{ if eq $currentTZ "Europe/London" }}selected{{ end }}>London</option>
+                        <option value="Europe/Moscow" {{ if eq $currentTZ "Europe/Moscow" }}selected{{ end }}>Moscow</option>
+                        <option value="Europe/Paris" {{ if eq $currentTZ "Europe/Paris" }}selected{{ end }}>Paris</option>
+                        <!-- Additional European time zones -->
+                    </optgroup>
+                    <optgroup label="Oceania">
+                        <option value="Australia/Adelaide" {{ if eq $currentTZ "Australia/Adelaide" }}selected{{ end }}>Adelaide</option>
+                        <option value="Australia/Brisbane" {{ if eq $currentTZ "Australia/Brisbane" }}selected{{ end }}>Brisbane</option>
+                        <option value="Australia/Darwin" {{ if eq $currentTZ "Australia/Darwin" }}selected{{ end }}>Darwin</option>
+                        <option value="Australia/Melbourne" {{ if eq $currentTZ "Australia/Melbourne" }}selected{{ end }}>Melbourne</option>
+                        <option value="Australia/Perth" {{ if eq $currentTZ "Australia/Perth" }}selected{{ end }}>Perth</option>
+                        <option value="Australia/Sydney" {{ if eq $currentTZ "Australia/Sydney" }}selected{{ end }}>Sydney</option>
+                        <option value="Pacific/Auckland" {{ if eq $currentTZ "Pacific/Auckland" }}selected{{ end }}>Auckland</option>
+                        <!-- Additional Oceania time zones -->
+                    </optgroup>
+                </select>
             </div>
             <div class="setting-group backup-section">
                 <h3>BACKUP & RESTORE</h3>
@@ -348,6 +419,29 @@ textarea:focus {
     box-shadow: 0 0 0 1px #67bb79;
 }
 
+/* Timzone Select */
+.timezone-select {
+    width: 100%;
+    padding: 0.75rem;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    color: #7da9b7;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,..."); /* Add dropdown arrow */
+}
+
+.timezone-select:focus {
+    outline: none;
+    border-color: #67bb79;
+    box-shadow: 0 0 0 1px #67bb79;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .settings-container {
@@ -379,65 +473,94 @@ textarea:focus {
 <script>
     // Form submission handler
     document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        console.log('Settings form submitted');
-        const status = document.getElementById('status');
+    e.preventDefault();
+    console.log('Settings form submitted');
+    const status = document.getElementById('status');
+    
+    try {
+        // Handle image uploads first
+        const imageInput = document.getElementById('footerImage');
+        const faviconInput = document.getElementById('favicon');
+        let imageFilename = '{{ index .Data.Settings "footer_image_url" }}';
+        let faviconFilename = '{{ index .Data.Settings "favicon_url" }}';
         
-        try {
-            // Handle image upload first if there's a new image
-            const imageInput = document.getElementById('footerImage');
-            let imageFilename = '{{ index .Data.Settings "footer_image_url" }}';
+        if (imageInput.files.length > 0) {
+            console.log('Uploading new image...');
+            const formData = new FormData();
+            formData.append('image', imageInput.files[0]);
             
-            if (imageInput.files.length > 0) {
-                console.log('Uploading new image...');
-                const formData = new FormData();
-                formData.append('image', imageInput.files[0]);
-                
-                const token = csrf.getToken();
-                console.log('Using token for image upload:', token);
-                
-                const response = await fetch('/admin/upload-image', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-Token': token
-                    },
-                    body: formData
-                });
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Image upload failed:', errorText);
-                    throw new Error(errorText);
-                }
-                
-                imageFilename = await response.text();
-                console.log('Image uploaded successfully:', imageFilename);
-            }
-    
-            // Build settings data
-            const formData = {
-                siteTitle: document.getElementById('siteTitle').value,
-                maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
-                updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
-                headerLinkText: document.getElementById('headerLinkText').value,
-                headerLinkURL: document.getElementById('headerLinkURL').value,
-                footerLinkText: document.getElementById('footerLinkText').value,
-                footerLinkURL: document.getElementById('footerLinkURL').value,
-                footerImageHeight: document.getElementById('footerImageHeight').value,
-                footerImageURL: imageFilename,
-                trackingCode: document.getElementById('trackingCode').value
-            };
-    
-            const response = await csrf.fetch('/admin/settings', {
+            const response = await csrf.fetch('/admin/upload-image', {
                 method: 'POST',
-                body: JSON.stringify(formData)
+                headers: {
+                    'X-CSRF-Token': csrf.getToken()
+                },
+                body: formData
             });
-            showStatus('Settings saved successfully!', 'success');
-        } catch (err) {
-            console.error('Settings save failed:', err);
-            showStatus('Error saving settings: ' + err.message, 'error');
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Image upload failed:', errorText);
+                throw new Error(errorText);
+            }
+            
+            imageFilename = await response.text();
+            console.log('Image uploaded successfully:', imageFilename);
         }
-    });
+
+        if (faviconInput.files.length > 0) {
+            console.log('Uploading new favicon...');
+            const formData = new FormData();
+            formData.append('favicon', faviconInput.files[0]);
+            
+            const response = await csrf.fetch('/admin/upload-favicon', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': csrf.getToken()
+                },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Favicon upload failed:', errorText);
+                throw new Error(errorText);
+            }
+            
+            faviconFilename = await response.text();
+            console.log('Favicon uploaded successfully:', faviconFilename);
+        }
+
+        // Build settings data
+        const formData = {
+            siteTitle: document.getElementById('siteTitle').value,
+            maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
+            updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
+            headerLinkText: document.getElementById('headerLinkText').value,
+            headerLinkURL: document.getElementById('headerLinkURL').value,
+            footerLinkText: document.getElementById('footerLinkText').value,
+            footerLinkURL: document.getElementById('footerLinkURL').value,
+            footerImageHeight: document.getElementById('footerImageHeight').value,
+            footerImageURL: imageFilename,
+            faviconURL: faviconFilename,
+            timezone: document.getElementById('timezone').value,
+            trackingCode: document.getElementById('trackingCode').value
+        };
+
+        const response = await csrf.fetch('/admin/settings', {
+            method: 'POST',
+            body: JSON.stringify(formData)
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to save settings');
+        }
+        
+        showStatus('SETTINGS SAVED', 'success');
+    } catch (err) {
+        console.error('SAVE SETTINGS FAILED:', err);
+        showStatus('Error saving settings: ' + err.message, 'error');
+    }
+});
     
     function showStatus(message, type) {
         const status = document.getElementById('status');

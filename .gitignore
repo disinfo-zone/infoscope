@@ -17,6 +17,8 @@ web/static/favicons/*
 !web/static/favicons/default.ico
 web/static/images/*
 !web/static/images/infoscope.png
+web/static/images/favicon/*
+!web/static/images/favicon/favicon.ico
 
 # IDE specific files
 .idea/

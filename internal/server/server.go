@@ -94,6 +94,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/click", s.handleClick)
 	mux.HandleFunc("/click/", s.handleClick)
 
+	// favicon support
+	mux.HandleFunc("/admin/upload-favicon", s.requireAuth(s.imageHandler.HandleFaviconUpload))
+
 	// Handle root and all unmatched paths
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

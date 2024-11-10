@@ -4,9 +4,11 @@ package server
 import (
 	"embed"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 //go:embed web/templates web/static
@@ -81,4 +83,23 @@ func (s *Server) extractWebContent(forceUpdate bool) error {
 		}
 		return nil
 	})
+}
+
+func (s *Server) registerTemplateFuncs() template.FuncMap {
+	return template.FuncMap{
+		"formatTimeInZone": func(tz string, t time.Time) string {
+			loc, err := time.LoadLocation(tz)
+			if err != nil {
+				return t.UTC().Format("02/01/06 15:04")
+			}
+			return t.In(loc).Format("02/01/06 15:04")
+		},
+		"time": func(layout, value string) time.Time {
+			t, err := time.Parse(layout, value)
+			if err != nil {
+				return time.Time{}
+			}
+			return t.UTC()
+		},
+	}
 }

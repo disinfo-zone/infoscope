@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -27,52 +26,86 @@ func (s *Server) getDashboardCounts(ctx context.Context) (feedCount, entryCount 
 	return feedCount, entryCount, nil
 }
 
-func (s *Server) getLastUpdateTime(ctx context.Context) (string, error) {
+func (s *Server) getLastUpdateTime(ctx context.Context) (time.Time, error) {
 	var lastUpdate sql.NullString
 	err := s.db.QueryRowContext(ctx,
 		"SELECT DATETIME(MAX(last_fetched)) FROM feeds").Scan(&lastUpdate)
 	if err != nil {
-		return "Never", fmt.Errorf("error getting last update: %w", err)
+		return time.Time{}, fmt.Errorf("error getting last update: %w", err)
 	}
 	if !lastUpdate.Valid {
-		return "Never", nil
+		return time.Time{}, nil
 	}
 	t, err := time.Parse("2006-01-02 15:04:05", lastUpdate.String)
 	if err != nil {
-		return "Never", fmt.Errorf("error parsing last update time: %w", err)
+		return time.Time{}, fmt.Errorf("error parsing last update time: %w", err)
 	}
-	return t.Format("January 2, 2006 15:04:05"), nil
+	return t.UTC(), nil
 }
 
 // Template rendering with CSRF
 func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name string, data any) error {
+	// Merge function maps
 	funcMap := template.FuncMap{
 		"safeHTML": func(s string) template.HTML {
 			return template.HTML(s)
 		},
 	}
-
-	wrappedData := struct {
-		CSRFToken string
-		Data      any
-	}{
-		CSRFToken: s.csrf.Token(w, r),
-		Data:      data,
+	for k, v := range s.registerTemplateFuncs() {
+		funcMap[k] = v
 	}
 
-	tmpl := template.New(name)
-	tmpl = tmpl.Funcs(funcMap)
+	var wrappedData struct {
+		Data      any
+		CSRFToken string
+	}
 
+	// Handle different data types
+	switch v := data.(type) {
+	case struct {
+		Data      AdminPageData
+		CSRFToken string
+	}:
+		wrappedData = struct {
+			Data      any
+			CSRFToken string
+		}{
+			Data:      v.Data,
+			CSRFToken: v.CSRFToken,
+		}
+	case AdminPageData:
+		wrappedData = struct {
+			Data      any
+			CSRFToken string
+		}{
+			Data:      v,
+			CSRFToken: s.csrf.Token(w, r),
+		}
+	case IndexData:
+		wrappedData = struct {
+			Data      any
+			CSRFToken string
+		}{
+			Data:      v,
+			CSRFToken: s.csrf.Token(w, r),
+		}
+	default:
+		wrappedData = struct {
+			Data      any
+			CSRFToken string
+		}{
+			Data:      data,
+			CSRFToken: s.csrf.Token(w, r),
+		}
+	}
+
+	tmpl := template.New(name).Funcs(funcMap)
 	var files []string
 	switch {
 	case strings.HasPrefix(name, "admin/"):
 		files = []string{
 			filepath.Join(s.config.WebPath, "templates/admin/layout.html"),
 			filepath.Join(s.config.WebPath, "templates", name),
-		}
-	case name == "404.html":
-		files = []string{
-			filepath.Join(s.config.WebPath, "templates/404.html"),
 		}
 	default:
 		files = []string{
@@ -86,11 +119,10 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 		return fmt.Errorf("error parsing template: %w", err)
 	}
 
-	baseName := path.Base(name)
 	if strings.HasPrefix(name, "admin/") {
 		return tmpl.ExecuteTemplate(w, "layout", wrappedData)
 	}
-	return tmpl.ExecuteTemplate(w, baseName, wrappedData)
+	return tmpl.Execute(w, wrappedData)
 }
 
 // Main handler functions
@@ -109,58 +141,58 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Proceed to render the admin dashboard
-	userID := session.UserID
+	// Get settings for favicon and other UI elements
+	settings, err := s.getSettings(r.Context())
+	if err != nil {
+		s.logger.Printf("Error getting settings (user %d): %v", session.UserID, err)
+		settings = make(map[string]string)
+	}
 
 	// Get dashboard counts
 	feedCount, entryCount, err := s.getDashboardCounts(r.Context())
 	if err != nil {
-		s.logger.Printf("Error getting counts (user %d): %v", userID, err)
+		s.logger.Printf("Error getting counts (user %d): %v", session.UserID, err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	// Get last update time
-	lastUpdateStr, err := s.getLastUpdateTime(r.Context())
+	lastUpdateTime, err := s.getLastUpdateTime(r.Context())
 	if err != nil {
-		s.logger.Printf("Error getting last update (user %d): %v", userID, err)
-		lastUpdateStr = "Never"
+		s.logger.Printf("Error getting last update (user %d): %v", session.UserID, err)
+		lastUpdateTime = time.Time{} // Zero time instead of "Never"
 	}
 
 	// Get click statistics
 	clickStats, err := s.getClickStats()
 	if err != nil {
-		s.logger.Printf("Error getting click stats (user %d): %v", userID, err)
-		clickStats = &DashboardStats{} // Initialize with empty stats
+		s.logger.Printf("Error getting click stats (user %d): %v", session.UserID, err)
+		clickStats = &DashboardStats{}
 	}
 
-	// Prepare data for the template
-	data := struct {
-		CSRFToken  string
-		Title      string
-		Active     string
-		FeedCount  int
-		EntryCount int
-		LastUpdate string
-		UserID     int64
-		ClickStats *DashboardStats
-	}{
-		CSRFToken:  s.csrf.Token(w, r),
+	data := AdminPageData{
 		Title:      "Dashboard",
 		Active:     "dashboard",
+		Settings:   settings,
 		FeedCount:  feedCount,
 		EntryCount: entryCount,
-		LastUpdate: lastUpdateStr,
-		UserID:     userID,
+		LastUpdate: lastUpdateTime,
+		UserID:     session.UserID,
 		ClickStats: clickStats,
 	}
 
-	// Render the template
-	if err := s.renderTemplate(w, r, "admin/dashboard.html", data); err != nil {
-		s.logger.Printf("Error rendering template (user %d): %v", userID, err)
+	wrappedData := struct {
+		Data      AdminPageData
+		CSRFToken string
+	}{
+		Data:      data,
+		CSRFToken: s.csrf.Token(w, r),
+	}
+
+	if err := s.renderTemplate(w, r, "admin/dashboard.html", wrappedData); err != nil {
+		s.logger.Printf("Error rendering template (user %d): %v", session.UserID, err)
 		if !headerWritten(w) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
 		}
 	}
 }
