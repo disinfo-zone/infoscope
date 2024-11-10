@@ -216,3 +216,88 @@ func (h *ImageHandler) cleanupOldImages() {
 		}
 	}
 }
+
+func (h *ImageHandler) HandleFaviconUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Max file size 1MB
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	file, header, err := r.FormFile("favicon")
+	if err != nil {
+		h.logger.Printf("Error getting uploaded file: %v", err)
+		http.Error(w, "Failed to get uploaded file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Validate file type
+	contentType := header.Header.Get("Content-Type")
+	if !isValidFaviconType(contentType) {
+		h.logger.Printf("Invalid favicon type: %s", contentType)
+		http.Error(w, "Invalid file type. Must be ICO, PNG", http.StatusBadRequest)
+		return
+	}
+
+	// Get file extension
+	ext := filepath.Ext(header.Filename)
+	if ext == "" {
+		ext = ".ico"
+	}
+
+	// Read and hash file
+	content, err := io.ReadAll(file)
+	if err != nil {
+		h.logger.Printf("Error reading file: %v", err)
+		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+		return
+	}
+
+	hash := sha256.Sum256(content)
+	filename := fmt.Sprintf("favicon_%s%s", hex.EncodeToString(hash[:8]), ext)
+	filepath := filepath.Join(h.uploadDir, "favicon", filename)
+
+	// Save file
+	if err := os.WriteFile(filepath, content, 0644); err != nil {
+		h.logger.Printf("Error saving file: %v", err)
+		http.Error(w, "Failed to save file", http.StatusInternalServerError)
+		return
+	}
+
+	// Update database
+	tx, err := h.db.Begin()
+	if err != nil {
+		h.logger.Printf("Error starting transaction: %v", err)
+		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"INSERT OR REPLACE INTO settings (key, value, type) VALUES ('favicon_url', ?, 'string')",
+		filename,
+	)
+	if err != nil {
+		h.logger.Printf("Error updating settings: %v", err)
+		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		h.logger.Printf("Error committing transaction: %v", err)
+		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	fmt.Fprint(w, filename)
+}
+
+func isValidFaviconType(contentType string) bool {
+	return contentType == "image/x-icon" ||
+		contentType == "image/vnd.microsoft.icon" ||
+		contentType == "image/png"
+}

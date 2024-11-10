@@ -204,6 +204,8 @@ func createSchema(db *sql.DB) error {
 		{"feeds", "status", "TEXT DEFAULT 'pending'"},
 		{"feeds", "error_count", "INTEGER DEFAULT 0"},
 		{"feeds", "last_error", "TEXT"},
+		{"settings", "timezone", "TEXT DEFAULT 'UTC'"},
+		{"settings", "favicon_url", "TEXT DEFAULT 'favicon.ico'"},
 	}
 
 	for _, col := range columnUpdates {
@@ -346,32 +348,66 @@ func columnExists(db *sql.DB, tableName, columnName string) (bool, error) {
 }
 
 func insertDefaultSettings(db *sql.DB) error {
-	defaultSettings := []struct {
-		key, value, valueType string
-	}{
-		{"max_posts", "33", "int"},
-		{"update_interval", "900", "int"},
-		{"site_title", "infoscope_", "string"},
-		{"header_link_url", "https://disinfo.zone", "string"},
-		{"header_link_text", "<< disinfo.zone", "string"},
-		{"footer_link_url", "https://disinfo.zone", "string"},
-		{"footer_link_text", "<< disinfo.zone", "string"},
-		{"footer_image_url", "infoscope.png", "string"},
-		{"footer_image_height", "100px", "string"},
-		{"tracking_code", "", "string"},
+	defaultSettings := map[string]string{
+		"site_title":          "infoscope_",
+		"max_posts":           "100",
+		"update_interval":     "900",
+		"header_link_text":    "infoscope_",
+		"header_link_url":     "/",
+		"footer_link_text":    "infoscope_",
+		"footer_link_url":     "/",
+		"footer_image_url":    "",
+		"footer_image_height": "50px",
+		"tracking_code":       "",
+		"timezone":            "UTC",
+		"favicon_url":         "favicon.ico",
 	}
 
-	for _, setting := range defaultSettings {
-		_, err := db.Exec(
-			"INSERT OR IGNORE INTO settings (key, value, type) VALUES (?, ?, ?)",
-			setting.key, setting.value, setting.valueType)
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Check if settings table is empty
+	var count int
+	err = tx.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)
+	if err != nil {
+		return fmt.Errorf("error checking settings count: %w", err)
+	}
+
+	if count == 0 {
+		// Insert default settings
+		stmt, err := tx.Prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
 		if err != nil {
-			return fmt.Errorf("error inserting default setting %s: %w",
-				setting.key, err)
+			return fmt.Errorf("error preparing statement: %w", err)
+		}
+		defer stmt.Close()
+
+		for key, value := range defaultSettings {
+			_, err = stmt.Exec(key, value)
+			if err != nil {
+				return fmt.Errorf("error inserting default setting %s: %w", key, err)
+			}
+		}
+	} else {
+		// Update existing settings with new defaults if they don't exist
+		stmt, err := tx.Prepare(`INSERT INTO settings (key, value) 
+            SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM settings WHERE key = ?)`)
+		if err != nil {
+			return fmt.Errorf("error preparing update statement: %w", err)
+		}
+		defer stmt.Close()
+
+		for key, value := range defaultSettings {
+			_, err = stmt.Exec(key, value, key)
+			if err != nil {
+				return fmt.Errorf("error updating setting %s: %w", key, err)
+			}
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func migrateSettingsTable(db *sql.DB) error {

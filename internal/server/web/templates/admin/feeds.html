@@ -41,7 +41,9 @@
                         <td class="url-column" data-label="URL">
                             <a href="{{ .URL }}" class="feed-url" target="_blank" rel="noopener noreferrer">{{ .URL }}</a>
                         </td>
-                        <td class="date-column" data-label="Fetched">{{ .LastFetched.Format "06-01-02 15:04" }}</td>
+                        <td class="date-column" data-label="Fetched">
+                            {{ formatTimeInZone $.Data.Settings.timezone .LastFetched }}
+                        </td>
                         <td class="action-column" data-label="Actions">
                             <button onclick="showDeleteModal({{ .ID }}, '{{ .Title }}')" class="delete-button">Delete</button>
                         </td>

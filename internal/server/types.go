@@ -36,6 +36,7 @@ type IndexData struct {
 	FooterImageURL    string
 	FooterImageHeight string
 	TrackingCode      string
+	Settings          map[string]string
 }
 
 type BaseTemplateData struct {
@@ -48,9 +49,11 @@ type AdminPageData struct {
 	Active     string
 	FeedCount  int
 	EntryCount int
-	LastUpdate string
+	LastUpdate time.Time
 	UserID     int64
 	ClickStats *DashboardStats
+	Settings   map[string]string
+	Feeds      []Feed
 }
 
 type SettingsTemplateData struct {
@@ -72,6 +75,8 @@ type Settings struct {
 	FooterImageURL    string `json:"footerImageURL"`
 	FooterImageHeight string `json:"footerImageHeight"`
 	TrackingCode      string `json:"trackingCode"`
+	FaviconURL        string `json:"faviconURL"`
+	Timezone          string `json:"timezone"`
 }
 
 type Feed struct {
