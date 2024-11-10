@@ -6,9 +6,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"infoscope/internal/auth"
 	"net/http"
-	"os"
 	"path/filepath"
 )
 
@@ -33,51 +33,49 @@ type setupRequest struct {
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
-	// Add debug logging
 	s.logger.Printf("Setup handler called: %s %s", r.Method, r.URL.Path)
-
-	isFirstRun, err := IsFirstRun(s.db)
-	if err != nil {
-		s.logger.Printf("Error checking first run: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if !isFirstRun {
-		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
-		return
-	}
-
 	switch r.Method {
 	case http.MethodGet:
 		// Get CSRF token
 		csrfToken := s.csrf.Token(w, r)
 
-		// Check working directory and template path
-		wd, _ := os.Getwd()
-		templatePath := filepath.Join(WebRoot, "templates", "setup.html")
-		s.logger.Printf("Working directory: %s, looking for template: %s", wd, templatePath)
+		// Get settings
+		settings, err := s.getSettings(r.Context())
+		if err != nil {
+			s.logger.Printf("Error getting settings: %v", err)
+			settings = make(map[string]string)
+		}
 
-		if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-			s.logger.Printf("Template not found: %s", templatePath)
-			http.Error(w, "Template file not found", http.StatusInternalServerError)
+		// Copy the exact structure that works in login handler
+		data := SetupTemplateData{
+			BaseTemplateData: BaseTemplateData{
+				CSRFToken: csrfToken,
+			},
+			Data: struct {
+				Settings map[string]string
+				Error    string
+			}{
+				Settings: settings,
+				Error:    "",
+			},
+		}
+
+		// Parse and execute template directly like login handler does
+		tmplPath := filepath.Join(s.config.WebPath, "templates", "setup.html")
+		tmpl, err := template.ParseFiles(tmplPath)
+		if err != nil {
+			s.logger.Printf("Error parsing setup template: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
-		data := struct {
-			CSRFToken string
-		}{
-			CSRFToken: csrfToken,
-		}
-
-		if err := s.renderTemplate(w, r, "setup.html", data); err != nil {
-			s.logger.Printf("Error rendering setup template: %v", err)
-			http.Error(w, "Error rendering template", http.StatusInternalServerError)
+		if err := tmpl.Execute(w, data); err != nil {
+			s.logger.Printf("Error executing setup template: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
 	case http.MethodPost:
-		// Validate CSRF token
 		if !s.csrf.Validate(w, r) {
 			return
 		}
@@ -122,7 +120,6 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 		// Return success
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]bool{"success": true})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

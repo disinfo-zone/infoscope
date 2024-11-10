@@ -354,21 +354,16 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 		}
 
 		data := AdminPageData{
+			BaseTemplateData: BaseTemplateData{
+				CSRFToken: csrfToken,
+			},
 			Title:    "Manage Feeds",
 			Active:   "feeds",
 			Settings: settings,
 			Feeds:    feeds,
 		}
 
-		wrappedData := struct {
-			Data      AdminPageData
-			CSRFToken string
-		}{
-			Data:      data,
-			CSRFToken: csrfToken,
-		}
-
-		if err := s.renderTemplate(w, r, "admin/feeds.html", wrappedData); err != nil {
+		if err := s.renderTemplate(w, r, "admin/feeds.html", data); err != nil {
 			s.logger.Printf("Error rendering feeds template: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
