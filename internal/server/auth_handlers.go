@@ -205,17 +205,30 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		// Get CSRF token
 		csrfToken := s.csrf.Token(w, r)
 
-		data := struct {
-			CSRFToken string
-			Data      struct {
-				Error string
-			}
-		}{
-			CSRFToken: csrfToken,
+		// Retrieve settings
+		settings, err := s.getSettings(r.Context())
+		if err != nil {
+			s.logger.Printf("Error getting settings: %v", err)
+			settings = make(map[string]string)
 		}
 
-		// Parse and execute template
-		tmpl, err := template.ParseFiles("web/templates/login.html")
+		// Updated struct initialization to match template expectations
+		data := LoginTemplateData{
+			BaseTemplateData: BaseTemplateData{
+				CSRFToken: csrfToken,
+			},
+			Data: struct {
+				Settings map[string]string
+				Error    string
+			}{
+				Settings: settings,
+				Error:    "",
+			},
+		}
+
+		// Rest of the handler remains the same
+		tmplPath := filepath.Join(s.config.WebPath, "templates", "login.html")
+		tmpl, err := template.ParseFiles(tmplPath)
 		if err != nil {
 			s.logger.Printf("Error parsing login template: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -230,28 +243,23 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		s.logger.Printf("Login attempt received")
-
 		if !s.csrf.Validate(w, r) {
 			s.logger.Printf("CSRF validation failed")
 			return
 		}
-
 		var req loginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			s.logger.Printf("Failed to decode login request: %v", err)
 			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-
 		session, err := s.auth.Authenticate(s.db, req.Username, req.Password)
 		if err != nil {
 			s.logger.Printf("Authentication failed: %v", err)
 			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 			return
 		}
-
 		s.logger.Printf("Authentication successful, setting session cookie")
-
 		// Set session cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     "session",
@@ -262,7 +270,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			SameSite: http.SameSiteStrictMode,
 			Expires:  session.ExpiresAt,
 		})
-
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]bool{"success": true})

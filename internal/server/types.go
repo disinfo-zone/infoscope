@@ -47,21 +47,20 @@ type AdminPageData struct {
 	BaseTemplateData
 	Title      string
 	Active     string
+	Settings   map[string]string
 	FeedCount  int
 	EntryCount int
 	LastUpdate time.Time
 	UserID     int64
 	ClickStats *DashboardStats
-	Settings   map[string]string
 	Feeds      []Feed
 }
 
 type SettingsTemplateData struct {
 	BaseTemplateData
-	Title     string
-	Active    string
-	Settings  map[string]string
-	CSRFToken string
+	Title    string
+	Active   string
+	Settings map[string]string
 }
 
 type Settings struct {
@@ -88,5 +87,16 @@ type Feed struct {
 
 type LoginTemplateData struct {
 	BaseTemplateData
-	Error string
+	Data struct {
+		Settings map[string]string
+		Error    string
+	}
+}
+
+type SetupTemplateData struct {
+	BaseTemplateData
+	Data struct {
+		Settings map[string]string
+		Error    string
+	}
 }
