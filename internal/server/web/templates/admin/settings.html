@@ -511,14 +511,14 @@ textarea:focus {
             console.log('Uploading new favicon...');
             const formData = new FormData();
             formData.append('favicon', faviconInput.files[0]);
-            
-            const response = await csrf.fetch('/admin/upload-favicon', {
+
+            const response = await fetch('/admin/upload-favicon', {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-Token': csrf.getToken()
-                },
-                body: formData
-            });
+            'X-CSRF-Token': csrf.getToken()
+            },
+            body: formData
+        });
             
             if (!response.ok) {
                 const errorText = await response.text();
