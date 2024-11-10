@@ -100,7 +100,7 @@ Environment variables:
 
 ## Docker Installation
 
-Run Infoscopeion in production mode using Docker:
+Run Infoscope in production mode using Docker:
 
 ```bash
 docker run -d \
@@ -124,6 +124,8 @@ docker run -d \
 
 - `/app/data`: Database and data files
 - `/app/web`: Web content and templates
+
+## Additional Setup Notes
 
 ### Template Management
 
