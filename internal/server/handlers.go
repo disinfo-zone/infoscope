@@ -141,6 +141,8 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"tracking_code":       {settings.TrackingCode, "string"},
 		"favicon_url":         {settings.FaviconURL, "string"},
 		"timezone":            {settings.Timezone, "string"},
+		"meta_description":    {settings.MetaDescription, "string"},
+		"meta_image_url":      {settings.MetaImageURL, "string"},
 	}
 
 	for key, setting := range updates {
@@ -235,6 +237,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		FooterImageHeight: settings["footer_image_height"],
 		TrackingCode:      settings["tracking_code"],
 		Settings:          settings,
+		SiteURL:           settings["site_url"],
 	}
 
 	s.logger.Printf("Rendering template with data: %+v", data)
