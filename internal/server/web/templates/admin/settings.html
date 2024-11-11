@@ -798,47 +798,59 @@ textarea:focus {
     
     // Meta image upload handler
     document.getElementById('metaImage').addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-    
-        const container = e.target.closest('.upload-container');
-        const statusEl = document.getElementById('metaImageStatus');
-        const previewEl = document.getElementById('metaImagePreview');
-    
-        try {
-            container.classList.add('uploading');
-            statusEl.textContent = 'Uploading...';
-            statusEl.className = 'image-upload-status';
-    
-            const formData = new FormData();
-            formData.append('image', file);
-            
-            const response = await csrf.fetch('/admin/upload-meta-image', {
-                method: 'POST',
-                body: formData
-            });
-    
-            if (!response.ok) {
-                throw new Error(await response.text());
-            }
-    
-            const filename = await response.text();
-            const img = previewEl.querySelector('img');
-            img.src = `/static/images/${filename}`;
-            previewEl.style.display = 'block';
-            
-            window.metaImageURL = filename;
-            
-            container.classList.remove('uploading');
-            statusEl.textContent = 'Upload successful!';
-            statusEl.className = 'image-upload-status success';
-        } catch (err) {
-            console.error('Upload failed:', err);
-            container.classList.remove('uploading');
-            statusEl.textContent = `Upload failed: ${err.message}`;
-            statusEl.className = 'image-upload-status error';
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const container = e.target.closest('.upload-container');
+    const statusEl = document.getElementById('metaImageStatus');
+    const previewEl = document.getElementById('metaImagePreview');
+
+    try {
+        container.classList.add('uploading');
+        statusEl.textContent = 'Uploading...';
+        statusEl.className = 'image-upload-status';
+
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const response = await fetch('/admin/upload-meta-image', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-Token': csrf.getToken()
+            },
+            body: formData
+            // Don't set Content-Type - browser will set correct multipart/form-data
+        });
+
+        if (!response.ok) {
+            throw new Error(await response.text());
         }
-    });
+
+        const filename = await response.text();
+        
+        if (!previewEl.querySelector('img')) {
+            const img = document.createElement('img');
+            img.style.maxHeight = '100px';
+            previewEl.appendChild(img);
+        }
+
+        const img = previewEl.querySelector('img');
+        img.src = `/static/images/${filename}`;
+        previewEl.style.display = 'block';
+        
+        window.metaImageURL = filename;
+        
+        container.classList.remove('uploading');
+        statusEl.textContent = 'Upload successful!';
+        statusEl.className = 'image-upload-status success';
+
+    } catch (err) {
+        console.error('Upload failed:', err);
+        container.classList.remove('uploading');
+        statusEl.textContent = `Upload failed: ${err.message}`;
+        statusEl.className = 'image-upload-status error';
+    }
+});
     
     // Backup/restore functions
     function showStatus(message, type) {
