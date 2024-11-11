@@ -37,6 +37,7 @@ type IndexData struct {
 	FooterImageHeight string
 	TrackingCode      string
 	Settings          map[string]string
+	SiteURL           string
 }
 
 type BaseTemplateData struct {
@@ -76,6 +77,8 @@ type Settings struct {
 	TrackingCode      string `json:"trackingCode"`
 	FaviconURL        string `json:"faviconURL"`
 	Timezone          string `json:"timezone"`
+	MetaDescription   string `json:"metaDescription"`
+	MetaImageURL      string `json:"metaImageURL"`
 }
 
 type Feed struct {

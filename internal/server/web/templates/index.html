@@ -5,6 +5,29 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ .CSRFToken }}">
+    
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="{{ .Data.Title }}">
+    <meta name="description" content="{{ index .Data.Settings "meta_description" }}">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ .Data.HeaderLinkURL }}">
+    <meta property="og:title" content="{{ .Data.Title }}">
+    <meta property="og:description" content="{{ index .Data.Settings "meta_description" }}">
+    {{ if index .Data.Settings "meta_image_url" }}
+    <meta property="og:image" content="{{ .Data.SiteURL }}/static/images/{{ index .Data.Settings "meta_image_url" }}">
+    {{ end }}
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ .Data.HeaderLinkURL }}">
+    <meta property="twitter:title" content="{{ .Data.Title }}">
+    <meta property="twitter:description" content="{{ index .Data.Settings "meta_description" }}">
+    {{ if index .Data.Settings "meta_image_url" }}
+    <meta name="twitter:image" content="{{ .Data.SiteURL }}/static/images/{{ index .Data.Settings "meta_image_url" }}">
+    {{ end }}
+
     <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ .Data.Settings.favicon_url }}">
     <style>
         body {

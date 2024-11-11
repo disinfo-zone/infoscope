@@ -361,6 +361,9 @@ func insertDefaultSettings(db *sql.DB) error {
 		"tracking_code":       "",
 		"timezone":            "UTC",
 		"favicon_url":         "favicon.ico",
+		"meta_description":    "A minimalist RSS river reader",
+		"meta_image_url":      "",
+		"site_url":            "",
 	}
 
 	tx, err := db.Begin()
