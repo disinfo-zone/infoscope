@@ -30,8 +30,44 @@
                     <img src="/static/images/favicon/{{ index .Data.Settings "favicon_url" }}" alt="Favicon" style="max-height: 32px">
                 </div>
                 {{ end }}
-                <div class="file-input-wrapper">
-                    <input type="file" id="favicon" name="favicon" accept="image/x-icon,image/png,image/ico" class="file-input">
+                <div class="upload-container">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="favicon" name="favicon" accept="image/x-icon,image/png,image/ico" class="file-input">
+                    </div>
+                    <div id="faviconStatus" class="image-upload-status"></div>
+                    <div id="faviconPreview" class="upload-preview" style="display: none">
+                        <img src="" alt="Upload preview" style="max-height: 32px">
+                    </div>
+                </div>
+                <div class="help-text">
+                    Upload an ICO or PNG file (max 1MB)
+                </div>
+            </div>
+            <div class="setting-group">
+                <label for="metaDescription">META DESCRIPTION</label>
+                <textarea id="metaDescription" name="metaDescription" rows="3" placeholder="Brief site description for social media cards">{{ index .Data.Settings "meta_description" }}</textarea>
+                <div class="help-text">
+                    A short description that appears when links are shared on social media.
+                </div>
+            </div>
+            <div class="setting-group">
+                <label for="metaImage">SOCIAL CARD IMAGE</label>
+                <div class="upload-container">
+                    {{ if index .Data.Settings "meta_image_url" }}
+                    <div class="current-image">
+                        <img src="/static/images/{{ index .Data.Settings "meta_image_url" }}" alt="Social card image" style="max-height: 100px">
+                    </div>
+                    {{ end }}
+                    <div class="file-input-wrapper">
+                        <input type="file" id="metaImage" name="image" accept="image/*" class="file-input">
+                    </div>
+                    <div id="metaImageStatus" class="image-upload-status"></div>
+                    <div id="metaImagePreview" class="upload-preview" style="display: none">
+                        <img src="" alt="Upload preview" style="max-height: 100px">
+                    </div>
+                </div>
+                <div class="help-text">
+                    Image shown when links are shared (recommended: 1200x630px)
                 </div>
             </div>
             <div class="setting-group">
@@ -53,8 +89,14 @@
                     <img src="/static/images/{{ index .Data.Settings "footer_image_url" }}" alt="Footer image" style="max-height: 100px">
                 </div>
                 {{ end }}
-                <div class="file-input-wrapper">
-                    <input type="file" id="footerImage" name="footerImage" accept="image/*" class="file-input">
+                <div class="upload-container">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="footerImage" name="footerImage" accept="image/*" class="file-input">
+                    </div>
+                    <div id="footerImageStatus" class="image-upload-status"></div>
+                    <div id="footerImagePreview" class="upload-preview" style="display: none">
+                        <img src="" alt="Upload preview" style="max-height: 100px">
+                    </div>
                 </div>
             </div>
             <div class="setting-group">
@@ -295,15 +337,18 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 /* Current image preview */
-.current-image {
+.current-image, .upload-preview {
     margin: 1rem 0;
     padding: 1rem;
     background: #0c1220;
     border-radius: 4px;
     text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-.current-image img {
+.current-image img, .upload-preview img {
     max-width: 100%;
     height: auto;
 }
@@ -442,6 +487,73 @@ textarea:focus {
     box-shadow: 0 0 0 1px #67bb79;
 }
 
+.uploading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.uploading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(12, 18, 32, 0.8);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.uploading::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border: 2px solid #2a3450;
+    border-top-color: #67bb79;
+    border-radius: 50%;
+    animation: cyberspin 1s linear infinite;
+    z-index: 11;
+}
+
+@keyframes cyberspin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.upload-container {
+    position: relative;
+    min-height: 100px;
+}
+
+.image-upload-status {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    display: none;
+}
+
+.image-upload-status.success {
+    display: block;
+    background: rgba(103, 187, 121, 0.1);
+    color: #67bb79;
+    border: 1px solid #67bb79;
+}
+
+.image-upload-status.error {
+    display: block;
+    background: rgba(255, 107, 107, 0.1);
+    color: #ff6b6b;
+    border: 1px solid #ff6b6b;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .settings-container {
@@ -473,95 +585,262 @@ textarea:focus {
 <script>
     // Form submission handler
     document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    console.log('Settings form submitted');
-    const status = document.getElementById('status');
+        e.preventDefault();
+        console.log('Settings form submitted');
+        const status = document.getElementById('status');
+        
+        try {
+            // Handle image uploads first
+            const imageInput = document.getElementById('footerImage');
+            const faviconInput = document.getElementById('favicon');
+            let imageFilename = '{{ index .Data.Settings "footer_image_url" }}';
+            let faviconFilename = '{{ index .Data.Settings "favicon_url" }}';
+            let metaImageURL = '{{ index .Data.Settings "meta_image_url" }}';
+            
+            if (imageInput.files.length > 0) {
+                console.log('Uploading new footer image...');
+                const formData = new FormData();
+                formData.append('image', imageInput.files[0]);
+                
+                const response = await csrf.fetch('/admin/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Footer image upload failed:', errorText);
+                    throw new Error(errorText);
+                }
+                
+                imageFilename = await response.text();
+                console.log('Footer image uploaded successfully:', imageFilename);
+            }
     
-    try {
-        // Handle image uploads first
-        const imageInput = document.getElementById('footerImage');
-        const faviconInput = document.getElementById('favicon');
-        let imageFilename = '{{ index .Data.Settings "footer_image_url" }}';
-        let faviconFilename = '{{ index .Data.Settings "favicon_url" }}';
-        
-        if (imageInput.files.length > 0) {
-            console.log('Uploading new image...');
-            const formData = new FormData();
-            formData.append('image', imageInput.files[0]);
-            
-            const response = await csrf.fetch('/admin/upload-image', {
+            if (faviconInput.files.length > 0) {
+                console.log('Uploading new favicon...');
+                const formData = new FormData();
+                formData.append('favicon', faviconInput.files[0]);
+                
+                const response = await csrf.fetch('/admin/upload-favicon', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Favicon upload failed:', errorText);
+                    throw new Error(errorText);
+                }
+                
+                faviconFilename = await response.text();
+                console.log('Favicon uploaded successfully:', faviconFilename);
+            }
+    
+            if (window.metaImageURL) {
+                metaImageURL = window.metaImageURL;
+                console.log('Using uploaded meta image:', metaImageURL);
+            }
+
+            if (window.footerImageURL) {
+    imageFilename = window.footerImageURL;
+    console.log('Using uploaded footer image:', imageFilename);
+}
+    
+            // Build settings data
+            const formData = {
+                siteTitle: document.getElementById('siteTitle').value,
+                maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
+                updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
+                headerLinkText: document.getElementById('headerLinkText').value,
+                headerLinkURL: document.getElementById('headerLinkURL').value,
+                footerLinkText: document.getElementById('footerLinkText').value,
+                footerLinkURL: document.getElementById('footerLinkURL').value,
+                footerImageHeight: document.getElementById('footerImageHeight').value,
+                footerImageURL: imageFilename,
+                faviconURL: faviconFilename,
+                timezone: document.getElementById('timezone').value,
+                trackingCode: document.getElementById('trackingCode').value,
+                metaDescription: document.getElementById('metaDescription').value,
+                metaImageURL: metaImageURL
+            };
+    
+            const response = await csrf.fetch('/admin/settings', {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-Token': csrf.getToken()
+                    'Content-Type': 'application/json'
                 },
-                body: formData
+                body: JSON.stringify(formData)
             });
-            
+    
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Image upload failed:', errorText);
-                throw new Error(errorText);
+                throw new Error('Failed to save settings');
             }
-            
-            imageFilename = await response.text();
-            console.log('Image uploaded successfully:', imageFilename);
+    
+            status.textContent = 'Settings saved successfully!';
+            status.className = 'status success';
+            setTimeout(() => {
+                status.className = 'status';
+            }, 3000);
+    
+        } catch (err) {
+            console.error('SAVE SETTINGS FAILED:', err);
+            status.textContent = 'Error saving settings: ' + err.message;
+            status.className = 'status error';
+            setTimeout(() => {
+                status.className = 'status';
+            }, 3000);
         }
+    });
+    
+    // Footer image upload handler
+    document.getElementById('footerImage').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-        if (faviconInput.files.length > 0) {
-            console.log('Uploading new favicon...');
-            const formData = new FormData();
-            formData.append('favicon', faviconInput.files[0]);
+    const container = e.target.closest('.upload-container');
+    const statusEl = document.getElementById('footerImageStatus');
+    const previewEl = document.getElementById('footerImagePreview');
 
-            const response = await fetch('/admin/upload-favicon', {
-                method: 'POST',
-                headers: {
-            'X-CSRF-Token': csrf.getToken()
-            },
-            body: formData
-        });
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Favicon upload failed:', errorText);
-                throw new Error(errorText);
-            }
-            
-            faviconFilename = await response.text();
-            console.log('Favicon uploaded successfully:', faviconFilename);
-        }
+    try {
+        container.classList.add('uploading');
+        statusEl.textContent = 'Uploading...';
+        statusEl.className = 'image-upload-status';
 
-        // Build settings data
-        const formData = {
-            siteTitle: document.getElementById('siteTitle').value,
-            maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
-            updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
-            headerLinkText: document.getElementById('headerLinkText').value,
-            headerLinkURL: document.getElementById('headerLinkURL').value,
-            footerLinkText: document.getElementById('footerLinkText').value,
-            footerLinkURL: document.getElementById('footerLinkURL').value,
-            footerImageHeight: document.getElementById('footerImageHeight').value,
-            footerImageURL: imageFilename,
-            faviconURL: faviconFilename,
-            timezone: document.getElementById('timezone').value,
-            trackingCode: document.getElementById('trackingCode').value
-        };
-
-        const response = await csrf.fetch('/admin/settings', {
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        // Use plain fetch without setting any Content-Type header
+        const response = await fetch('/admin/upload-meta-image', {
             method: 'POST',
-            body: JSON.stringify(formData)
+            headers: {
+                'X-CSRF-Token': csrf.getToken()
+            },
+            body: formData,
+            // Don't set Content-Type - browser will set correct multipart/form-data
         });
-        
+
         if (!response.ok) {
-            throw new Error('Failed to save settings');
+            throw new Error(await response.text());
         }
+
+        const filename = await response.text();
         
-        showStatus('SETTINGS SAVED', 'success');
+        if (!previewEl.querySelector('img')) {
+            const img = document.createElement('img');
+            img.style.maxHeight = '100px';
+            previewEl.appendChild(img);
+        }
+
+        const img = previewEl.querySelector('img');
+        img.src = `/static/images/${filename}`;
+        previewEl.style.display = 'block';
+        
+        window.footerImageURL = filename;
+        
+        container.classList.remove('uploading');
+        statusEl.textContent = 'Upload successful!';
+        statusEl.className = 'image-upload-status success';
+
     } catch (err) {
-        console.error('SAVE SETTINGS FAILED:', err);
-        showStatus('Error saving settings: ' + err.message, 'error');
+        console.error('Upload failed:', err);
+        container.classList.remove('uploading');
+        statusEl.textContent = `Upload failed: ${err.message}`;
+        statusEl.className = 'image-upload-status error';
     }
 });
     
+    // Favicon upload handler
+    document.getElementById('favicon').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const container = e.target.closest('.upload-container');
+    const statusEl = document.getElementById('faviconStatus');
+    const previewEl = document.getElementById('faviconPreview');
+
+    try {
+        container.classList.add('uploading');
+        statusEl.textContent = 'Uploading...';
+        statusEl.className = 'image-upload-status';
+
+        const formData = new FormData();
+        formData.append('favicon', file);
+        
+        // Let the browser set the correct multipart Content-Type
+        const response = await fetch('/admin/upload-favicon', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-Token': csrf.getToken()
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(await response.text());
+        }
+
+        const filename = await response.text();
+        const img = previewEl.querySelector('img');
+        img.src = `/static/images/favicon/${filename}`;
+        previewEl.style.display = 'block';
+        
+        container.classList.remove('uploading');
+        statusEl.textContent = 'Upload successful!';
+        statusEl.className = 'image-upload-status success';
+    } catch (err) {
+        console.error('Upload failed:', err);
+        container.classList.remove('uploading');
+        statusEl.textContent = `Upload failed: ${err.message}`;
+        statusEl.className = 'image-upload-status error';
+    }
+});
+    
+    // Meta image upload handler
+    document.getElementById('metaImage').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+    
+        const container = e.target.closest('.upload-container');
+        const statusEl = document.getElementById('metaImageStatus');
+        const previewEl = document.getElementById('metaImagePreview');
+    
+        try {
+            container.classList.add('uploading');
+            statusEl.textContent = 'Uploading...';
+            statusEl.className = 'image-upload-status';
+    
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const response = await csrf.fetch('/admin/upload-meta-image', {
+                method: 'POST',
+                body: formData
+            });
+    
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+    
+            const filename = await response.text();
+            const img = previewEl.querySelector('img');
+            img.src = `/static/images/${filename}`;
+            previewEl.style.display = 'block';
+            
+            window.metaImageURL = filename;
+            
+            container.classList.remove('uploading');
+            statusEl.textContent = 'Upload successful!';
+            statusEl.className = 'image-upload-status success';
+        } catch (err) {
+            console.error('Upload failed:', err);
+            container.classList.remove('uploading');
+            statusEl.textContent = `Upload failed: ${err.message}`;
+            statusEl.className = 'image-upload-status error';
+        }
+    });
+    
+    // Backup/restore functions
     function showStatus(message, type) {
         const status = document.getElementById('status');
         status.textContent = message;
@@ -580,65 +859,68 @@ textarea:focus {
         }, 3000);
     }
     
-    async function exportBackup() {
+    // Export backup
+    document.getElementById('exportBackup').addEventListener('click', async () => {
         try {
-            const response = await fetch('/admin/backup', {
+            const response = await csrf.fetch('/admin/backup/export', {
                 method: 'GET'
             });
             
             if (!response.ok) {
                 throw new Error('Failed to create backup');
             }
-            
+    
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.style.display = 'none';
             a.href = url;
-            a.download = 'infoscope_backup_' + new Date().toISOString().split('T')[0] + '.json';
+            a.download = 'backup.json';
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
-            
+    
             showBackupStatus('Backup exported successfully!', 'success');
         } catch (err) {
-            showBackupStatus('Error exporting backup: ' + err.message, 'error');
+            console.error('Export failed:', err);
+            showBackupStatus('Export failed: ' + err.message, 'error');
         }
-    }
+    });
     
-    async function handleImport() {
-        const file = document.getElementById('importFile').files[0];
-        if (!file) return;
+    // Import backup
+    document.getElementById('importBackup').addEventListener('click', async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json';
         
-        try {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const backup = JSON.parse(e.target.result);
-                    
-                    const response = await csrf.fetch('/admin/backup', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(backup)
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('Failed to import backup');
-                    }
-                    
-                    showBackupStatus('Backup imported successfully! Reloading...', 'success');
-                    setTimeout(() => location.reload(), 1500);
-                } catch (err) {
-                    showBackupStatus('Error importing backup: ' + err.message, 'error');
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+    
+            try {
+                const formData = new FormData();
+                formData.append('backup', file);
+    
+                const response = await csrf.fetch('/admin/backup/import', {
+                    method: 'POST',
+                    body: formData
+                });
+    
+                if (!response.ok) {
+                    throw new Error('Failed to import backup');
                 }
-            };
-            reader.readAsText(file);
-        } catch (err) {
-            showBackupStatus('Error reading backup file: ' + err.message, 'error');
-        }
-    }
+    
+                showBackupStatus('Backup imported successfully!', 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } catch (err) {
+                console.error('Import failed:', err);
+                showBackupStatus('Import failed: ' + err.message, 'error');
+            }
+        };
+    
+        input.click();
+    });
     </script>
 {{ end }}

@@ -301,3 +301,74 @@ func isValidFaviconType(contentType string) bool {
 		contentType == "image/vnd.microsoft.icon" ||
 		contentType == "image/png"
 }
+
+// handle meta image upload
+
+func (h *ImageHandler) HandleMetaImageUpload(w http.ResponseWriter, r *http.Request) {
+	h.logger.Printf("Content-Type: %s", r.Header.Get("Content-Type"))
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse multipart form with size limit
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		h.logger.Printf("File size error: %v", err)
+		http.Error(w, fmt.Sprintf("File too large (max %d MB)", maxUploadSize/(1<<20)),
+			http.StatusBadRequest)
+		return
+	}
+	defer r.MultipartForm.RemoveAll()
+
+	// Get the file
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		h.logger.Printf("Error getting file: %v", err)
+		http.Error(w, "Invalid file upload", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Validate the file
+	if err := h.validateFile(header); err != nil {
+		h.logger.Printf("File validation error: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Save the file
+	filename, err := h.saveImage(file, header)
+	if err != nil {
+		h.logger.Printf("Error saving file: %v", err)
+		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+
+	// Update settings in database
+	tx, err := h.db.Begin()
+	if err != nil {
+		h.logger.Printf("Error starting transaction: %v", err)
+		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"INSERT OR REPLACE INTO settings (key, value, type) VALUES ('meta_image_url', ?, 'string')",
+		filename,
+	)
+	if err != nil {
+		h.logger.Printf("Error updating settings: %v", err)
+		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		h.logger.Printf("Error committing transaction: %v", err)
+		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	fmt.Fprint(w, filename)
+}
