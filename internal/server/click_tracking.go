@@ -52,16 +52,31 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	// Update click count
+	// First update entry-specific clicks
 	_, err = tx.Exec(`
-		INSERT INTO clicks (entry_id, click_count, last_clicked)
-		VALUES (?, 1, CURRENT_TIMESTAMP)
-		ON CONFLICT(entry_id) DO UPDATE SET
-			click_count = click_count + 1,
-			last_clicked = CURRENT_TIMESTAMP
-	`, id)
+        INSERT INTO clicks (entry_id, click_count, last_clicked)
+        VALUES (?, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(entry_id) DO UPDATE SET
+            click_count = click_count + 1,
+            last_clicked = CURRENT_TIMESTAMP
+    `, id)
 	if err != nil {
-		s.logger.Printf("Error updating click count: %v", err)
+		s.logger.Printf("Error updating entry clicks: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Then update total clicks counter
+	_, err = tx.Exec(`
+        INSERT INTO click_stats (key, value)
+        VALUES ('total_clicks', 1)
+        ON CONFLICT(key) DO UPDATE SET 
+            value = value + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE key = 'total_clicks'
+    `)
+	if err != nil {
+		s.logger.Printf("Error updating total clicks: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -79,7 +94,7 @@ func (s *Server) getClickStats() (*DashboardStats, error) {
 	stats := &DashboardStats{}
 	// Get total clicks
 	err := s.db.QueryRow(`
-        SELECT COALESCE(SUM(click_count), 0) FROM clicks
+    	SELECT value FROM click_stats WHERE key = 'total_clicks'
     `).Scan(&stats.TotalClicks)
 	if err != nil {
 		stats.TotalClicks = 0
@@ -145,4 +160,39 @@ func (s *Server) getClickStats() (*DashboardStats, error) {
 	}
 
 	return stats, nil
+}
+
+func (s *Server) initializeTotalClicks() error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Sum all existing clicks
+	var totalClicks int64
+	err = tx.QueryRow(`
+        SELECT COALESCE(SUM(click_count), 0) 
+        FROM clicks
+    `).Scan(&totalClicks)
+	if err != nil {
+		return fmt.Errorf("error summing clicks: %w", err)
+	}
+
+	// Set total_clicks to sum if it's higher than current value
+	_, err = tx.Exec(`
+        INSERT INTO click_stats (key, value)
+        VALUES ('total_clicks', ?)
+        ON CONFLICT(key) DO UPDATE SET
+            value = CASE 
+                WHEN ? > value OR value IS NULL THEN ?
+                ELSE value 
+            END
+    `, totalClicks, totalClicks, totalClicks)
+
+	if err != nil {
+		return fmt.Errorf("error setting total clicks: %w", err)
+	}
+
+	return tx.Commit()
 }

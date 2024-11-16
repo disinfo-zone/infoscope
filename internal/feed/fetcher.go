@@ -157,13 +157,21 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 	}
 
 	// Get latest entry timestamp from database
-	var latestTimestamp sql.NullTime
+	var latestTimestampStr sql.NullString
 	err = f.db.QueryRowContext(ctx,
-		`SELECT DATETIME(MAX(published_at)) FROM entries WHERE feed_id = ?`,
+		`SELECT COALESCE(MAX(published_at), '') FROM entries WHERE feed_id = ?`,
 		feed.ID,
-	).Scan(&latestTimestamp)
+	).Scan(&latestTimestampStr)
+
+	var latestTimestamp time.Time
 	if err != nil && err != sql.ErrNoRows {
 		f.logger.Printf("Warning: error getting latest timestamp for feed %s: %v", feed.URL, err)
+	} else if latestTimestampStr.Valid && latestTimestampStr.String != "" {
+		latestTimestamp, err = time.Parse("2006-01-02 15:04:05", latestTimestampStr.String)
+		if err != nil {
+			f.logger.Printf("Warning: error parsing timestamp %s for feed %s: %v",
+				latestTimestampStr.String, feed.URL, err)
+		}
 	}
 
 	// Process entries
@@ -174,8 +182,13 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 			pubDate = item.UpdatedParsed
 		}
 		if pubDate == nil {
-			now := time.Now() // Create a new variable first
-			pubDate = &now    // Then take its address
+			now := time.Now()
+			pubDate = &now
+		}
+
+		// Skip entries older than latest timestamp if we have one
+		if !latestTimestamp.IsZero() && pubDate.Before(latestTimestamp) {
+			continue
 		}
 
 		// Get or create favicon
@@ -232,11 +245,11 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
         feed_id, title, url, content, guid, 
         published_at, favicon_url
     )
-    VALUES (?, ?, ?, ?, ?, DATETIME(?), ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(url) DO UPDATE SET
         title = excluded.title,
         content = excluded.content,
-        published_at = DATETIME(excluded.published_at)
+        published_at = excluded.published_at
         WHERE excluded.published_at > published_at
 `)
 	if err != nil {
