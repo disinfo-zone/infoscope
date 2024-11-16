@@ -57,6 +57,11 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 		return nil, fmt.Errorf("failed to extract web content: %w", err)
 	}
 
+	// Initialize total click counts
+	if err := s.initializeTotalClicks(); err != nil {
+		return nil, fmt.Errorf("error initializing click counts: %w", err)
+	}
+
 	s.logger.Printf("Server initialized successfully")
 	return s, nil
 }
