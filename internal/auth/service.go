@@ -2,7 +2,12 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -14,23 +19,45 @@ func NewService() *Service {
 	return &Service{}
 }
 
-func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session, error) {
-	var user struct {
-		id           int64
-		passwordHash string
+// CreateUser creates a new admin user with a hashed password
+func (s *Service) CreateUser(db *sql.DB, username, password string) error {
+	// Convert username to lowercase for case-insensitivity
+	lowerUsername := strings.ToLower(username)
+
+	// Hash password with bcrypt
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
 	}
+
+	// Insert user into database
+	_, err = db.Exec(
+		"INSERT INTO admin_users (username, password_hash) VALUES (?, ?)",
+		lowerUsername, string(hash), // Use lowerUsername
+	)
+	return err
+}
+
+func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session, error) {
+	var user User // Changed from anonymous struct to User type
+	// Convert username to lowercase for case-insensitive lookup
+	lowerUsername := strings.ToLower(username)
 
 	err := db.QueryRow(
 		"SELECT id, password_hash FROM admin_users WHERE username = ?",
-		username,
-	).Scan(&user.id, &user.passwordHash)
+		lowerUsername, // Use lowerUsername
+	).Scan(&user.ID, &user.PasswordHash) // Scan into User struct fields
 
 	if err != nil {
-		return nil, ErrInvalidCredentials
+		if err == sql.ErrNoRows { // Check specifically for ErrNoRows
+			return nil, ErrInvalidCredentials
+		}
+		// Log or return other errors appropriately
+		return nil, err // Return the actual db error for other cases
 	}
 
 	if err := bcrypt.CompareHashAndPassword(
-		[]byte(user.passwordHash),
+		[]byte(user.PasswordHash), // Use field from User struct
 		[]byte(password),
 	); err != nil {
 		return nil, ErrInvalidCredentials
@@ -38,7 +65,7 @@ func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session,
 
 	// Create new session
 	session := &Session{
-		UserID:    user.id,
+		UserID:    user.ID, // Use field from User struct
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
@@ -60,6 +87,67 @@ func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session,
 	}
 
 	return session, nil
+}
+
+// GetUserByID retrieves a user by their ID
+func (s *Service) GetUserByID(db *sql.DB, userID int64) (*User, error) {
+	var user User
+	err := db.QueryRow(
+		"SELECT id, username, password_hash, created_at FROM admin_users WHERE id = ?",
+		userID,
+	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("user not found") // Or a more specific error
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// UpdatePassword updates the password for a given user ID
+func (s *Service) UpdatePassword(db *sql.DB, userID int64, newPassword string) error {
+	// Hash the new password
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// Update the password hash in the database using a transaction
+	tx, err := db.BeginTx(context.Background(), nil) // Start transaction
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() // Rollback if commit doesn't happen
+
+	result, err := tx.ExecContext(context.Background(), // Use transaction
+		"UPDATE admin_users SET password_hash = ? WHERE id = ?",
+		string(hash), userID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to execute update: %w", err) // Return specific error
+	}
+
+	// Check if any row was actually updated
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("could not verify password update: %w", err)
+	}
+	if rowsAffected == 0 {
+		return errors.New("password update failed: user not found or no changes made")
+	}
+
+	log.Printf("[AuthService] Attempting to commit password update for user %d", userID) // Log before commit
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		log.Printf("[AuthService] FAILED to commit password update for user %d: %v", userID, err) // Log commit error
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	log.Printf("[AuthService] Successfully committed password update for user %d", userID) // Log after successful commit
+
+	return nil // Return nil only if exec succeeded, rows were affected, and commit succeeded
 }
 
 func (s *Service) ValidateSession(db *sql.DB, sessionID string) (*Session, error) {

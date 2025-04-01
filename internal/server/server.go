@@ -92,6 +92,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/backup/", s.requireAuth(s.handleBackup))
 	mux.HandleFunc("/admin/metrics", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/metrics/", s.requireAuth(s.handleMetrics))
+	mux.HandleFunc("/admin/change-password", s.requireAuth(s.handleChangePassword))
+	mux.HandleFunc("/admin/change-password/", s.requireAuth(s.handleChangePassword))
 	mux.HandleFunc("/admin", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/admin/", s.requireAuth(s.handleAdmin))
 

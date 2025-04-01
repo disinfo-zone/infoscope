@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Infoscope Setup</title>
+    <meta name="csrf-token" content="{{ .CSRFToken }}">
+    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ .Data.Settings.favicon_url }}">
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #121a2b;
+            color: #7da9b7;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .setup-container {
+            background: #1a2438;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #c4d3cb;
+            margin-top: 0;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #a5c5cf;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.5rem;
+            background: #0c1220;
+            border: 1px solid #2a3450;
+            color: #7da9b7;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: #67bb79;
+            color: #121a2b;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 1rem;
+            margin-top: 1rem;
+        }
+
+        button:hover {
+            background: #39ff64;
+        }
+
+        .error {
+            color: #ff6b6b;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .password-requirements {
+            font-size: 0.8rem;
+            color: #a5c5cf;
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <h1>Infoscope Setup</h1>
+        <form id="setupForm">
+            <div class="form-group">
+                <label for="siteTitle">Site Title</label>
+                <input type="text" id="siteTitle" name="siteTitle" value="infoscope_" required>
+            </div>
+            <div class="form-group">
+                <label for="username">Admin Username</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+                <div class="password-requirements">
+                    Password must be at least 8 characters long
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required>
+            </div>
+            <button type="submit">Complete Setup</button>
+            <div id="error" class="error"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('setupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const error = document.getElementById('error');
+            error.textContent = '';
+    
+            // Get CSRF token from meta tag
+            const token = document.querySelector('meta[name="csrf-token"]').content;
+            
+            const formData = {
+                siteTitle: document.getElementById('siteTitle').value,
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                confirmPassword: document.getElementById('confirmPassword').value
+            };
+    
+            try {
+                const response = await fetch('/setup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': token
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(formData)
+                });
+    
+                if (!response.ok) {
+                    const data = await response.text();
+                    throw new Error(data);
+                }
+                
+                window.location.href = '/admin/login';
+            } catch (err) {
+                error.textContent = err.message;
+            }
+        });
+    </script>
+</body>
+</html>
