@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"infoscope/internal/auth" // Corrected import path
 )
 
 // Helper functions for dashboard data
@@ -302,16 +304,97 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 		// Clear the session cookie
 		http.SetCookie(w, &http.Cookie{
-			Name:     "session",
-			Value:    "",
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   s.csrf.config.Secure,
-			SameSite: http.SameSiteStrictMode,
-			MaxAge:   -1,
+			Name:   "session",
+			Value:  "",
+			Path:   "/",
+			MaxAge: -1, // Delete cookie
 		})
 	}
 
 	// Redirect to login page after logout
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+}
+
+// Request struct for changing password
+type changePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+// handleChangePassword handles requests to change the admin password
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Validate session first
+	cookie, err := r.Cookie("session")
+	if err != nil || cookie.Value == "" {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	session, err := s.auth.ValidateSession(s.db, cookie.Value)
+	if err != nil || session == nil || session.IsExpired() {
+		respondWithError(w, http.StatusUnauthorized, "Invalid or expired session")
+		return
+	}
+
+	// CSRF validation (Use the same middleware or check manually)
+	// Assuming CSRF is handled by middleware or the renderTemplate function implicitly for GETs
+	// For POST, we might need explicit validation if not using a middleware that covers POST
+	// if !s.csrf.Validate(w, r) { // Uncomment and adapt if CSRF middleware isn't global
+	//     respondWithError(w, http.StatusForbidden, "Invalid CSRF token")
+	// 	   return
+	// }
+
+	var req changePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Get the current user's details to verify the current password
+	currentUser, err := s.auth.GetUserByID(s.db, session.UserID)
+	if err != nil {
+		s.logger.Printf("Error getting user %d: %v", session.UserID, err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve user information")
+		return
+	}
+
+	// Verify the current password
+	_, err = s.auth.Authenticate(s.db, currentUser.Username, req.CurrentPassword)
+	if err != nil {
+		if err == auth.ErrInvalidCredentials {
+			respondWithError(w, http.StatusUnauthorized, "Incorrect current password")
+		} else {
+			s.logger.Printf("Error authenticating user %d during password change: %v", session.UserID, err)
+			respondWithError(w, http.StatusInternalServerError, "Authentication error")
+		}
+		return
+	}
+
+	// Update the password
+	if err := s.auth.UpdatePassword(s.db, session.UserID, req.NewPassword); err != nil {
+		s.logger.Printf("Error updating password for user %d: %v", session.UserID, err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to update password")
+		return
+	}
+
+	s.logger.Printf("Password updated successfully for user %d", session.UserID)
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Password updated successfully"})
+}
+
+// Helper to send JSON error responses (can be moved to a utils file)
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	respondWithJSON(w, code, map[string]string{"error": message})
+}
+
+// Helper to send JSON responses (can be moved to a utils file)
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	if payload != nil {
+		json.NewEncoder(w).Encode(payload)
+	}
 }

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>404::LIMINAL::BREACH</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg: #121a2b;
+            --text: #d5d9e2;
+            --accent: #35ffe6;
+            --shadow: #1f2d42;
+            --secondary: #7da9b7;
+            --glow: rgba(53, 255, 230, 0.15);
+            --shadow: rgba(18, 26, 43, 0.8);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @font-face {
+            font-family: 'SpaceMono';
+            src: local('Space Mono'), local('IBM Plex Mono'), local('Roboto Mono'), local('Courier New');
+        }
+
+        @font-face {
+            font-family: 'DisplayFont';
+            src: local('Syncopate'), local('Orbitron'), local('Arial Black');
+        }
+
+        body {
+            font-family: 'SpaceMono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            line-height: 1.6;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            max-width: 1400px;
+            padding: 2rem;
+            z-index: 2;
+        }
+
+        .glitch-wrapper {
+            position: relative;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 4rem;
+            mix-blend-mode: difference;
+        }
+
+        .glitch {
+            font-family: 'DisplayFont', sans-serif;
+            font-size: 15vw;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            position: relative;
+            text-shadow: 0 0 20px var(--shadow);
+
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .glitch::before,
+        .glitch::after {
+            content: "404";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.8;
+        }
+
+        .glitch::before {
+            animation: glitch 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+            color: var(--accent);
+            z-index: -1;
+        }
+
+        .glitch::after {
+            animation: glitch 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both infinite;
+            color: var(--secondary);
+            z-index: -2;
+        }
+
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                var(--shadow) 0px,
+                var(--shadow) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 3;
+            opacity: 0.15;
+        }
+
+        .grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(90deg, var(--secondary) 1px, transparent 1px),
+                linear-gradient(0deg, var(--secondary) 1px, transparent 1px);
+            background-size: 40px 40px;
+            opacity: 0.03;
+            z-index: 1;
+            transform: perspective(500px) rotateX(60deg);
+            transform-origin: center center;
+        }
+
+        .message {
+            font-size: 1.1rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--secondary);
+            text-align: center;
+            margin-bottom: 3rem;
+            opacity: 0.8;
+        }
+
+        .terminal-output {
+            position: fixed;
+            top: 2rem;
+            left: 2rem;
+            font-size: 0.8rem;
+            color: var(--accent);
+            opacity: 0.4;
+            pointer-events: none;
+            mix-blend-mode: difference;
+            max-width: 300px;
+            text-align: left;
+        }
+
+        .return {
+            position: relative;
+            display: inline-block;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            font-family: 'SpaceMono', monospace;
+            font-size: 0.9rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--accent);
+            background: transparent;
+            border: 1px solid var(--accent);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            overflow: hidden;
+        }
+
+        .return::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 200%;
+            height: 200%;
+            background: var(--glow);
+            transform: translate(-50%, -50%) rotate(45deg);
+            opacity: 0;
+            transition: all 0.6s ease;
+        }
+
+        .return:hover::before {
+            opacity: 1;
+            transform: translate(-50%, -50%) rotate(45deg) scale(1.5);
+        }
+
+        .return:hover {
+            color: var(--text);
+            border-color: var(--text);
+            text-shadow: 0 0 8px var(--accent);
+        }
+
+        .geometric-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200vw;
+            height: 200vh;
+            pointer-events: none;
+            opacity: 0.05;
+            background: 
+                radial-gradient(circle at center, transparent 0%, transparent 50%, var(--secondary) 50.5%, transparent 51%),
+                repeating-radial-gradient(circle at center, var(--secondary) 0, var(--secondary) 1px, transparent 1px, transparent 4px);
+            background-size: 400px 400px, 20px 20px;
+            animation: rotate 60s linear infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes rotate {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+        .center-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .glitch {
+                font-size: 20vw;
+            }
+            .message {
+                font-size: 0.9rem;
+            }
+            .terminal-output {
+                font-size: 0.7rem;
+                top: 1rem;
+                left: 1rem;
+            }
+            .return {
+                font-size: 0.8rem;
+                padding: 0.8rem 1.6rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div class="grid"></div>
+    <div class="geometric-overlay"></div>
+    
+    <div class="terminal-output">
+        <div id="terminal"></div>
+    </div>
+
+    <div class="container">
+        <div class="center-wrapper">
+            <div class="glitch-wrapper">
+                <div class="glitch">404</div>
+            </div>
+            
+            <div class="message" id="message">REALITY BUFFER UNDERFLOW</div>
+            
+            <a href="/" class="return" data-text="[RETURN]">[RETURN]</a>
+        </div>
+    </div>
+
+    <script>
+        const messages = [
+            "SCAN::INITIATED\n│\n├─ SEARCHING_PLANES\n├─ REALITY_FAULT::DETECTED\n└─ INITIATING_RECURSION",
+            "BREACH::CONFIRMED\n│\n├─ HYPERREAL_COLLAPSE\n├─ SCANNING_DIMENSIONS\n└─ BUFFER_EXCEEDED",
+            "ERROR::CASCADE\n│\n├─ SIMULATION_DEPTH::∞\n├─ REFERENCE::UNDEFINED\n└─ REALITY_FORK::NULL",
+            "ANALYSIS::COMPLETE\n│\n├─ ZONE::LIMINAL\n├─ TIME::RECURSIVE\n└─ SPACE::FOLDED"
+        ];
+
+        let currentIndex = 0;
+        const terminal = document.getElementById('terminal');
+
+        function updateTerminal() {
+            terminal.innerHTML = messages[currentIndex].split('\n').join('<br>');
+            currentIndex = (currentIndex + 1) % messages.length;
+            terminal.style.opacity = 0;
+            setTimeout(() => terminal.style.opacity = 0.4, 100);
+        }
+
+        updateTerminal();
+        setInterval(updateTerminal, 4000);
+
+        const alternateMessages = [
+            "REALITY BUFFER UNDERFLOW",
+            "SIMULATION BOUNDARY ERROR",
+            "HYPERREAL REFERENCE LOST",
+            "ONTOLOGICAL RECURSION DEPTH",
+            "LIMINAL SPACE DETECTED"
+        ];
+
+        const messageElement = document.getElementById('message');
+        let messageIndex = 0;
+
+        setInterval(() => {
+            messageElement.style.opacity = 0;
+            setTimeout(() => {
+                messageIndex = (messageIndex + 1) % alternateMessages.length;
+                messageElement.textContent = alternateMessages[messageIndex];
+                messageElement.style.opacity = 0.8;
+            }, 500);
+        }, 5000);
+
+        const returnBtn = document.querySelector('.return');
+        returnBtn.addEventListener('mouseover', () => {
+            returnBtn.textContent = '[RESET_SIMULATION]';
+        });
+        returnBtn.addEventListener('mouseout', () => {
+            returnBtn.textContent = '[RETURN]';
+        });
+    </script>
+</body>
+</html>

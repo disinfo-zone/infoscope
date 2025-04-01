@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"infoscope/internal/auth"
 	"net/http"
 	"path/filepath"
 )
@@ -101,7 +100,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Create admin user
-		if err := auth.CreateUser(s.db, req.Username, req.Password); err != nil {
+		if err := s.auth.CreateUser(s.db, req.Username, req.Password); err != nil {
 			s.logger.Printf("Failed to create user: %v", err)
 			http.Error(w, "Failed to create user", http.StatusInternalServerError)
 			return
