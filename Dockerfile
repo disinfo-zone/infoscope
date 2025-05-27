@@ -28,14 +28,11 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     upx --best --lzma infoscope
 
 # Final stage
-FROM ubuntu:22.04
+FROM gcr.io/distroless/base-debian12
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    tzdata \
-    && rm -rf /var/lib/apt/lists/*
+# ca-certificates and tzdata are expected to be in the distroless base image or handled differently.
+# No apt-get needed.
 
 # Copy binary from builder
 COPY --from=builder /build/infoscope /app/infoscope
@@ -54,6 +51,13 @@ EXPOSE 8080
 
 # Define volumes for persistence
 VOLUME ["/app/data", "/app/web"]
+
+# Run as non-root user
+USER 65532:65532
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["/app/infoscope", "-healthcheck"]
 
 # Run binary
 ENTRYPOINT ["/app/infoscope"]

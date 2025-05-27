@@ -101,7 +101,6 @@ CREATE INDEX IF NOT EXISTS idx_entries_feed_date ON entries(feed_id, published_a
 CREATE INDEX IF NOT EXISTS idx_entries_published ON entries(published_at DESC);
 
 -- Click tracking indexes
-CREATE INDEX IF NOT EXISTS idx_clicks_entry ON clicks(entry_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_count ON clicks(click_count DESC);
 CREATE INDEX IF NOT EXISTS idx_clicks_date ON clicks(last_clicked DESC);
 

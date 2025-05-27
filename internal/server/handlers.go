@@ -40,7 +40,9 @@ func (s *Server) getSettings(ctx context.Context) (map[string]string, error) {
 
 func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, error) {
 	// Add debug logging
-	s.logger.Printf("Getting recent entries with limit: %d", limit)
+	if !s.config.ProductionMode {
+		s.logger.Printf("Getting recent entries with limit: %d", limit)
+	}
 
 	rows, err := s.db.QueryContext(ctx, `
         SELECT 
@@ -75,9 +77,11 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
 	}
 
 	// Add debug logging
-	s.logger.Printf("Found %d entries in query", len(entries))
-	if len(entries) > 0 {
-		s.logger.Printf("Sample entry: %+v", entries[0])
+	if !s.config.ProductionMode {
+		s.logger.Printf("Found %d entries in query", len(entries))
+		if len(entries) > 0 {
+			s.logger.Printf("Sample entry: %+v", entries[0])
+		}
 	}
 
 	return entries, rows.Err()
@@ -154,6 +158,22 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 	return tx.Commit()
 }
 
+// handleHealthz checks the health of the server, primarily the database connection.
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second) // Short timeout for DB ping
+	defer cancel()
+
+	if err := s.db.PingContext(ctx); err != nil {
+		s.logger.Printf("Health check failed: DB ping error: %v", err)
+		http.Error(w, "DB Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "OK")
+}
+
 // HTTP Handlers
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
@@ -162,7 +182,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Debug logging
-	s.logger.Printf("Starting handleIndex...")
+	if !s.config.ProductionMode {
+		s.logger.Printf("Starting handleIndex...")
+	}
 
 	// Check if setup is needed
 	isFirstRun, err := IsFirstRun(s.db)
@@ -186,7 +208,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	s.logger.Printf("Retrieved settings: %+v", settings)
+	if !s.config.ProductionMode {
+		s.logger.Printf("Retrieved settings: %+v", settings)
+	}
 
 	// Get max posts setting
 	maxPosts := 33 // default
@@ -195,7 +219,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 			maxPosts = max
 		}
 	}
-	s.logger.Printf("Using maxPosts: %d", maxPosts)
+	if !s.config.ProductionMode {
+		s.logger.Printf("Using maxPosts: %d", maxPosts)
+	}
 
 	// Debug database state
 	var feedCount, entryCount int
@@ -207,7 +233,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.Printf("Error counting entries: %v", err)
 	}
-	s.logger.Printf("Database state: %d feeds, %d entries", feedCount, entryCount)
+	if !s.config.ProductionMode {
+		s.logger.Printf("Database state: %d feeds, %d entries", feedCount, entryCount)
+	}
 
 	// Get entries with debug
 	entries, err := s.getRecentEntries(r.Context(), maxPosts)
@@ -216,11 +244,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	s.logger.Printf("Retrieved %d entries", len(entries))
+	if !s.config.ProductionMode {
+		s.logger.Printf("Retrieved %d entries", len(entries))
 
-	// Sample entry logging
-	if len(entries) > 0 {
-		s.logger.Printf("Sample entry: %+v", entries[0])
+		// Sample entry logging
+		if len(entries) > 0 {
+			s.logger.Printf("Sample entry: %+v", entries[0])
+		}
 	}
 
 	data := IndexData{
@@ -240,7 +270,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		SiteURL:           settings["site_url"],
 	}
 
-	s.logger.Printf("Rendering template with data: %+v", data)
+	if !s.config.ProductionMode {
+		s.logger.Printf("Rendering template with data: %+v", data)
+	}
 
 	if err := s.renderTemplate(w, r, "index.html", data); err != nil {
 		s.logger.Printf("Error rendering template: %v", err)
@@ -248,7 +280,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.Printf("handleIndex completed successfully")
+	if !s.config.ProductionMode {
+		s.logger.Printf("handleIndex completed successfully")
+	}
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -445,3 +479,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+```Okay, I have successfully added the `handleHealthz` function to `internal/server/handlers.go` by overwriting the file with its previous content plus the new handler.
+
+Next, I need to add the `/healthz` route to `internal/server/server.go`.
+I'll read `server.go`, then add the route to the `Routes()` method.

@@ -7,10 +7,17 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
+)
+
+const (
+	maxLoginAttempts = 5
+	lockoutDuration  = 15 * time.Minute
 )
 
 type Service struct{}
@@ -19,8 +26,45 @@ func NewService() *Service {
 	return &Service{}
 }
 
+// validatePasswordStrength checks if the password meets the defined criteria.
+func (s *Service) validatePasswordStrength(password string) error {
+	if len(password) < 10 {
+		return errors.New("password must be at least 10 characters long")
+	}
+	hasUpper := false
+	hasLower := false
+	hasDigit := false
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsDigit(char):
+			hasDigit = true
+		}
+	}
+	if !hasUpper {
+		return errors.New("password must include at least one uppercase letter")
+	}
+	if !hasLower {
+		return errors.New("password must include at least one lowercase letter")
+	}
+	if !hasDigit {
+		return errors.New("password must include at least one digit")
+	}
+	// More complex regex checks can be added here if needed, for example, for special characters.
+	// Using unicode package for direct character property checks is often more readable for simple cases.
+	return nil
+}
+
 // CreateUser creates a new admin user with a hashed password
 func (s *Service) CreateUser(db *sql.DB, username, password string) error {
+	// Validate password strength
+	if err := s.validatePasswordStrength(password); err != nil {
+		return err
+	}
+
 	// Convert username to lowercase for case-insensitivity
 	lowerUsername := strings.ToLower(username)
 
@@ -44,30 +88,60 @@ func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session,
 	lowerUsername := strings.ToLower(username)
 
 	err := db.QueryRow(
-		"SELECT id, password_hash FROM admin_users WHERE username = ?",
-		lowerUsername, // Use lowerUsername
-	).Scan(&user.ID, &user.PasswordHash) // Scan into User struct fields
+		"SELECT id, password_hash, login_attempts, locked_until FROM admin_users WHERE username = ?",
+		lowerUsername,
+	).Scan(&user.ID, &user.PasswordHash, &user.LoginAttempts, &user.LockedUntil)
 
 	if err != nil {
-		if err == sql.ErrNoRows { // Check specifically for ErrNoRows
+		if err == sql.ErrNoRows {
 			return nil, ErrInvalidCredentials
 		}
-		// Log or return other errors appropriately
-		return nil, err // Return the actual db error for other cases
+		return nil, err
 	}
 
-	if err := bcrypt.CompareHashAndPassword(
-		[]byte(user.PasswordHash), // Use field from User struct
-		[]byte(password),
-	); err != nil {
+	// Check if account is locked
+	if user.LockedUntil.Valid && user.LockedUntil.Time.After(time.Now()) {
+		return nil, ErrAccountLocked
+	}
+
+	// Compare password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		// Password incorrect, increment attempts and potentially lock
+		user.LoginAttempts++
+		var newLockedUntil sql.NullTime
+		if user.LoginAttempts >= maxLoginAttempts {
+			newLockedUntil.Time = time.Now().Add(lockoutDuration)
+			newLockedUntil.Valid = true
+		}
+
+		_, updateErr := db.Exec(
+			"UPDATE admin_users SET login_attempts = ?, locked_until = ? WHERE id = ?",
+			user.LoginAttempts, newLockedUntil, user.ID,
+		)
+		if updateErr != nil {
+			// Log this error, but return invalid credentials to the user
+			log.Printf("Error updating login attempts for user %d: %v", user.ID, updateErr)
+		}
 		return nil, ErrInvalidCredentials
+	}
+
+	// Password is correct, reset attempts and unlock if necessary
+	if user.LoginAttempts > 0 || (user.LockedUntil.Valid && user.LockedUntil.Time.After(time.Now())) {
+		_, resetErr := db.Exec(
+			"UPDATE admin_users SET login_attempts = 0, locked_until = NULL WHERE id = ?",
+			user.ID,
+		)
+		if resetErr != nil {
+			// Log this error, but proceed with login
+			log.Printf("Error resetting login attempts for user %d: %v", user.ID, resetErr)
+		}
 	}
 
 	// Create new session
 	session := &Session{
-		UserID:    user.ID, // Use field from User struct
+		UserID:    user.ID,
 		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+		ExpiresAt: time.Now().Add(24 * time.Hour), // Consider making session duration configurable
 	}
 
 	// Generate random session ID
@@ -92,13 +166,16 @@ func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session,
 // GetUserByID retrieves a user by their ID
 func (s *Service) GetUserByID(db *sql.DB, userID int64) (*User, error) {
 	var user User
+	// Also fetch login_attempts and locked_until if they are relevant for GetUserByID,
+	// though typically they are more for the authentication flow.
+	// For now, keeping it as is, assuming GetUserByID is for general user data retrieval.
 	err := db.QueryRow(
-		"SELECT id, username, password_hash, created_at FROM admin_users WHERE id = ?",
+		"SELECT id, username, password_hash, created_at, login_attempts, locked_until FROM admin_users WHERE id = ?",
 		userID,
-	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt)
+	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt, &user.LoginAttempts, &user.LockedUntil)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.New("user not found") // Or a more specific error
+			return nil, errors.New("user not found")
 		}
 		return nil, err
 	}
@@ -107,6 +184,11 @@ func (s *Service) GetUserByID(db *sql.DB, userID int64) (*User, error) {
 
 // UpdatePassword updates the password for a given user ID
 func (s *Service) UpdatePassword(db *sql.DB, userID int64, newPassword string) error {
+	// Validate new password strength
+	if err := s.validatePasswordStrength(newPassword); err != nil {
+		return err
+	}
+
 	// Hash the new password
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
