@@ -47,14 +47,10 @@ func (s *Server) getLastUpdateTime(ctx context.Context) (time.Time, error) {
 
 // Template rendering with CSRF
 func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name string, data any) error {
-	// Merge function maps
-	funcMap := template.FuncMap{
-		"safeHTML": func(s string) template.HTML {
-			return template.HTML(s)
-		},
-	}
-	for k, v := range s.registerTemplateFuncs() {
-		funcMap[k] = v
+	tmpl, ok := s.templateCache[name]
+	if !ok {
+		s.logger.Printf("Error: Template %s not found in cache", name)
+		return fmt.Errorf("template %s not found in cache", name)
 	}
 
 	var wrappedData struct {
@@ -101,29 +97,21 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 		}
 	}
 
-	tmpl := template.New(name).Funcs(funcMap)
-	var files []string
-	switch {
-	case strings.HasPrefix(name, "admin/"):
-		files = []string{
-			filepath.Join(s.config.WebPath, "templates/admin/layout.html"),
-			filepath.Join(s.config.WebPath, "templates", name),
-		}
-	default:
-		files = []string{
-			filepath.Join(s.config.WebPath, "templates", name),
-		}
-	}
-
-	tmpl, err := tmpl.ParseFiles(files...)
-	if err != nil {
-		s.logger.Printf("Error parsing template %s: %v", name, err)
-		return fmt.Errorf("error parsing template: %w", err)
-	}
-
+	// Choose the appropriate execution method based on template type (admin vs non-admin)
+	// This logic is based on how templates were parsed and named in LoadTemplates.
+	// Admin templates are parsed with layout and are expected to be executed via "layout" definition.
+	// Non-admin templates are parsed standalone and executed directly.
 	if strings.HasPrefix(name, "admin/") {
-		return tmpl.ExecuteTemplate(w, "layout", wrappedData)
+		// Ensure the "layout" template is defined within the cached admin template set
+		// This is typically true if adminLayoutPath defines `{{define "layout"}}...{{end}}`
+		// or if the layout file was the primary file parsed in a specific way.
+		// Given LoadTemplates structure: `template.New(templateName).ParseFiles(path, adminLayoutPath)`
+		// and `ExecuteTemplate(w, "layout", ...)`, "layout" must be a defined template name
+		// within the set, usually from adminLayoutPath.
+		return tmpl.ExecuteTemplate(w, "layout.html", wrappedData) // Assuming layout defines "layout.html"
 	}
+	// For non-admin templates, tmpl.Execute will execute the template named `templateName`
+	// which was used in `template.New(templateName)` during LoadTemplates.
 	return tmpl.Execute(w, wrappedData)
 }
 
@@ -200,7 +188,9 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	s.logger.Printf("Login request received: %s", r.Method)
+	if !s.config.ProductionMode {
+		s.logger.Printf("Login request received: %s", r.Method)
+	}
 
 	switch r.Method {
 	case http.MethodGet:
@@ -228,23 +218,20 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 
-		// Rest of the handler remains the same
-		tmplPath := filepath.Join(s.config.WebPath, "templates", "login.html")
-		tmpl, err := template.ParseFiles(tmplPath)
-		if err != nil {
-			s.logger.Printf("Error parsing login template: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		if err := tmpl.Execute(w, data); err != nil {
-			s.logger.Printf("Error executing login template: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		// Use the refactored renderTemplate
+		if err := s.renderTemplate(w, r, "login.html", data); err != nil {
+			s.logger.Printf("Error rendering login template: %v", err)
+			// Ensure a response is written if renderTemplate fails before writing headers
+			if !headerWritten(w) {
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
 			return
 		}
 
 	case http.MethodPost:
-		s.logger.Printf("Login attempt received")
+		if !s.config.ProductionMode {
+			s.logger.Printf("Login attempt received")
+		}
 		if !s.csrf.Validate(w, r) {
 			s.logger.Printf("CSRF validation failed")
 			return
@@ -261,7 +248,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 			return
 		}
-		s.logger.Printf("Authentication successful, setting session cookie")
+		if !s.config.ProductionMode {
+			s.logger.Printf("Authentication successful, setting session cookie")
+		}
 		// Set session cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     "session",
@@ -343,10 +332,10 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// CSRF validation (Use the same middleware or check manually)
 	// Assuming CSRF is handled by middleware or the renderTemplate function implicitly for GETs
 	// For POST, we might need explicit validation if not using a middleware that covers POST
-	// if !s.csrf.Validate(w, r) { // Uncomment and adapt if CSRF middleware isn't global
-	//     respondWithError(w, http.StatusForbidden, "Invalid CSRF token")
-	// 	   return
-	// }
+	if !s.csrf.Validate(w, r) { 
+		s.logger.Printf("CSRF validation failed for password change request") // Optional: log the failure
+		return
+	}
 
 	var req changePasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -381,7 +370,9 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.Printf("Password updated successfully for user %d", session.UserID)
+	if !s.config.ProductionMode {
+		s.logger.Printf("Password updated successfully for user %d", session.UserID)
+	}
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Password updated successfully"})
 }
 

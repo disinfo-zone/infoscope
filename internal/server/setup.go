@@ -32,7 +32,9 @@ type setupRequest struct {
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
-	s.logger.Printf("Setup handler called: %s %s", r.Method, r.URL.Path)
+	if !s.config.ProductionMode {
+		s.logger.Printf("Setup handler called: %s %s", r.Method, r.URL.Path)
+	}
 	switch r.Method {
 	case http.MethodGet:
 		// Get CSRF token
@@ -59,18 +61,13 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 
-		// Parse and execute template directly like login handler does
-		tmplPath := filepath.Join(s.config.WebPath, "templates", "setup.html")
-		tmpl, err := template.ParseFiles(tmplPath)
-		if err != nil {
-			s.logger.Printf("Error parsing setup template: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		if err := tmpl.Execute(w, data); err != nil {
-			s.logger.Printf("Error executing setup template: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		// Use the refactored renderTemplate
+		if err := s.renderTemplate(w, r, "setup.html", data); err != nil {
+			s.logger.Printf("Error rendering setup template: %v", err)
+			// Ensure a response is written if renderTemplate fails before writing headers
+			if !headerWritten(w) { // Assuming headerWritten is available or this check is adapted
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
 			return
 		}
 

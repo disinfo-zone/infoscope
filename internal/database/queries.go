@@ -110,13 +110,6 @@ func (db *DB) UpdateSetting(ctx context.Context, key, value, valueType string) e
 		return err
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return ErrNotFound
-	}
 	return nil
 }
 
@@ -180,41 +173,6 @@ func (db *DB) GetActiveFeeds(ctx context.Context) ([]Feed, error) {
 	}
 
 	return feeds, rows.Err()
-}
-
-// IncrementClicks atomically updates click counts
-func (db *DB) IncrementClicks(ctx context.Context, entryID int64) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// Update entry clicks
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO clicks (entry_id, click_count, last_clicked)
-		VALUES (?, 1, CURRENT_TIMESTAMP)
-		ON CONFLICT(entry_id) DO UPDATE SET
-		click_count = click_count + 1,
-		last_clicked = CURRENT_TIMESTAMP`,
-		entryID,
-	)
-	if err != nil {
-		return err
-	}
-
-	// Update total clicks atomically
-	_, err = tx.ExecContext(ctx,
-		`UPDATE click_stats 
-		SET value = value + 1,
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE key = 'total_clicks'`,
-	)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
 }
 
 // GetClickStats retrieves optimized click statistics
@@ -306,23 +264,62 @@ func (db *DB) UpdateFeedStatus(ctx context.Context, feedID int64, status string,
 	return err
 }
 
-// CleanupOldEntries removes old entries beyond the retention limit
-func (db *DB) CleanupOldEntries(ctx context.Context, maxPosts int) error {
+// cleanupOldEntriesForFeed removes old entries for a specific feed beyond the retention limit
+func (db *DB) cleanupOldEntriesForFeed(ctx context.Context, feedID int64, maxPosts int) error {
 	_, err := db.ExecContext(ctx,
-		`DELETE FROM entries 
+		`DELETE FROM entries
 		WHERE id IN (
-			SELECT e.id 
-			FROM entries e
-			JOIN feeds f ON e.feed_id = f.id
-			WHERE e.id NOT IN (
-				SELECT e2.id
-				FROM entries e2
-				WHERE e2.feed_id = f.id
-				ORDER BY published_at DESC
-				LIMIT ?
-			)
+			SELECT id FROM entries
+			WHERE feed_id = ?
+			ORDER BY published_at DESC
+			LIMIT -1 OFFSET ?
 		)`,
-		maxPosts,
+		feedID, maxPosts,
 	)
 	return err
+}
+
+// CleanupOldEntries removes old entries beyond the retention limit for all feeds.
+func (db *DB) CleanupOldEntries(ctx context.Context, maxPosts int) error {
+	rows, err := db.QueryContext(ctx, "SELECT id FROM feeds")
+	if err != nil {
+		return fmt.Errorf("failed to query feed IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var (
+		feedID      int64
+		hasErrors   bool
+		errorLogger = func(feedID int64, err error) {
+			// In a real application, you'd use a structured logger
+			// For now, we'll just print to stderr or use the db's logger if available
+			// Assuming db has a logger field:
+			// db.logger.Printf("Error cleaning up old entries for feed %d: %v", feedID, err)
+			// If not, fmt.Fprintf(os.Stderr, ...)
+			fmt.Printf("Error cleaning up old entries for feed %d: %v\n", feedID, err)
+			hasErrors = true
+		}
+	)
+
+	for rows.Next() {
+		if err := rows.Scan(&feedID); err != nil {
+			errorLogger(0, fmt.Errorf("failed to scan feed ID: %w", err))
+			continue // Skip to next feed if scanning fails
+		}
+		if err := db.cleanupOldEntriesForFeed(ctx, feedID, maxPosts); err != nil {
+			errorLogger(feedID, err)
+			// Continue to the next feed even if this one fails
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		// Log error from rows.Err() as it might indicate an issue during iteration
+		errorLogger(0, fmt.Errorf("error iterating over feed IDs: %w", err))
+	}
+
+	if hasErrors {
+		return errors.New("encountered errors during old entry cleanup, check logs")
+	}
+
+	return nil
 }

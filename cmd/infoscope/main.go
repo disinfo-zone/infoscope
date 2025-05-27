@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"infoscope/internal/auth"
 	"infoscope/internal/config"
 	"infoscope/internal/database"
 	"infoscope/internal/favicon"
@@ -11,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 var (
@@ -25,11 +27,40 @@ var (
 	prodMode          = flag.Bool("prod", false, "Enable production mode (HTTPS-only features including strict CSRF)")
 	noTemplateUpdates = flag.Bool("no-template-updates", false, "Disable automatic template updates")
 	webPath           = flag.String("web", "", "Path to web content directory (default: web or INFOSCOPE_WEB_PATH)")
+	healthcheck       = flag.Bool("healthcheck", false, "Perform a health check and exit")
 )
 
 func main() {
 	// Parse command line flags
 	flag.Parse()
+
+	// Get base configuration from environment first to determine port for healthcheck
+	cfg := config.GetConfig()
+	// Override with command line flags if provided for port (needed for healthcheck URL)
+	if *port > 0 {
+		cfg.Port = *port
+	}
+
+	if *healthcheck {
+		// Perform health check
+		healthURL := fmt.Sprintf("http://localhost:%d/healthz", cfg.Port)
+		resp, err := http.Get(healthURL)
+		if err != nil {
+			log.Printf("Health check failed: %v", err)
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			// Optionally, read and print body if needed for more detailed status
+			// body, _ := io.ReadAll(resp.Body)
+			// fmt.Printf("Health check OK: %s", body)
+			os.Exit(0)
+		} else {
+			log.Printf("Health check failed: status code %d", resp.StatusCode)
+			os.Exit(1)
+		}
+		return // Should not be reached due to os.Exit
+	}
 
 	// Check if version flag is set
 	if *version {
@@ -39,14 +70,15 @@ func main() {
 
 	// Setup logging
 	logger := log.New(os.Stdout, "infoscope: ", log.LstdFlags|log.Lshortfile)
+	// Re-apply other config overrides now that we're past healthcheck
 
-	// Get base configuration from environment
-	cfg := config.GetConfig()
+	// Get base configuration from environment (already done for healthcheck port)
+	// cfg := config.GetConfig() // This would reset cfg if uncommented
 
-	// Override with command line flags if provided
-	if *port > 0 {
-		cfg.Port = *port
-	}
+	// Override with command line flags if provided (port already handled)
+	// if *port > 0 {
+	// 	cfg.Port = *port
+	// }
 	if *dbPath != "" {
 		cfg.DBPath = *dbPath
 	}
@@ -82,6 +114,25 @@ func main() {
 		logger.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
+
+	// Start periodic cleanup of expired sessions
+	go func() {
+		ticker := time.NewTicker(6 * time.Hour) // Cleanup every 6 hours
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				logger.Println("Cleaning up expired sessions...")
+				if err := auth.CleanExpiredSessions(db.DB); err != nil {
+					logger.Printf("Error cleaning expired sessions: %v", err)
+				}
+			// Add a way to stop this goroutine if the app had a global done channel
+			// case <-ctx.Done():
+			// logger.Println("Stopping session cleanup goroutine.")
+			// return
+			}
+		}
+	}()
 
 	// Create required directories with configured web path
 	requiredDirs := []string{
