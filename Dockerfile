@@ -11,7 +11,6 @@ RUN apt-get update && \
     apt-get install -y \
         gcc \
         pkg-config \
-        upx \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy go.mod and go.sum first for better caching
@@ -24,8 +23,7 @@ COPY . .
 # Build the binary with optimizations
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -v -trimpath -ldflags="-s -w -X main.Version=${VERSION}" \
-    -o infoscope ./cmd/infoscope && \
-    upx --best --lzma infoscope
+    -o infoscope ./cmd/infoscope
 
 # Final stage
 FROM gcr.io/distroless/base-debian12

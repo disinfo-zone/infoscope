@@ -97,7 +97,7 @@ func (db *DB) GetSettingInt(ctx context.Context, key string) (int, error) {
 
 // UpdateSetting updates a setting with optimistic locking
 func (db *DB) UpdateSetting(ctx context.Context, key, value, valueType string) error {
-	result, err := db.ExecContext(ctx,
+	_, err := db.ExecContext(ctx,
 		`INSERT INTO settings (key, value, type, updated_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(key) DO UPDATE SET
