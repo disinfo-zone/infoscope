@@ -93,8 +93,18 @@ func main() {
 	// Disable template updates if flag is set
 	cfg.DisableTemplateUpdates = *noTemplateUpdates
 
-	// Set production mode
-	cfg.ProductionMode = *prodMode
+	// Determine if the -prod flag was explicitly set
+	prodFlagSet := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "prod" {
+			prodFlagSet = true
+		}
+	})
+
+	if prodFlagSet {
+		cfg.ProductionMode = *prodMode
+	}
+	// Otherwise, cfg.ProductionMode (already set by config.GetConfig()) is used.
 
 	// Log startup configuration
 	logger.Printf("Starting Infoscope v%s", Version)

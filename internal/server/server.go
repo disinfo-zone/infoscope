@@ -32,6 +32,12 @@ func init() {
 	}
 }
 
+// safeHTML allows embedding raw HTML content in templates.
+// Use with caution and only with trusted HTML.
+func safeHTML(s string) template.HTML {
+	return template.HTML(s)
+}
+
 type Config struct {
 	UseHTTPS               bool
 	DisableTemplateUpdates bool
@@ -68,6 +74,7 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 			}
 			return t.UTC()
 		},
+		"safeHTML": safeHTML,
 	}
 }
 
