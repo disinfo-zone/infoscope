@@ -13,6 +13,13 @@ import (
 	"infoscope/internal/auth" // Corrected import path
 )
 
+// LoginPageRenderData defines the data passed to the login page template.
+type LoginPageRenderData struct {
+	CSRFToken string // For the form
+	Settings  map[string]string
+	Error     string
+}
+
 // Helper functions for dashboard data
 func (s *Server) getDashboardCounts(ctx context.Context) (feedCount, entryCount int, err error) {
 	err = s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM feeds").Scan(&feedCount)
@@ -202,27 +209,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			settings = make(map[string]string)
 		}
 
-		// Updated struct initialization to match template expectations
-		data := LoginTemplateData{
-			BaseTemplateData: BaseTemplateData{
-				CSRFToken: csrfToken,
-			},
-			Data: struct {
-				Settings map[string]string
-				Error    string
-			}{
-				Settings: settings,
-				Error:    "",
-			},
+		// Prepare data for the template using the new struct
+		data := LoginPageRenderData{
+			CSRFToken: csrfToken, // This token will be used in the form via {{ .Data.CSRFToken }}
+			Settings:  settings,
+			Error:     "", // Assuming no error message on initial GET display
 		}
 
 		// Use the refactored renderTemplate
 		if err := s.renderTemplate(w, r, "login.html", data); err != nil {
 			s.logger.Printf("Error rendering login template: %v", err)
-			// Ensure a response is written if renderTemplate fails before writing headers
-			if !headerWritten(w) {
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-			}
+			// Do not attempt to write another http.Error here, as renderTemplate
+			// might have already started writing the response.
+			// The original error (e.g., template execution error) is logged above.
 			return
 		}
 
