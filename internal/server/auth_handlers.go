@@ -318,12 +318,12 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Validate session first
 	cookie, err := r.Cookie("session")
 	if err != nil || cookie.Value == "" {
-		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		RespondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
 	}
 	session, err := s.auth.ValidateSession(s.db, cookie.Value)
 	if err != nil || session == nil || session.IsExpired() {
-		respondWithError(w, http.StatusUnauthorized, "Invalid or expired session")
+		RespondWithError(w, http.StatusUnauthorized, "Invalid or expired session")
 		return
 	}
 
@@ -337,7 +337,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	var req changePasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -345,7 +345,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	currentUser, err := s.auth.GetUserByID(s.db, session.UserID)
 	if err != nil {
 		s.logger.Printf("Error getting user %d: %v", session.UserID, err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve user information")
+		RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve user information")
 		return
 	}
 
@@ -353,10 +353,10 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	_, err = s.auth.Authenticate(s.db, currentUser.Username, req.CurrentPassword)
 	if err != nil {
 		if err == auth.ErrInvalidCredentials {
-			respondWithError(w, http.StatusUnauthorized, "Incorrect current password")
+			RespondWithError(w, http.StatusUnauthorized, "Incorrect current password")
 		} else {
 			s.logger.Printf("Error authenticating user %d during password change: %v", session.UserID, err)
-			respondWithError(w, http.StatusInternalServerError, "Authentication error")
+			RespondWithError(w, http.StatusInternalServerError, "Authentication error")
 		}
 		return
 	}
@@ -364,7 +364,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Update the password
 	if err := s.auth.UpdatePassword(s.db, session.UserID, req.NewPassword); err != nil {
 		s.logger.Printf("Error updating password for user %d: %v", session.UserID, err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to update password")
+		RespondWithError(w, http.StatusInternalServerError, "Failed to update password")
 		return
 	}
 
