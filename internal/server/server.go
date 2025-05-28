@@ -229,7 +229,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/upload-favicon", s.requireAuth(s.imageHandler.HandleFaviconUpload))
 	mux.HandleFunc("/admin/upload-meta-image", s.requireAuth(s.imageHandler.HandleMetaImageUpload))
 
-	mux.HandleFunc("/rss.xml", s.handleRSS) // Added route for RSS feed
+	mux.HandleFunc("/rss.xml", s.handleRSS)
+	mux.HandleFunc("/rss", s.handleRSS)     // New route
+	mux.HandleFunc("/feed", s.handleRSS)    // New route
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

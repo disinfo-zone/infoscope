@@ -153,6 +153,7 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
 		"meta_image_url":      {settings.MetaImageURL, "string"},
+		"site_url":            {settings.SiteURL, "string"},
 	}
 
 	for key, setting := range updates {
@@ -173,8 +174,12 @@ func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	siteTitle := settings["site_title"]
-	siteURL := settings["site_url"]          // Assuming "site_url" is the key for the site's base URL
-	metaDescription := settings["meta_description"] // Assuming "meta_description" is the key
+	siteURL := settings["site_url"] // Get site_url
+	metaDescription := settings["meta_description"]
+
+	if siteURL == "" {
+		s.logger.Printf("Warning: Site URL (site_url) is not configured in settings. RSS feed channel link will be empty or invalid.")
+	}
 
 	maxPosts := 33 // Default
 	if maxStr, ok := settings["max_posts"]; ok {
@@ -193,6 +198,7 @@ func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	rssFeed := rss.RSS{
 		Version: "2.0",
+		AtomNS:  "http://www.w3.org/2005/Atom", // Set Atom namespace
 		Channel: rss.Channel{
 			Title:         siteTitle,
 			Link:          siteURL,
@@ -200,6 +206,26 @@ func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
 			Language:      "en-us", // Default, consider making this configurable
 			LastBuildDate: now.Format(time.RFC1123Z),
 		},
+	}
+
+	if siteURL != "" {
+		// Ensure siteURL ends with a slash if it doesn't have one, before appending rss.xml
+		// However, standard URL construction usually handles this. Assuming siteURL is base (e.g. http://example.com)
+		// and the path should be /rss.xml.
+		// For robustness, one might use url.Parse and url.ResolveReference if siteURL could be more complex.
+		// Here, simple concatenation is used as per previous context.
+		selfLinkHref := siteURL
+		if selfLinkHref != "" && selfLinkHref[len(selfLinkHref)-1] == '/' {
+			selfLinkHref = selfLinkHref[:len(selfLinkHref)-1] // Remove trailing slash if present
+		}
+		selfLinkHref += "/rss.xml"
+
+
+		rssFeed.Channel.SelfLink = rss.AtomLink{
+			Href: selfLinkHref,
+			Rel:  "self",
+			Type: "application/rss+xml",
+		}
 	}
 
 	for _, entry := range entries {
