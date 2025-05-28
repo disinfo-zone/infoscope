@@ -113,7 +113,9 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 		// Given LoadTemplates structure: `template.New(templateName).ParseFiles(path, adminLayoutPath)`
 		// and `ExecuteTemplate(w, "layout", ...)`, "layout" must be a defined template name
 		// within the set, usually from adminLayoutPath.
-		return tmpl.ExecuteTemplate(w, "layout.html", wrappedData) // Assuming layout defines "layout.html"
+		// Execute the main template for the page (e.g., "admin/dashboard.html"),
+		// which should internally call the layout.
+		return tmpl.Execute(w, wrappedData)
 	}
 	// For non-admin templates, tmpl.Execute will execute the template named `templateName`
 	// which was used in `template.New(templateName)` during LoadTemplates.
