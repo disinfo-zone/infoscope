@@ -36,7 +36,7 @@ func LoadTemplates(webPath string, funcMap template.FuncMap) (map[string]*templa
 			}
 			// Normalize to use forward slashes for map keys, consistent with URL paths
 			templateName := filepath.ToSlash(relPath)
-			
+
 			var tmpl *template.Template
 
 			// Check if it's an admin template (and not the layout itself)

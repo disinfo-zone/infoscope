@@ -332,7 +332,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// CSRF validation (Use the same middleware or check manually)
 	// Assuming CSRF is handled by middleware or the renderTemplate function implicitly for GETs
 	// For POST, we might need explicit validation if not using a middleware that covers POST
-	if !s.csrf.Validate(w, r) { 
+	if !s.csrf.Validate(w, r) {
 		s.logger.Printf("CSRF validation failed for password change request") // Optional: log the failure
 		return
 	}
