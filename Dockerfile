@@ -17,6 +17,9 @@ RUN apt-get update && \
 COPY go.mod go.sum ./
 RUN go mod download
 
+RUN mkdir -p /build/app_final/data /build/app_final/web && \
+    chown -R 65532:65532 /build/app_final
+
 # Copy source code
 COPY . .
 
@@ -34,6 +37,9 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /build/infoscope /app/infoscope
+
+COPY --from=builder --chown=65532:65532 /build/app_final/data /app/data
+COPY --from=builder --chown=65532:65532 /build/app_final/web /app/web
 
 # Set default environment variables
 ENV INFOSCOPE_PORT=8080 \
