@@ -20,9 +20,10 @@ const (
 type EntryView struct {
 	ID         int64  `json:"id"`
 	Title      string `json:"title"`
-	URL        string `json:"url"`
-	FaviconURL string `json:"faviconUrl"`
-	Date       string `json:"date"`
+	URL             string    `json:"url"`
+	FaviconURL      string    `json:"faviconUrl"`
+	Date            string    `json:"date"` // Formatted date for display
+	PublishedAtTime time.Time `json:"-"`    // Raw time for RSS, excluded from JSON
 }
 
 type IndexData struct {
