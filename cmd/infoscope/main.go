@@ -10,6 +10,7 @@ import (
 	"infoscope/internal/feed"
 	"infoscope/internal/server"
 	"log"
+	"net/http" // Added import
 	"os"
 	"path/filepath"
 	"time"
@@ -126,10 +127,10 @@ func main() {
 				if err := auth.CleanExpiredSessions(db.DB); err != nil {
 					logger.Printf("Error cleaning expired sessions: %v", err)
 				}
-			// Add a way to stop this goroutine if the app had a global done channel
-			// case <-ctx.Done():
-			// logger.Println("Stopping session cleanup goroutine.")
-			// return
+				// Add a way to stop this goroutine if the app had a global done channel
+				// case <-ctx.Done():
+				// logger.Println("Stopping session cleanup goroutine.")
+				// return
 			}
 		}
 	}()
