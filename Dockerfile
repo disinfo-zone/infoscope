@@ -35,9 +35,6 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /build/infoscope /app/infoscope
 
-# Create necessary directories
-RUN mkdir -p /app/data /app/web
-
 # Set default environment variables
 ENV INFOSCOPE_PORT=8080 \
     INFOSCOPE_DB_PATH=/app/data/infoscope.db \
