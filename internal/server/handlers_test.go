@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes" // Moved import
 	"context"
 	"encoding/json"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv" // Moved import
 	"strings"
 	"testing"
 	"time"
@@ -19,8 +21,8 @@ import (
 	"infoscope/internal/favicon"
 	"infoscope/internal/feed"
 
-	_ "github.com/mattn/go-sqlite3" 
 	"github.com/PuerkitoBio/goquery"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type testServer struct {
@@ -148,7 +150,7 @@ func loginAsAdmin(t *testing.T, ts *testServer, username, password string) *http
 		bodyBytesReadAll, _ := io.ReadAll(postRR.Body)
 		t.Fatalf("Login helper: POST /admin/login failed: status %d, Body: %s", postRR.Code, string(bodyBytesReadAll))
 	}
-	
+
 	var loginResp struct{ Success bool }
 	bodyBytes, err := io.ReadAll(postRR.Body)
 	if err != nil {
@@ -160,7 +162,7 @@ func loginAsAdmin(t *testing.T, ts *testServer, username, password string) *http
 	if !loginResp.Success {
 		t.Fatalf("Login helper: POST /admin/login response did not indicate success. Body: %s", string(bodyBytes))
 	}
-	
+
 	var sessionCookie *http.Cookie
 	for _, cookie := range postRR.Result().Cookies() {
 		if cookie.Name == "session" {
@@ -261,8 +263,10 @@ func TestHandleLogin_POST_Success(t *testing.T) {
 	formData := url.Values{"username": {adminUser}, "password": {adminPass}, "gorilla.csrf.Token": {csrfToken}}
 	req := httptest.NewRequest("POST", "/admin/login", strings.NewReader(formData.Encode()))
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	for _, c := range getRR.Result().Cookies() { req.AddCookie(c) }
-	
+	for _, c := range getRR.Result().Cookies() {
+		req.AddCookie(c)
+	}
+
 	rr := httptest.NewRecorder()
 	ts.server.router.ServeHTTP(rr, req)
 
@@ -274,10 +278,16 @@ func TestHandleLogin_POST_Success(t *testing.T) {
 		t.Errorf("handleLogin POST success response error or not success. Body: %s, Error: %v", rr.Body.String(), err)
 	}
 	foundCookie := false
-	for _, c := range rr.Result().Cookies() { if c.Name == "session" { foundCookie = true; break } }
-	if !foundCookie { t.Error("Session cookie not set on successful login") }
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "session" {
+			foundCookie = true
+			break
+		}
+	}
+	if !foundCookie {
+		t.Error("Session cookie not set on successful login")
+	}
 }
-
 
 func TestHandleLogout_POST(t *testing.T) {
 	ts := newTestServer(t)
@@ -301,8 +311,13 @@ func TestHandleLogout_POST(t *testing.T) {
 	logoutReq := httptest.NewRequest("POST", "/admin/logout", strings.NewReader(logoutFormData.Encode()))
 	logoutReq.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	logoutReq.AddCookie(sessionCookie)
-	for _, c := range adminGetRR.Result().Cookies() { if strings.HasPrefix(c.Name, "_gorilla_csrf") { logoutReq.AddCookie(c); break } }
-	
+	for _, c := range adminGetRR.Result().Cookies() {
+		if strings.HasPrefix(c.Name, "_gorilla_csrf") {
+			logoutReq.AddCookie(c)
+			break
+		}
+	}
+
 	logoutRR := httptest.NewRecorder()
 	ts.server.router.ServeHTTP(logoutRR, logoutReq)
 
@@ -313,15 +328,24 @@ func TestHandleLogout_POST(t *testing.T) {
 	sessionCleared := false
 	for _, cookie := range logoutRR.Result().Cookies() {
 		if cookie.Name == "session" {
-			if cookie.MaxAge < 0 { sessionCleared = true }
+			if cookie.MaxAge < 0 {
+				sessionCleared = true
+			}
 			break
 		}
 	}
 	if !sessionCleared {
 		// Check if not present in response at all, also acceptable
 		isPresent := false
-		for _, cookie := range logoutRR.Result().Cookies() { if cookie.Name == "session" { isPresent = true; break } }
-		if isPresent { t.Error("Logout did not clear session cookie (MaxAge not < 0)")}
+		for _, cookie := range logoutRR.Result().Cookies() {
+			if cookie.Name == "session" {
+				isPresent = true
+				break
+			}
+		}
+		if isPresent {
+			t.Error("Logout did not clear session cookie (MaxAge not < 0)")
+		}
 	}
 
 	// Verify session is invalidated
@@ -382,14 +406,18 @@ func TestHandleChangePassword_POST_Success(t *testing.T) {
 	// Given the code, `s.csrf.Validate` is `s.csrfManager.Validate`.
 	// `s.csrfManager` is `applicationCSRF`, which has `Validate`. This calls `nosurf.VerifyToken`.
 	// `nosurf.VerifyToken` checks form or header.
-	
+
 	req := httptest.NewRequest("POST", "/admin/password", bytes.NewReader(payloadBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-CSRF-Token", csrfToken) // Send CSRF token in header
 	req.AddCookie(sessionCookie)
 	// Add the CSRF base cookie from the settings page GET
-	for _, c := range settingsPageRR.Result().Cookies() { if strings.HasPrefix(c.Name, "_gorilla_csrf") { req.AddCookie(c); break } }
-
+	for _, c := range settingsPageRR.Result().Cookies() {
+		if strings.HasPrefix(c.Name, "_gorilla_csrf") {
+			req.AddCookie(c)
+			break
+		}
+	}
 
 	rr := httptest.NewRecorder()
 	ts.server.router.ServeHTTP(rr, req)
@@ -405,20 +433,18 @@ func TestHandleChangePassword_POST_Success(t *testing.T) {
 	// Verify password changed by trying to login with new password
 	// Need to logout first to clear current session
 	ts.authService.InvalidateSession(ts.db.DB, sessionCookie.Value)
-	
+
 	newSessionCookie := loginAsAdmin(t, ts, adminUser, newPass)
 	if newSessionCookie.Value == "" {
 		t.Error("Failed to login with new password after change.")
 	}
 }
 
-
 // --- handleSettings ---
 // --- handleFeeds ---
 // --- handleFeedValidation ---
 // --- handleIndex ---
 // --- handleAdmin ---
-
 
 // S_runtime_Caller_SANDBOX_ENABLED_SORRY_CannotCallThis is a placeholder for runtime.Caller
 func S_runtime_Caller_SANDBOX_ENABLED_SORRY_CannotCallThis(skip int) (pc uintptr, file string, line int, ok bool) {
@@ -461,7 +487,7 @@ func getCSRFTokenAndCookie(t *testing.T, ts *testServer, path string, sessionCoo
 		t.Fatalf("getCSRFTokenAndCookie: Failed to GET %s. Status: %d. Body: %s", path, getRR.Code, getRR.Body.String())
 	}
 	csrfToken := extractCSRFToken(t, getRR.Body.String())
-	
+
 	var csrfCookie *http.Cookie
 	for _, c := range getRR.Result().Cookies() {
 		if strings.HasPrefix(c.Name, "_gorilla_csrf") { // Default CSRF cookie name for gorilla/csrf
@@ -481,7 +507,9 @@ func TestHandleChangePassword_POST_IncorrectCurrentPassword(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, oldPass := "changepassfail", "OldPassword123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, oldPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, oldPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, oldPass)
 
 	csrfToken, csrfCookie := getCSRFTokenAndCookie(t, ts, "/admin/settings", sessionCookie)
@@ -491,7 +519,7 @@ func TestHandleChangePassword_POST_IncorrectCurrentPassword(t *testing.T) {
 		"newPassword":     "NewValidPassword123",
 	}
 	payloadBytes, _ := json.Marshal(changePassPayload)
-	
+
 	req := newAuthRequest(t, "POST", "/admin/password", bytes.NewReader(payloadBytes), sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
 	addCSRFToRequest(t, req, csrfToken, csrfCookie)
@@ -513,7 +541,9 @@ func TestHandleChangePassword_POST_WeakNewPassword(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, oldPass := "changepassweak", "OldStrongPassword123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, oldPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, oldPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, oldPass)
 
 	csrfToken, csrfCookie := getCSRFTokenAndCookie(t, ts, "/admin/settings", sessionCookie)
@@ -523,11 +553,11 @@ func TestHandleChangePassword_POST_WeakNewPassword(t *testing.T) {
 		"newPassword":     "weak", // Weak new password
 	}
 	payloadBytes, _ := json.Marshal(changePassPayload)
-	
+
 	req := newAuthRequest(t, "POST", "/admin/password", bytes.NewReader(payloadBytes), sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
 	addCSRFToRequest(t, req, csrfToken, csrfCookie)
-	
+
 	rr := httptest.NewRecorder()
 	ts.server.router.ServeHTTP(rr, req)
 
@@ -551,10 +581,9 @@ func TestHandleChangePassword_POST_NoAuth(t *testing.T) {
 	// However, CSRF middleware might run first. Let's try to get a token from /admin/login.
 	csrfToken, csrfCookie := getCSRFTokenAndCookie(t, ts, "/admin/login", nil)
 
-
 	changePassPayload := map[string]string{"currentPassword": "any", "newPassword": "ValidNewPassword123"}
 	payloadBytes, _ := json.Marshal(changePassPayload)
-	
+
 	req := httptest.NewRequest("POST", "/admin/password", bytes.NewReader(payloadBytes))
 	req.Header.Set("Content-Type", "application/json")
 	addCSRFToRequest(t, req, csrfToken, csrfCookie) // Add CSRF token and cookie
@@ -564,7 +593,7 @@ func TestHandleChangePassword_POST_NoAuth(t *testing.T) {
 
 	// Expect Unauthorized because no session cookie was sent.
 	// The handler checks session first: `cookie, err := r.Cookie("session")`
-	if rr.Code != http.StatusUnauthorized { 
+	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("handleChangePassword no auth status: got %d, want %d. Body: %s", rr.Code, http.StatusUnauthorized, rr.Body.String())
 	}
 	var resp map[string]string
@@ -578,7 +607,9 @@ func TestHandleChangePassword_POST_BadCSRF(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, oldPass := "csrfpassadmin", "OldPassword123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, oldPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, oldPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, oldPass)
 
 	// Get a valid CSRF cookie from a page GET, but send a bad token in header/form
@@ -587,14 +618,14 @@ func TestHandleChangePassword_POST_BadCSRF(t *testing.T) {
 
 	changePassPayload := map[string]string{"currentPassword": oldPass, "newPassword": "NewPassword456"}
 	payloadBytes, _ := json.Marshal(changePassPayload)
-	
+
 	req := newAuthRequest(t, "POST", "/admin/password", bytes.NewReader(payloadBytes), sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
 	addCSRFToRequest(t, req, badCSRFToken, csrfCookie) // Using the bad token
 
 	rr := httptest.NewRecorder()
 	ts.server.router.ServeHTTP(rr, req)
-	
+
 	// Expect Forbidden due to CSRF validation failure by middleware or handler
 	// The `applicationCSRF.Validate` method in `handleChangePassword` calls `nosurf.VerifyToken`.
 	// `nosurf` by default returns `http.StatusBadRequest` if token is invalid.
@@ -607,7 +638,7 @@ func TestHandleChangePassword_POST_BadCSRF(t *testing.T) {
 	// This is a bug in the handler. It should call `respondWithError`.
 	// Assuming the global CSRF middleware (csrf.Protect) catches it.
 	// gorilla/csrf by default returns 403 Forbidden.
-	if rr.Code != http.StatusForbidden { 
+	if rr.Code != http.StatusForbidden {
 		t.Errorf("handleChangePassword bad CSRF status: got %d, want %d (Forbidden). Body: %s", rr.Code, http.StatusForbidden, rr.Body.String())
 	}
 	// The body for gorilla/csrf's default forbidden handler is usually "Forbidden" or HTML.
@@ -621,7 +652,9 @@ func TestHandleSettings_GET(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, adminPass := "settingsadmin", "AdminSettingsPass123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, adminPass)
 
 	req := newAuthRequest(t, "GET", "/admin/settings", nil, sessionCookie)
@@ -644,7 +677,9 @@ func TestHandleSettings_POST_Success(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, adminPass := "settingspostadmin", "AdminPostPass123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, adminPass)
 
 	csrfToken, csrfCookie := getCSRFTokenAndCookie(t, ts, "/admin/settings", sessionCookie)
@@ -653,7 +688,7 @@ func TestHandleSettings_POST_Success(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("gorilla.csrf.Token", csrfToken)
 	formData.Set("site_title", newSiteTitle)
-	formData.Set("max_posts", "150") 
+	formData.Set("max_posts", "150")
 	formData.Set("update_interval", "600")
 	// Add other settings as needed to make the form valid, check your template for all fields.
 	// Assuming other fields are not strictly required or have defaults handled gracefully.
@@ -667,7 +702,6 @@ func TestHandleSettings_POST_Success(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(csrfCookie) // Add the CSRF base cookie
 
-
 	rr := httptest.NewRecorder()
 	ts.server.router.ServeHTTP(rr, req)
 
@@ -680,29 +714,36 @@ func TestHandleSettings_POST_Success(t *testing.T) {
 
 	// Verify settings were updated in DB
 	dbSiteTitle, err := ts.db.GetSetting(context.Background(), "site_title")
-	if err != nil {t.Fatalf("Failed to get site_title from DB: %v", err)}
+	if err != nil {
+		t.Fatalf("Failed to get site_title from DB: %v", err)
+	}
 	if dbSiteTitle != newSiteTitle {
 		t.Errorf("site_title in DB: got '%s', want '%s'", dbSiteTitle, newSiteTitle)
 	}
 	dbMaxPosts, err := ts.db.GetSettingInt(context.Background(), "max_posts")
-	if err != nil {t.Fatalf("Failed to get max_posts from DB: %v", err)}
+	if err != nil {
+		t.Fatalf("Failed to get max_posts from DB: %v", err)
+	}
 	if dbMaxPosts != 150 {
 		t.Errorf("max_posts in DB: got %d, want 150", dbMaxPosts)
 	}
 }
-
 
 // --- handleFeeds ---
 func TestHandleFeeds_GET(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, adminPass := "feedsadmin", "AdminFeedsPass123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, adminPass)
 
 	// Add a test feed directly to DB to see if it's listed
 	_, err := ts.db.ExecContext(context.Background(), "INSERT INTO feeds (url, title, status) VALUES (?, ?, ?)", "http://testfeed.com/rss", "My Test Feed", "active")
-	if err != nil {t.Fatalf("Failed to insert test feed: %v", err)}
+	if err != nil {
+		t.Fatalf("Failed to insert test feed: %v", err)
+	}
 
 	req := newAuthRequest(t, "GET", "/admin/feeds", nil, sessionCookie)
 	rr := httptest.NewRecorder()
@@ -726,9 +767,11 @@ func TestHandleFeeds_POST_AddFeed_Success(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, adminPass := "addfeedadmin", "AdminAddFeedPass123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, adminPass)
-	
+
 	csrfToken, csrfCookie := getCSRFTokenAndCookie(t, ts, "/admin/feeds", sessionCookie)
 
 	newFeedURL := "http://newfeed.com/rss"
@@ -754,7 +797,9 @@ func TestHandleFeeds_POST_AddFeed_Success(t *testing.T) {
 	// Verify feed was added (or at least an attempt was made - feed service will process it)
 	var count int
 	err := ts.db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM feeds WHERE url = ?", newFeedURL).Scan(&count)
-	if err != nil {t.Fatalf("Failed to query new feed: %v", err)}
+	if err != nil {
+		t.Fatalf("Failed to query new feed: %v", err)
+	}
 	if count != 1 {
 		t.Errorf("Expected feed with URL '%s' to be added to DB, count is %d", newFeedURL, count)
 	}
@@ -764,13 +809,17 @@ func TestHandleFeeds_POST_DeleteFeed_Success(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, adminPass := "delfeedadmin", "AdminDelFeedPass123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, adminPass)
 
 	// Add a feed to delete
 	feedURLToDelete := "http://feedtodelete.com/rss"
 	res, err := ts.db.ExecContext(context.Background(), "INSERT INTO feeds (url, title, status) VALUES (?, ?, ?)", feedURLToDelete, "Feed To Delete", "active")
-	if err != nil {t.Fatalf("Failed to insert feed for deletion: %v", err)}
+	if err != nil {
+		t.Fatalf("Failed to insert feed for deletion: %v", err)
+	}
 	feedIDToDelete, _ := res.LastInsertId()
 
 	csrfToken, csrfCookie := getCSRFTokenAndCookie(t, ts, "/admin/feeds", sessionCookie)
@@ -796,7 +845,9 @@ func TestHandleFeeds_POST_DeleteFeed_Success(t *testing.T) {
 
 	var count int
 	err = ts.db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM feeds WHERE id = ?", feedIDToDelete).Scan(&count)
-	if err != nil {t.Fatalf("Failed to query deleted feed: %v", err)}
+	if err != nil {
+		t.Fatalf("Failed to query deleted feed: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("Expected feed with ID %d to be deleted from DB, but it still exists (count %d)", feedIDToDelete, count)
 	}
@@ -808,9 +859,11 @@ func TestHandleFeedValidation_POST_Success(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, adminPass := "valfeedadmin", "AdminValFeedPass123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, adminPass)
-	
+
 	// Unlike other forms, this might be called via JS, so CSRF might be via header.
 	// Let's assume it's part of a form on /admin/feeds for now or similar.
 	csrfToken, csrfCookie := getCSRFTokenAndCookie(t, ts, "/admin/feeds", sessionCookie)
@@ -819,7 +872,6 @@ func TestHandleFeedValidation_POST_Success(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("gorilla.csrf.Token", csrfToken)
 	formData.Set("url", feedURLToValidate)
-
 
 	req := newAuthRequest(t, "POST", "/admin/validate-feed", strings.NewReader(formData.Encode()), sessionCookie)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded") // Assuming form post
@@ -840,14 +892,16 @@ func TestHandleFeedValidation_POST_Success(t *testing.T) {
 	}
 }
 
-
 // --- handleIndex ---
 func TestHandleIndex_FirstRun(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	// Ensure no admin users for first run
-	var count int; ts.db.QueryRow("SELECT COUNT(*) FROM admin_users").Scan(&count)
-	if count > 0 { t.Fatal("Admin user exists, cannot test first run of handleIndex") }
+	var count int
+	ts.db.QueryRow("SELECT COUNT(*) FROM admin_users").Scan(&count)
+	if count > 0 {
+		t.Fatal("Admin user exists, cannot test first run of handleIndex")
+	}
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -864,15 +918,20 @@ func TestHandleIndex_FirstRun(t *testing.T) {
 func TestHandleIndex_NormalOperation(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
-	if err := ts.authService.CreateUser(ts.db.DB, "adminidx", "AdminIdxPass123"); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, "adminidx", "AdminIdxPass123"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Add some entries to display
 	feedID := int64(1)
 	_, err := ts.db.Exec("INSERT INTO feeds (id, url, title, status) VALUES (?,?,?,?)", feedID, "http://idxfeed.com", "IndexFeed", "active")
-	if err != nil {t.Fatal(err)}
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, err = ts.db.Exec("INSERT INTO entries (feed_id, title, url, published_at) VALUES (?,?,?,?)", feedID, "Index Entry 1", "http://idxfeed.com/entry1", time.Now())
-	if err != nil {t.Fatal(err)}
-
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -896,7 +955,9 @@ func TestHandleAdmin_GET_Dashboard(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close(t)
 	adminUser, adminPass := "dashadmin", "AdminDashPass123"
-	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {t.Fatal(err)}
+	if err := ts.authService.CreateUser(ts.db.DB, adminUser, adminPass); err != nil {
+		t.Fatal(err)
+	}
 	sessionCookie := loginAsAdmin(t, ts, adminUser, adminPass)
 
 	req := newAuthRequest(t, "GET", "/admin", nil, sessionCookie)
@@ -915,7 +976,6 @@ func TestHandleAdmin_GET_Dashboard(t *testing.T) {
 	}
 }
 
-
 // S_runtime_Caller_SANDBOX_ENABLED_SORRY_CannotCallThis is a placeholder for runtime.Caller
 func S_runtime_Caller_SANDBOX_ENABLED_SORRY_CannotCallThis(skip int) (pc uintptr, file string, line int, ok bool) {
 	wd, err := os.Getwd()
@@ -924,9 +984,3 @@ func S_runtime_Caller_SANDBOX_ENABLED_SORRY_CannotCallThis(skip int) (pc uintptr
 	}
 	return 0, filepath.Join(wd, "handlers_test.go"), 0, true
 }
-
-// strconv.FormatInt is needed for feed ID in TestHandleFeeds_POST_DeleteFeed_Success
-import "strconv"
-// bytes.NewReader is needed for TestHandleChangePassword_POST_Success
-import "bytes"
-```

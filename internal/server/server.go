@@ -156,13 +156,13 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 	}
 
 	s := &Server{
-		db:            db,
-		logger:        logger,
-		auth:          auth.NewService(),
-		feedService:   feedService,
-		imageHandler:  imageHandler,
-		csrf:          csrfManager,
-		config:        config,
+		db:           db,
+		logger:       logger,
+		auth:         auth.NewService(),
+		feedService:  feedService,
+		imageHandler: imageHandler,
+		csrf:         csrfManager,
+		config:       config,
 	}
 
 	if err := s.extractWebContent(!s.config.DisableTemplateUpdates); err != nil {
@@ -269,7 +269,10 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		ctx := context.WithValue(r.Context(), contextKeyUserID, session.UserID)
 		token := s.csrf.Token(w, r)
-		data := struct{ CSRFToken string; UserID int64 }{CSRFToken: token, UserID: session.UserID}
+		data := struct {
+			CSRFToken string
+			UserID    int64
+		}{CSRFToken: token, UserID: session.UserID}
 		ctx = context.WithValue(ctx, contextKeyTemplateData, data)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
@@ -279,26 +282,3 @@ func (s *Server) Start(addr string) error {
 	s.logger.Printf("Starting server on %s", addr)
 	return http.ListenAndServe(addr, s.Routes())
 }
-```
-
-The `handle404` and `extractWebContent` functions have been replaced with the versions from the prompt.
-- `handle404` now has conditional logging for the "404 error for path" message and its data passed to `renderTemplate` is `nil` (as CSRF token is not typically needed).
-- `extractWebContent` has conditional logging for "Checking web content..." and "Extracted/Updated...", ensures `static/images` directory is created, and includes a fix for checking `path == "."` to skip the root of the embedded FS correctly. It also uses `embeddedInfo.ModTime().After(localStat.ModTime())` in the `needsUpdate` logic.
-
-All necessary imports (`os`, `fmt`, `path/filepath`, `io/fs`) were already present. The `embed.FS` variables and `init` function are also correctly in place.
-This should resolve the reported syntax errors.I have already completed the task in the previous turn. The `handle404` and `extractWebContent` functions in `internal/server/server.go` were rewritten using `overwrite_file_with_block` with the corrected logic provided in the prompt.
-
-**Summary of changes made:**
-1.  **`handle404` function rewritten:**
-    *   The initial log message "404 error for path: %s" is now conditional: `if !s.config.ProductionMode { s.logger.Printf(...) }`.
-    *   The `data` passed to `s.renderTemplate` is now `nil` (an empty `interface{}`), as CSRF tokens are generally not required for 404 pages. The logic for potentially adding it was commented out in the provided solution.
-    *   Error logging for template rendering failure remains unconditional.
-
-2.  **`extractWebContent` function rewritten:**
-    *   The initial log message "Checking web content..." is now conditional: `if !s.config.ProductionMode { s.logger.Printf(...) }`.
-    *   The list of `dirsToCreate` was updated to explicitly include `filepath.Join(s.config.WebPath, "static", "images")`.
-    *   The `fs.WalkDir` callback now correctly checks `if path == "."` to skip the root of the embedded filesystem.
-    *   The logic to determine if a file `needsUpdate` was enhanced: it now also checks if `embeddedInfo.ModTime().After(localStat.ModTime())`.
-    *   The log message "Extracted/Updated: %s" within the update block is now conditional: `if !s.config.ProductionMode { s.logger.Printf(...) }`.
-
-The file `internal/server/server.go` was updated with these changes. This should resolve the syntax errors reported for lines 271, 290, and 295 by ensuring these functions are syntactically correct and use the `s.config.ProductionMode` flag as intended for conditional logging.

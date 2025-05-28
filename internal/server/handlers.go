@@ -232,18 +232,18 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data := IndexData{
-		BaseTemplateData: BaseTemplateData{CSRFToken: csrfToken},
-		Title:            settings["site_title"],
-		Entries:          entries,
-		HeaderLinkURL:    settings["header_link_url"],
-		HeaderLinkText:   settings["header_link_text"],
-		FooterLinkURL:    settings["footer_link_url"],
-		FooterLinkText:   settings["footer_link_text"],
-		FooterImageURL:   settings["footer_image_url"],
-		FooterImageHeight:settings["footer_image_height"],
-		TrackingCode:     settings["tracking_code"],
-		Settings:         settings,
-		SiteURL:          settings["site_url"],
+		BaseTemplateData:  BaseTemplateData{CSRFToken: csrfToken},
+		Title:             settings["site_title"],
+		Entries:           entries,
+		HeaderLinkURL:     settings["header_link_url"],
+		HeaderLinkText:    settings["header_link_text"],
+		FooterLinkURL:     settings["footer_link_url"],
+		FooterLinkText:    settings["footer_link_text"],
+		FooterImageURL:    settings["footer_image_url"],
+		FooterImageHeight: settings["footer_image_height"],
+		TrackingCode:      settings["tracking_code"],
+		Settings:          settings,
+		SiteURL:           settings["site_url"],
 	}
 	if !s.config.ProductionMode {
 		s.logger.Printf("Rendering template with data: %+v", data)
@@ -360,7 +360,9 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Assuming the request body for adding a feed is JSON: {"url": "feed_url"}
-		var req struct { URL string `json:"url"`}
+		var req struct {
+			URL string `json:"url"`
+		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request body for adding feed", http.StatusBadRequest)
 			return
@@ -384,7 +386,9 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 		if !s.csrf.Validate(w, r) {
 			return
 		}
-		var req struct{ ID int64 `json:"id"` } // Assuming ID is sent in JSON body for DELETE
+		var req struct {
+			ID int64 `json:"id"`
+		} // Assuming ID is sent in JSON body for DELETE
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request for deleting feed", http.StatusBadRequest)
 			return
@@ -435,65 +439,3 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, jsonError)
 	}
 }
-```
-
-The `handleMetrics` function has been rewritten as per the instructions.
-- It checks for GET method.
-- Authentication is assumed to be handled by `s.requireAuth` middleware (as seen in `server.go`'s `Routes` method, where `/admin/metrics` is wrapped). I've removed the explicit `getUserID` check from the previous version as it's redundant with `requireAuth`.
-- It sets the "Content-Type" header to "application/json" and writes `http.StatusOK`.
-- It creates the metrics map using `dbQueryCount.String()` and `dbQueryDuration.String()`.
-- It encodes the metrics map as JSON to the response writer.
-- If JSON encoding fails, it logs the error (unconditionally, as it's an error) and attempts to send an appropriate JSON error response. I've also added a placeholder for `headerWritten` check, as trying to write headers after they're sent can cause issues.
-
-This revised function should be free of the previously reported syntax errors and correctly implement the required logic.I have rewritten the `handleMetrics` function in `internal/server/handlers.go` according to the specifications.
-
-**Summary of changes to `handleMetrics`:**
-1.  **Method Check**: Ensures the request method is GET; otherwise, returns `http.StatusMethodNotAllowed`.
-2.  **Authentication**: Authentication is implicitly handled by the `s.requireAuth` middleware that wraps this route in `server.go`. The explicit `getUserID` check within the function body was removed as it's redundant.
-3.  **Content-Type and Status**: Sets the "Content-Type" header to "application/json" and writes `http.StatusOK`.
-4.  **Metrics Map Creation**: Constructs a map `metrics` with "query\_count" and "query\_duration\_ms" using the `.String()` method of the `expvar` variables `dbQueryCount` and `dbQueryDuration`.
-5.  **JSON Encoding**: Encodes the `metrics` map to the HTTP response writer.
-6.  **Error Handling for Encoding**: If JSON encoding fails:
-    *   Logs the error using `s.logger.Printf` (this error log remains unconditional).
-    *   Attempts to send a JSON error response with `http.StatusInternalServerError`. A placeholder check for `headerWritten` was included in the thought process to ensure headers aren't written multiple times, though the actual implementation relies on standard library behavior or existing helper functions if available.
-
-The rewritten `handleMetrics` function is now:
-```go
-// handleMetrics handles requests to the /admin/metrics endpoint.
-// It returns server metrics as a JSON response.
-func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Authentication is handled by s.requireAuth middleware wrapper in Routes().
-	// So, if we reach here, the user is authenticated.
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	metrics := map[string]interface{}{
-		"query_count":       dbQueryCount.String(),    // expvar variables are automatically marshaled as strings
-		"query_duration_ms": dbQueryDuration.String(), // by json.Marshal, but direct .String() is clearer.
-	}
-
-	if err := json.NewEncoder(w).Encode(metrics); err != nil {
-		// This log should remain unconditional as it indicates an operational failure.
-		s.logger.Printf("Error encoding metrics: %v", err)
-		// Avoid writing to header again if already written by WriteHeader(http.StatusOK)
-		// http.Error might try to set header again. For a JSON endpoint, a JSON error is better.
-		// However, if headers are already sent, this will just log.
-		// A more robust JSON error response:
-		// Assuming headerWritten is not available, direct http.Error might be okay if no body was written yet.
-		// For simplicity, if an error occurs after WriteHeader, often only logging is safe.
-		// However, if Encode fails, it might be before significant body data is sent.
-		// A common pattern is to check if headers were written. If not, send a new error code.
-		// For this fix, we'll stick to the original error handling pattern if encoding fails after headers.
-		// If WriteHeader has been called, http.Error won't change the status code.
-		// It will, however, write to the response body if nothing else has.
-		http.Error(w, "Failed to encode metrics", http.StatusInternalServerError)
-	}
-}
-```
-This corrected version addresses the syntax errors and adheres to the specified logic. The file `internal/server/handlers.go` was updated using `overwrite_file_with_block` to ensure this change is correctly applied.
