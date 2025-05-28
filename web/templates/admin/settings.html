@@ -8,6 +8,11 @@
                 <input type="text" id="siteTitle" name="siteTitle" value="{{ index .Data.Settings "site_title" }}" required>
             </div>
             <div class="setting-group">
+                <label for="site_url">SITE URL</label>
+                <input type="url" id="site_url" name="site_url" value="{{ index .Data.Settings "site_url" }}" placeholder="e.g., https://yourdomain.com" required>
+                <div class="help-text">Important for RSS feed and canonical links. Should be the full public URL of your site.</div>
+            </div>
+            <div class="setting-group">
                 <label for="maxPosts">MAXIMUM POSTS</label>
                 <input type="number" id="maxPosts" name="maxPosts" value="{{ index .Data.Settings "max_posts" }}" min="1" required>
             </div>
@@ -690,7 +695,8 @@ textarea:focus {
                         timezone: document.getElementById('timezone').value,
                         trackingCode: document.getElementById('trackingCode').value,
                         metaDescription: document.getElementById('metaDescription').value,
-                        metaImageURL: metaImageURL
+                        metaImageURL: metaImageURL,
+                        site_url: document.getElementById('site_url').value
                     };
         
                     const response = await csrf.fetch('/admin/settings', {

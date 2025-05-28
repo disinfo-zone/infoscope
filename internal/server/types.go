@@ -80,6 +80,7 @@ type Settings struct {
 	Timezone          string `json:"timezone"`
 	MetaDescription   string `json:"metaDescription"`
 	MetaImageURL      string `json:"metaImageURL"`
+	SiteURL           string `json:"site_url"` // Added for site_url setting
 }
 
 type Feed struct {
