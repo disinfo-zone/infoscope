@@ -2,7 +2,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -108,7 +107,7 @@ func (h *ImageHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.csrf.Validate(w, r) {
 		h.logger.Printf("CSRF validation failed for HandleUpload")
-		respondWithError(w, http.StatusForbidden, "Invalid CSRF token")
+		RespondWithError(w, http.StatusForbidden, "Invalid CSRF token")
 		return
 	}
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
@@ -216,7 +215,7 @@ func (h *ImageHandler) HandleFaviconUpload(w http.ResponseWriter, r *http.Reques
 	}
 	if !h.csrf.Validate(w, r) {
 		h.logger.Printf("CSRF validation failed for favicon upload")
-		respondWithError(w, http.StatusForbidden, "Invalid CSRF token")
+		RespondWithError(w, http.StatusForbidden, "Invalid CSRF token")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxFaviconSize)
@@ -276,7 +275,7 @@ func (h *ImageHandler) HandleMetaImageUpload(w http.ResponseWriter, r *http.Requ
 	}
 	if !h.csrf.Validate(w, r) {
 		h.logger.Printf("CSRF validation failed for meta image upload")
-		respondWithError(w, http.StatusForbidden, "Invalid CSRF token")
+		RespondWithError(w, http.StatusForbidden, "Invalid CSRF token")
 		return
 	}
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
@@ -347,9 +346,4 @@ func (h *ImageHandler) updateSettingKey(ctx context.Context, key, value string) 
 		h.logger.Printf("Successfully updated setting %s to %s", key, value)
 	}
 	return nil
-}
-
-// respondWithError is a local helper for consistency within this file
-func respondWithError(w http.ResponseWriter, code int, message string) {
-	http.Error(w, message, code)
 }

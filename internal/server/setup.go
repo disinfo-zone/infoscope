@@ -6,9 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
-	"path/filepath"
 )
 
 func IsFirstRun(db *sql.DB) (bool, error) {
