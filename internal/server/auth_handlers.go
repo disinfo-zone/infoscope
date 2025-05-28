@@ -6,9 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -373,19 +371,5 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	if !s.config.ProductionMode {
 		s.logger.Printf("Password updated successfully for user %d", session.UserID)
 	}
-	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Password updated successfully"})
-}
-
-// Helper to send JSON error responses (can be moved to a utils file)
-func respondWithError(w http.ResponseWriter, code int, message string) {
-	respondWithJSON(w, code, map[string]string{"error": message})
-}
-
-// Helper to send JSON responses (can be moved to a utils file)
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	if payload != nil {
-		json.NewEncoder(w).Encode(payload)
-	}
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Password updated successfully"})
 }
