@@ -125,6 +125,41 @@ docker run -d \
 - `/app/data`: Database and data files
 - `/app/web`: Web content and templates
 
+### Directory Permissions for Docker
+
+**Important for Rootless Containers & Upgraders:**
+
+When running Infoscope via Docker, especially with rootless containers (as this project uses) or if you've configured Docker to use a specific non-root user, ensure the process inside the container has **read and write permissions** for the host directories mapped to the following volumes:
+*   `/app/data`: Essential for database operations.
+*   `/app/web`: Required if automatic template updates are enabled (i.e., not using the `-no-template-updates` flag or `INFOSCOPE_NO_TEMPLATE_UPDATES=true` environment variable).
+
+**Why is this important?**
+- Incorrect permissions can prevent Infoscope from starting, writing to its database, or managing web templates.
+- Users upgrading from older versions (which might have run as root in the container by default) should particularly verify these permissions to avoid disruptions.
+
+**How to ensure correct permissions:**
+- Adjust the ownership of your host directories to match the UID (User ID) and GID (Group ID) of the user that the Infoscope process runs as inside your container. This depends on your specific Docker image and any user configurations (e.g., via `docker run --user ...`).
+- Alternatively, set directory permissions on the host (e.g., `chmod 775` for the host paths), ensuring the container's user can write to them.
+
+For example, if your Docker volume on the host is `/my/infoscope/data` and it's mapped to `/app/data` in the container:
+```bash
+# Determine the UID/GID of the user running Infoscope in your container.
+# Common examples include 1000:1000 (default user) or 65532:65532 (often 'nobody').
+# Replace YOUR_CONTAINER_UID and YOUR_CONTAINER_GID with the correct values.
+
+# Example: Change ownership to UID 65532, GID 65532
+# sudo chown -R 65532:65532 /my/infoscope/data
+# sudo chown -R 65532:65532 /my/infoscope/web
+
+# Example: Change ownership to UID 1000, GID 1000
+# sudo chown -R 1000:1000 /my/infoscope/data
+# sudo chown -R 1000:1000 /my/infoscope/web
+
+# Or, more open permissions (use with caution):
+# sudo chmod -R 777 /my/infoscope/data
+```
+Consult your Docker and system documentation for the best way to manage permissions for your specific setup. You may need to inspect your Docker image or use commands like `docker exec <container_name_or_id> id` to find the UID/GID of the running process.
+
 ## Additional Setup Notes
 
 ### Template Management
@@ -186,6 +221,7 @@ SOFTWARE.
 ## Acknowledgments
 
 - Built with assistance from Anthropic's Claude
+- Updates with Google's Jules
 - [gofeed](https://github.com/mmcdole/gofeed) for RSS parsing
 - [go-sqlite3](https://github.com/mattn/go-sqlite3) for database operations
 - [Illuminati icon]((https://www.flaticon.com/free-icons/illuminati)) created by smalllikeart - Flaticon
