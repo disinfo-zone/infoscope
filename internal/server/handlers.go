@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"encoding/xml"
 	"infoscope/internal/feed"
+	"infoscope/internal/rss"
 	"net/http"
 	"strconv"
 	"time"
@@ -64,12 +66,19 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
 	var entries []EntryView
 	for rows.Next() {
 		var e EntryView
-		var dateStr string
-		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &dateStr); err != nil {
+		var publishedAtStr string // Will hold the "YYYY-MM-DD HH:MM:SS" string from DB
+		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
-		if date, err := time.Parse("2006-01-02 15:04:05", dateStr); err == nil {
-			e.Date = date.Format("Jan 02")
+
+		// Parse the full timestamp for PublishedAtTime
+		if parsedTime, err := time.Parse("2006-01-02 15:04:05", publishedAtStr); err == nil {
+			e.PublishedAtTime = parsedTime
+			// For existing e.Date, format as "Jan 02"
+			e.Date = parsedTime.Format("Jan 02")
+		} else {
+			// Log error if parsing fails, PublishedAtTime will be zero, Date will be empty
+			s.logger.Printf("Error parsing date string '%s' for EntryView: %v", publishedAtStr, err)
 		}
 		entries = append(entries, e)
 	}
@@ -153,6 +162,74 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 	}
 
 	return tx.Commit()
+}
+
+func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
+	settings, err := s.getSettings(r.Context())
+	if err != nil {
+		s.logger.Printf("Error getting settings for RSS feed: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	siteTitle := settings["site_title"]
+	siteURL := settings["site_url"]          // Assuming "site_url" is the key for the site's base URL
+	metaDescription := settings["meta_description"] // Assuming "meta_description" is the key
+
+	maxPosts := 33 // Default
+	if maxStr, ok := settings["max_posts"]; ok {
+		if max, err := strconv.Atoi(maxStr); err == nil && max > 0 {
+			maxPosts = max
+		}
+	}
+
+	entries, err := s.getRecentEntries(r.Context(), maxPosts)
+	if err != nil {
+		s.logger.Printf("Error getting recent entries for RSS feed: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	now := time.Now()
+	rssFeed := rss.RSS{
+		Version: "2.0",
+		Channel: rss.Channel{
+			Title:         siteTitle,
+			Link:          siteURL,
+			Description:   metaDescription,
+			Language:      "en-us", // Default, consider making this configurable
+			LastBuildDate: now.Format(time.RFC1123Z),
+		},
+	}
+
+	for _, entry := range entries {
+		item := rss.Item{
+			Title:       entry.Title,
+			Link:        entry.URL, // Assuming entry.URL is absolute
+			Description: entry.Title, // Using title as description, as no other summary is readily available
+			GUID:        entry.URL, // Using URL as GUID, common practice
+		}
+		// Only set PubDate if PublishedAtTime is not zero
+		if !entry.PublishedAtTime.IsZero() {
+			item.PubDate = entry.PublishedAtTime.Format(time.RFC1123Z)
+		} else {
+			s.logger.Printf("Entry with ID %d has zero PublishedAtTime, omitting PubDate in RSS item.", entry.ID)
+		}
+		rssFeed.Channel.Items = append(rssFeed.Channel.Items, item)
+	}
+
+	xmlOutput, err := xml.MarshalIndent(rssFeed, "", "  ")
+	if err != nil {
+		s.logger.Printf("Error marshalling RSS feed to XML: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
+	_, err = w.Write(xmlOutput)
+	if err != nil {
+		s.logger.Printf("Error writing RSS XML response: %v", err)
+	}
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {

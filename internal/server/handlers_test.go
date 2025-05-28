@@ -16,11 +16,14 @@ import (
 	"testing"
 	"time"
 
+	"encoding/xml"
 	"infoscope/internal/auth"
 	"infoscope/internal/database"
 	"infoscope/internal/favicon"
 	"infoscope/internal/feed"
+	"infoscope/internal/rss"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/PuerkitoBio/goquery"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -973,6 +976,125 @@ func TestHandleAdmin_GET_Dashboard(t *testing.T) {
 	// Check for some dashboard elements, e.g., Feed Count, Entry Count
 	if !strings.Contains(rr.Body.String(), "Feed Count") || !strings.Contains(rr.Body.String(), "Entry Count") {
 		t.Errorf("handleAdmin GET Dashboard: missing Feed/Entry count sections. Body: %s", rr.Body.String())
+	}
+}
+
+func TestHandleRSS(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	logger := log.New(io.Discard, "", 0)
+	// Config can be minimal for this test as handleRSS doesn't directly use it beyond what's fetched from settings.
+	serverConfig := Config{}
+
+	s := &Server{
+		db:     db,
+		logger: logger,
+		config: serverConfig,
+		// templateCache can be nil as handleRSS writes XML directly and doesn't use HTML templates for success path.
+		// csrf can be nil as handleRSS is not a CSRF-protected endpoint.
+		// Other services like feedService, auth, imageHandler are not used by handleRSS.
+	}
+
+	// Mock settings
+	settingsRows := sqlmock.NewRows([]string{"key", "value"}).
+		AddRow("site_title", "Test Site").
+		AddRow("site_url", "http://localhost:8080").
+		AddRow("meta_description", "Test Description").
+		AddRow("max_posts", "2") // Using 2 for simpler test data
+
+	mock.ExpectQuery("SELECT key, value FROM settings").WillReturnRows(settingsRows)
+
+	// Mock entries
+	// published_at format from query: "YYYY-MM-DD HH:MM:SS"
+	entryTime1Str := "2023-01-01 10:00:00"
+	entryTime2Str := "2023-01-02 11:00:00"
+
+	entryTime1, _ := time.Parse("2006-01-02 15:04:05", entryTime1Str)
+	entryTime2, _ := time.Parse("2006-01-02 15:04:05", entryTime2Str)
+
+	entriesRows := sqlmock.NewRows([]string{"id", "title", "url", "favicon_url", "date"}).
+		AddRow(1, "Test Entry 1", "http://localhost:8080/entry1", "/favicon.ico", entryTime1Str).
+		AddRow(2, "Test Entry 2", "http://localhost:8080/entry2", "/favicon.ico", entryTime2Str)
+
+	// The query in getRecentEntries uses `LIMIT ?`
+	mock.ExpectQuery(`SELECT e.id, e.title, e.url, e.favicon_url, datetime\(e.published_at\) as date FROM entries e JOIN feeds f ON e.feed_id = f.id WHERE f.status != 'deleted' ORDER BY e.published_at DESC LIMIT \?`).
+		WithArgs(2). // max_posts is 2
+		WillReturnRows(entriesRows)
+
+	req := httptest.NewRequest("GET", "/rss.xml", nil)
+	rr := httptest.NewRecorder()
+
+	s.handleRSS(rr, req)
+
+	// Assertions
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	expectedContentType := "application/rss+xml; charset=utf-8"
+	if contentType := rr.Header().Get("Content-Type"); contentType != expectedContentType {
+		t.Errorf("handler returned wrong content type: got %v want %v", contentType, expectedContentType)
+	}
+
+	var rssFeed rss.RSS
+	if err := xml.Unmarshal(rr.Body.Bytes(), &rssFeed); err != nil {
+		t.Fatalf("Failed to unmarshal XML response: %v. Body: %s", err, rr.Body.String())
+	}
+
+	if rssFeed.Version != "2.0" {
+		t.Errorf("RSS version: got %s, want %s", rssFeed.Version, "2.0")
+	}
+	if rssFeed.Channel.Title != "Test Site" {
+		t.Errorf("Channel title: got %s, want %s", rssFeed.Channel.Title, "Test Site")
+	}
+	if rssFeed.Channel.Link != "http://localhost:8080" {
+		t.Errorf("Channel link: got %s, want %s", rssFeed.Channel.Link, "http://localhost:8080")
+	}
+	if rssFeed.Channel.Description != "Test Description" {
+		t.Errorf("Channel description: got %s, want %s", rssFeed.Channel.Description, "Test Description")
+	}
+	if len(rssFeed.Channel.Items) != 2 {
+		t.Errorf("Number of items: got %d, want %d", len(rssFeed.Channel.Items), 2)
+	}
+
+	// Check items
+	if len(rssFeed.Channel.Items) == 2 {
+		item1 := rssFeed.Channel.Items[0]
+		if item1.Title != "Test Entry 1" {
+			t.Errorf("Item 1 title: got %s, want %s", item1.Title, "Test Entry 1")
+		}
+		if item1.Link != "http://localhost:8080/entry1" {
+			t.Errorf("Item 1 link: got %s, want %s", item1.Link, "http://localhost:8080/entry1")
+		}
+		// RFC1123Z format. time.Parse above gives local time. Format will convert to UTC if Z is specified.
+		// The test data is naive, so Format will assume local. To be robust, parse as UTC or ensure test runs in UTC.
+		// For simplicity, we'll compare with the local time's RFC1123Z representation.
+		// If server runs in UTC, then this would be entryTime1.In(time.UTC).Format(time.RFC1123Z)
+		// The `Format(time.RFC1123Z)` method on a `time.Time` object will correctly format it with a numeric timezone offset.
+		expectedPubDate1 := entryTime1.Format(time.RFC1123Z)
+		if item1.PubDate != expectedPubDate1 {
+			t.Errorf("Item 1 PubDate: got %s, want %s", item1.PubDate, expectedPubDate1)
+		}
+
+		item2 := rssFeed.Channel.Items[1]
+		if item2.Title != "Test Entry 2" {
+			t.Errorf("Item 2 title: got %s, want %s", item2.Title, "Test Entry 2")
+		}
+		if item2.Link != "http://localhost:8080/entry2" {
+			t.Errorf("Item 2 link: got %s, want %s", item2.Link, "http://localhost:8080/entry2")
+		}
+		expectedPubDate2 := entryTime2.Format(time.RFC1123Z)
+		if item2.PubDate != expectedPubDate2 {
+			t.Errorf("Item 2 PubDate: got %s, want %s", item2.PubDate, expectedPubDate2)
+		}
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
 
