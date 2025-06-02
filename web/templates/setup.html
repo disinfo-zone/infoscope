@@ -3,7 +3,7 @@
 <head>
     <title>Infoscope Setup</title>
     <meta name="csrf-token" content="{{ .CSRFToken }}">
-    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ .Data.Settings.favicon_url }}">
+    <link rel="icon" type="image/x-icon" href="/static/images/favicon/default.ico">
     <style>
         body {
             font-family: 'Courier New', Courier, monospace;
@@ -97,7 +97,11 @@
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
                 <div class="password-requirements">
-                    Password must be at least 8 characters long
+                    Password must be at least 12 characters long and include:
+                    <br>• At least one uppercase letter
+                    <br>• At least one lowercase letter
+                    <br>• At least one digit
+                    <br>• At least one special character (!@#$%^&* etc.)
                 </div>
             </div>
             <div class="form-group">
@@ -124,6 +128,28 @@
                 password: document.getElementById('password').value,
                 confirmPassword: document.getElementById('confirmPassword').value
             };
+
+            // Client-side validation
+            if (formData.password !== formData.confirmPassword) {
+                error.textContent = 'Passwords do not match';
+                return;
+            }
+
+            if (formData.password.length < 12) {
+                error.textContent = 'Password must be at least 12 characters long';
+                return;
+            }
+
+            // Check password complexity
+            const hasUpper = /[A-Z]/.test(formData.password);
+            const hasLower = /[a-z]/.test(formData.password);
+            const hasDigit = /\d/.test(formData.password);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
+
+            if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
+                error.textContent = 'Password must include uppercase, lowercase, digit, and special character';
+                return;
+            }
     
             try {
                 const response = await fetch('/setup', {

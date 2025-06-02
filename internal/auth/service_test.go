@@ -45,7 +45,7 @@ func TestCreateUser_Success(t *testing.T) {
 
 	service := NewService()
 	username := "testuser"
-	password := "Password123"
+	password := "SecurePass123!"
 
 	err := service.CreateUser(db, username, password)
 	if err != nil {
@@ -69,7 +69,7 @@ func TestCreateUser_LowercaseUsername(t *testing.T) {
 
 	service := NewService()
 	username := "TestUser"
-	password := "Password123"
+	password := "SecurePass123!"
 
 	err := service.CreateUser(db, username, password)
 	if err != nil {
@@ -93,7 +93,7 @@ func TestCreateUser_DuplicateUsername(t *testing.T) {
 
 	service := NewService()
 	username := "testuser"
-	password := "Password123"
+	password := "SecurePass123!"
 
 	// Create first user
 	err := service.CreateUser(db, username, password)
@@ -114,11 +114,56 @@ func TestCreateUser_WeakPassword(t *testing.T) {
 
 	service := NewService()
 	username := "testuser"
-	weakPassword := "123"
 
-	err := service.CreateUser(db, username, weakPassword)
-	if err == nil {
-		t.Fatal("Expected error for weak password, got nil")
+	tests := []struct {
+		name     string
+		password string
+		wantErr  bool
+	}{
+		{
+			name:     "too_short",
+			password: "Short1!",
+			wantErr:  true,
+		},
+		{
+			name:     "no_uppercase",
+			password: "securepass123!",
+			wantErr:  true,
+		},
+		{
+			name:     "no_lowercase",
+			password: "SECUREPASS123!",
+			wantErr:  true,
+		},
+		{
+			name:     "no_digit",
+			password: "SecurePassword!",
+			wantErr:  true,
+		},
+		{
+			name:     "no_special",
+			password: "SecurePassword123",
+			wantErr:  true,
+		},
+		{
+			name:     "common_password",
+			password: "Password123!",
+			wantErr:  true,
+		},
+		{
+			name:     "valid_password",
+			password: "MySecureP@ssw0rd!",
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := service.CreateUser(db, username+"_"+tt.name, tt.password)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CreateUser() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -128,7 +173,7 @@ func TestAuthenticate_Success(t *testing.T) {
 
 	service := NewService()
 	username := "testuser"
-	password := "Password123"
+	password := "SecurePass123!"
 
 	// Create user first
 	err := service.CreateUser(db, username, password)
@@ -161,8 +206,8 @@ func TestAuthenticate_IncorrectPassword(t *testing.T) {
 
 	service := NewService()
 	username := "testuser"
-	password := "Password123"
-	wrongPassword := "WrongPassword"
+	password := "SecurePass123!"
+	wrongPassword := "WrongPassword123!"
 
 	// Create user first
 	err := service.CreateUser(db, username, password)
@@ -195,7 +240,7 @@ func TestValidateSession_Service_Valid(t *testing.T) {
 
 	service := NewService()
 	username := "testuser"
-	password := "Password123"
+	password := "SecurePass123!"
 	// Create user and authenticate
 	err := service.CreateUser(db, username, password)
 	if err != nil {
@@ -233,7 +278,7 @@ func TestInvalidateSession_Service(t *testing.T) {
 
 	service := NewService()
 	username := "testuser"
-	password := "Password123"
+	password := "SecurePass123!"
 	// Create user and authenticate
 	err := service.CreateUser(db, username, password)
 	if err != nil {

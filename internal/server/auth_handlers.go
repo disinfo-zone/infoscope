@@ -366,7 +366,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Update the password
 	if err := s.auth.UpdatePassword(s.db, session.UserID, req.NewPassword); err != nil {
 		s.logger.Printf("Error updating password for user %d: %v", session.UserID, err)
-		RespondWithError(w, http.StatusInternalServerError, "Failed to update password")
+		RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

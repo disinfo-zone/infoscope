@@ -15,7 +15,7 @@
             {{ if .Data.LastUpdate.IsZero }}
                 Never
             {{ else }}
-                {{ formatTimeInZone .Data.Settings.timezone .Data.LastUpdate }}
+                {{ formatTimeInZone (index .Data.Settings "timezone") .Data.LastUpdate }}
             {{ end }}
           </div>
         </div>
@@ -44,7 +44,7 @@
                             </td>
                             <td class="number-cell">{{ .ClickCount }}</td>
                             <td class="date-cell">
-                              {{ formatTimeInZone $.Data.Settings.timezone .LastClicked }}
+                              {{ formatTimeInZone (index $.Data.Settings "timezone") .LastClicked }}
                           </td>
                         </tr>
                         {{ end }}
@@ -72,7 +72,7 @@
                             </td>
                             <td class="number-cell">{{ .ClickCount }}</td>
                             <td class="date-cell">
-                              {{ formatTimeInZone $.Data.Settings.timezone .LastClicked }}
+                              {{ formatTimeInZone (index $.Data.Settings "timezone") .LastClicked }}
                           </td>
                         </tr>
                         {{ end }}

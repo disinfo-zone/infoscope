@@ -59,6 +59,9 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 
+		// Debug log the template data structure
+		s.logger.Printf("Setup template data: %+v", data)
+
 		// Use the refactored renderTemplate
 		if err := s.renderTemplate(w, r, "setup.html", data); err != nil {
 			s.logger.Printf("Error rendering setup template: %v", err)
@@ -89,15 +92,11 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Passwords do not match", http.StatusBadRequest)
 			return
 		}
-		if len(req.Password) < 8 {
-			http.Error(w, "Password must be at least 8 characters", http.StatusBadRequest)
-			return
-		}
 
-		// Create admin user
+		// Create admin user (validation will be done in CreateUser)
 		if err := s.auth.CreateUser(s.db, req.Username, req.Password); err != nil {
 			s.logger.Printf("Failed to create user: %v", err)
-			http.Error(w, "Failed to create user", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 

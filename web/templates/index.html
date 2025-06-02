@@ -26,7 +26,7 @@
     <meta property="twitter:description" content="{{ index .Data.Settings "meta_description" }}">
     {{ if index .Data.Settings "meta_image_url" }}
     <meta name="twitter:image" content="{{ .Data.SiteURL }}/static/images/{{ index .Data.Settings "meta_image_url" }}">
-    {{ end }}    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ .Data.Settings.favicon_url }}">
+    {{ end }}    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ index .Data.Settings "favicon_url" }}">
     
     <!-- Preload critical favicons for faster loading -->
     {{ range $index, $entry := .Data.Entries }}

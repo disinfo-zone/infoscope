@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 	"time"
 	"unicode"
@@ -25,14 +26,99 @@ func NewService() *Service {
 	return &Service{}
 }
 
+// Common weak passwords that should be rejected
+var commonPasswords = map[string]bool{
+	"password":     true,
+	"password123":  true,
+	"password123!": true,
+	"admin":        true,
+	"admin123":     true,
+	"123456":       true,
+	"12345678":     true,
+	"qwerty":       true,
+	"qwerty123":    true,
+	"letmein":      true,
+	"welcome":      true,
+	"welcome123":   true,
+	"monkey":       true,
+	"dragon":       true,
+	"princess":     true,
+	"sunshine":     true,
+	"football":     true,
+	"baseball":     true,
+	"superman":     true,
+	"iloveyou":     true,
+	"trustno1":     true,
+	"abc123":       true,
+	"password1":    true,
+	"changeme":     true,
+	"master":       true,
+	"hello":        true,
+	"guest":        true,
+	"test":         true,
+	"test123":      true,
+	"admin1":       true,
+	"root":         true,
+	"user":         true,
+	"user123":      true,
+}
+
+// isCommonPassword checks if the password is in the list of common weak passwords
+func isCommonPassword(password string) bool {
+	return commonPasswords[strings.ToLower(password)]
+}
+
+// calculateEntropy estimates password entropy based on character set diversity and length
+func calculateEntropy(password string) float64 {
+	if len(password) == 0 {
+		return 0
+	}
+
+	var charSetSize float64 = 0
+
+	hasLower := false
+	hasUpper := false
+	hasDigit := false
+	hasSpecial := false
+
+	for _, char := range password {
+		if unicode.IsLower(char) && !hasLower {
+			hasLower = true
+			charSetSize += 26
+		}
+		if unicode.IsUpper(char) && !hasUpper {
+			hasUpper = true
+			charSetSize += 26
+		}
+		if unicode.IsDigit(char) && !hasDigit {
+			hasDigit = true
+			charSetSize += 10
+		}
+		if (unicode.IsPunct(char) || unicode.IsSymbol(char)) && !hasSpecial {
+			hasSpecial = true
+			charSetSize += 32 // Common special characters
+		}
+	}
+
+	if charSetSize == 0 {
+		return 0
+	}
+
+	// Entropy = log2(charSetSize^length)
+	return float64(len(password)) * math.Log2(charSetSize)
+}
+
 // validatePasswordStrength checks if the password meets the defined criteria.
 func (s *Service) validatePasswordStrength(password string) error {
-	if len(password) < 10 {
-		return errors.New("password must be at least 10 characters long")
+	if len(password) < 12 {
+		return errors.New("password must be at least 12 characters long")
 	}
+
 	hasUpper := false
 	hasLower := false
 	hasDigit := false
+	hasSpecial := false
+
 	for _, char := range password {
 		switch {
 		case unicode.IsUpper(char):
@@ -41,8 +127,11 @@ func (s *Service) validatePasswordStrength(password string) error {
 			hasLower = true
 		case unicode.IsDigit(char):
 			hasDigit = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
 		}
 	}
+
 	if !hasUpper {
 		return errors.New("password must include at least one uppercase letter")
 	}
@@ -52,8 +141,20 @@ func (s *Service) validatePasswordStrength(password string) error {
 	if !hasDigit {
 		return errors.New("password must include at least one digit")
 	}
-	// More complex regex checks can be added here if needed, for example, for special characters.
-	// Using unicode package for direct character property checks is often more readable for simple cases.
+	if !hasSpecial {
+		return errors.New("password must include at least one special character")
+	}
+
+	// Check against common passwords
+	if isCommonPassword(password) {
+		return errors.New("password is too common, please choose a different one")
+	}
+
+	// Add entropy check
+	if calculateEntropy(password) < 50 {
+		return errors.New("password is too predictable, please use a more complex combination")
+	}
+
 	return nil
 }
 

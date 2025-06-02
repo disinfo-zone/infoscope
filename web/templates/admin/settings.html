@@ -196,12 +196,14 @@
             </div>
             <div class="setting-group">
                 <label for="newPassword">NEW PASSWORD</label>
-                <input type="password" id="newPassword" name="newPassword" required minlength="8">
-                 <div class="help-text">Minimum 8 characters required.</div>
+                <input type="password" id="newPassword" name="newPassword" required minlength="12">
+                <div class="help-text">
+                    Must be at least 12 characters with uppercase, lowercase, digit, and special character.
+                </div>
             </div>
             <div class="setting-group">
                 <label for="confirmNewPassword">CONFIRM NEW PASSWORD</label>
-                <input type="password" id="confirmNewPassword" name="confirmNewPassword" required minlength="8">
+                <input type="password" id="confirmNewPassword" name="confirmNewPassword" required minlength="12">
             </div>
             <button type="submit" class="submit-button">CHANGE PASSWORD</button>
             <div id="passwordChangeStatus" class="status"></div>
@@ -954,8 +956,21 @@ textarea:focus {
                     status.style.display = 'block';
                     return;
                 }
-                if (newPassword.length < 8) {
-                    status.textContent = 'New password must be at least 8 characters long.';
+                if (newPassword.length < 12) {
+                    status.textContent = 'New password must be at least 12 characters long.';
+                    status.className = 'status error';
+                    status.style.display = 'block';
+                    return;
+                }
+
+                // Additional client-side validation for password complexity
+                const hasUpper = /[A-Z]/.test(newPassword);
+                const hasLower = /[a-z]/.test(newPassword);
+                const hasDigit = /\d/.test(newPassword);
+                const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+
+                if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
+                    status.textContent = 'Password must include uppercase, lowercase, digit, and special character.';
                     status.className = 'status error';
                     status.style.display = 'block';
                     return;
