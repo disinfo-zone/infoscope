@@ -2,7 +2,6 @@ package auth
 
 import (
 	"database/sql"
-	"os"
 	"testing"
 	"time"
 
@@ -11,10 +10,8 @@ import (
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 
-// setupTestDB initializes an in-memory SQLite database and applies the schema.
-// This is similar to the one in service_test.go. For larger projects,
-// consider moving this to a shared test utility package.
-func setupTestDB(t *testing.T) *sql.DB {
+// setupTestDBForAuth initializes an in-memory SQLite database for auth tests.
+func setupTestDBForAuth(t *testing.T) *sql.DB {
 	t.Helper()
 
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -42,13 +39,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func TestMain(m *testing.M) {
-	exitCode := m.Run()
-	os.Exit(exitCode)
-}
-
 func TestCleanExpiredSessions(t *testing.T) {
-	db := setupTestDB(t)
+	db := setupTestDBForAuth(t)
 	defer db.Close()
 
 	// Pre-requisite: Need a user to associate sessions with

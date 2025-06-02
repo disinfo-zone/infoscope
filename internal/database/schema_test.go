@@ -1,11 +1,8 @@
 package database
 
 import (
-	"database/sql"
-	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
@@ -17,11 +14,10 @@ func TestNewDB_SuccessAndTableCreation(t *testing.T) {
 	// For NewDB, testing with a file path is slightly more realistic.
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_newdb.db")
-
 	cfg := DefaultConfig()
 	db, err := NewDB(dbPath, cfg)
 	if err != nil {
-		t.Fatalf("NewDB() error = %v, wantErr %v", err, false)
+		t.Fatalf("NewDB() error = %v", err)
 	}
 	if db == nil {
 		t.Fatalf("NewDB() returned nil DB instance")
@@ -52,7 +48,7 @@ func TestNewDB_DefaultSettings(t *testing.T) {
 	cfg := DefaultConfig()
 	db, err := NewDB(dbPath, cfg)
 	if err != nil {
-		t.Fatalf("NewDB() error = %v", err, false)
+		t.Fatalf("NewDB() error = %v", err)
 	}
 	defer db.Close()
 
@@ -130,10 +126,10 @@ func TestColumnExists(t *testing.T) {
 	defer db.Close()
 
 	testCases := []struct {
-		tableName    string
-		columnName   string
-		shouldExist  bool
-		description  string
+		tableName   string
+		columnName  string
+		shouldExist bool
+		description string
 	}{
 		{"feeds", "url", true, "existing column 'url' in 'feeds'"},
 		{"feeds", "title", true, "existing column 'title' in 'feeds'"},
@@ -171,16 +167,16 @@ func TestPerformMigrations_AddsColumns(t *testing.T) {
 	defer db.Close()
 
 	migratedColumns := []struct {
-		table string
+		table  string
 		column string
 	}{
-		{"feeds", "status"},          // Added by migration
-		{"feeds", "error_count"},     // Added by migration
-		{"feeds", "last_error"},      // Added by migration
-		{"entries", "content"},       // Ensured by add column logic
-		{"entries", "guid"},          // Ensured by add column logic
-		{"settings", "type"},         // Added by settings table migration
-		{"settings", "favicon_url"},  // Ensured by add column logic (was default setting)
+		{"feeds", "status"},         // Added by migration
+		{"feeds", "error_count"},    // Added by migration
+		{"feeds", "last_error"},     // Added by migration
+		{"entries", "content"},      // Ensured by add column logic
+		{"entries", "guid"},         // Ensured by add column logic
+		{"settings", "type"},        // Added by settings table migration
+		{"settings", "favicon_url"}, // Ensured by add column logic (was default setting)
 	}
 
 	for _, mc := range migratedColumns {
@@ -195,25 +191,3 @@ func TestPerformMigrations_AddsColumns(t *testing.T) {
 		})
 	}
 }
-
-// TestMain can be used if there's any package-level setup/teardown.
-func TestMain(m *testing.M) {
-	// Example: os.Setenv("TZ", "UTC") if tests depend on a specific timezone.
-	exitCode := m.Run()
-	os.Exit(exitCode)
-}
-
-// Helper to check if a specific setting exists and has a certain value.
-// This is more of a utility if needed by multiple tests, GetSetting from queries.go is preferred.
-func checkSettingValue(db *sql.DB, key, expectedValue string) (bool, error) {
-	var value string
-	err := db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&value)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil // Not found, but not an SQL error for this check's purpose
-		}
-		return false, err // Actual SQL error
-	}
-	return value == expectedValue, nil
-}
-```
