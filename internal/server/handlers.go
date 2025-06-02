@@ -5,9 +5,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"encoding/xml"
 	"expvar"
 	"fmt"
-	"encoding/xml"
 	"infoscope/internal/feed"
 	"infoscope/internal/rss"
 	"net/http"
@@ -134,12 +134,12 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		return err
 	}
 	defer stmt.Close()
-
 	updates := map[string]struct {
 		value string
 		type_ string
 	}{
 		"site_title":          {settings.SiteTitle, "string"},
+		"site_url":            {settings.SiteURL, "string"},
 		"max_posts":           {strconv.Itoa(settings.MaxPosts), "int"},
 		"update_interval":     {strconv.Itoa(settings.UpdateInterval), "int"},
 		"header_link_text":    {settings.HeaderLinkText, "string"},
@@ -153,7 +153,6 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
 		"meta_image_url":      {settings.MetaImageURL, "string"},
-		"site_url":            {settings.SiteURL, "string"},
 	}
 
 	for key, setting := range updates {
@@ -220,20 +219,21 @@ func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
 		}
 		selfLinkHref += "/rss.xml"
 
-
 		rssFeed.Channel.SelfLink = rss.AtomLink{
 			Href: selfLinkHref,
 			Rel:  "self",
 			Type: "application/rss+xml",
 		}
 	}
-
 	for _, entry := range entries {
 		item := rss.Item{
 			Title:       entry.Title,
-			Link:        entry.URL, // Assuming entry.URL is absolute
+			Link:        entry.URL,   // Assuming entry.URL is absolute
 			Description: entry.Title, // Using title as description, as no other summary is readily available
-			GUID:        entry.URL, // Using URL as GUID, common practice
+			GUID: rss.GUID{
+				Value:       entry.URL,
+				IsPermaLink: true,
+			}, // Using URL as GUID, common practice
 		}
 		// Only set PubDate if PublishedAtTime is not zero
 		if !entry.PublishedAtTime.IsZero() {

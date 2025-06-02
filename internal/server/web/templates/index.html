@@ -26,9 +26,15 @@
     <meta property="twitter:description" content="{{ index .Data.Settings "meta_description" }}">
     {{ if index .Data.Settings "meta_image_url" }}
     <meta name="twitter:image" content="{{ .Data.SiteURL }}/static/images/{{ index .Data.Settings "meta_image_url" }}">
+    {{ end }}    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ .Data.Settings.favicon_url }}">
+    
+    <!-- Preload critical favicons for faster loading -->
+    {{ range $index, $entry := .Data.Entries }}
+        {{ if lt $index 10 }}
+    <link rel="preload" as="image" href="{{ $entry.FaviconURL }}">
+        {{ end }}
     {{ end }}
-
-    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ .Data.Settings.favicon_url }}">
+    
     <style>
         body {
             font-family: 'Courier New', Courier, monospace;
@@ -75,12 +81,20 @@
     
         .entry:hover {
             background-color: #1a2438;
-        }
-    
-        .favicon {
+        }        .favicon {
             width: 16px;
             height: 16px;
             margin-right: 4px;
+            /* Optimize favicon loading */
+            object-fit: contain;
+            background-color: transparent;
+            /* Prevent layout shift during load */
+            flex-shrink: 0;
+        }
+        
+        /* Hide favicon until loaded to prevent layout shift */
+        .favicon[src=""] {
+            visibility: hidden;
         }
     
         .link-container {
@@ -159,8 +173,7 @@
                 grid-row: 2;
                 grid-column: 2;
                 justify-self: start;
-            }
-        }
+            }        }
         @media screen and (max-width: 768px) {
             .link-container a {
                 white-space: normal;
@@ -169,6 +182,22 @@
                      word-break: break-word;
                      hyphens: auto;
             }
+        }
+        
+        /* Additional performance optimizations */
+        .feed {
+            contain: layout style paint;
+        }
+        
+        .entry {
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+        
+        /* Improve font rendering */
+        body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
     </style>
 </head>
@@ -180,12 +209,11 @@
         <!-- Debug output -->
         <script>console.log('Feed entries:', {{ .Data.Entries | printf "%#v" }})</script>
         
-        {{ range .Data.Entries }}
-        <div class="entry">
+        {{ range .Data.Entries }}        <div class="entry">
             <!-- Debug output per entry -->
             <script>console.log('Processing entry:', {{ . | printf "%#v" }})</script>
             
-            <img class="favicon" src="{{ .FaviconURL }}" onerror="this.src='/static/favicons/default.ico'" alt="favicon">
+            <img class="favicon" src="{{ .FaviconURL }}" loading="lazy" onerror="this.src='/static/favicons/default.ico'; this.onerror=null;" alt="">
             <div class="link-container">
                 <a href="{{ .URL }}" onclick="return trackClick({{ .ID }}, '{{ .URL }}')" target="_blank">{{ .Title }}</a>
             </div>
@@ -205,9 +233,7 @@
         </div>
         {{ end }}
         <a href="{{ .Data.FooterLinkURL }}" class="footer-link return">{{ .Data.FooterLinkText }}</a>
-    </div>
-
-    <script>
+    </div>    <script>
         function getCSRFToken() {
             const meta = document.querySelector('meta[name="csrf-token"]');
             return meta ? meta.content : null;
@@ -232,6 +258,41 @@
             window.open(url, '_blank');
             return false; // Prevent default link behavior
         }
+
+        // Optimize favicon loading on desktop
+        document.addEventListener('DOMContentLoaded', function() {
+            // Only apply optimizations on desktop (viewport wider than 768px)
+            if (window.innerWidth > 768) {
+                const favicons = document.querySelectorAll('.favicon');
+                
+                // Use Intersection Observer for lazy loading beyond the fold
+                if ('IntersectionObserver' in window) {
+                    const observer = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                const img = entry.target;
+                                if (img.dataset.src) {
+                                    img.src = img.dataset.src;
+                                    img.removeAttribute('data-src');
+                                    observer.unobserve(img);
+                                }
+                            }
+                        });
+                    }, {
+                        rootMargin: '50px 0px'
+                    });
+
+                    // Only lazy load favicons beyond the first 15 entries
+                    favicons.forEach((img, index) => {
+                        if (index >= 15) {
+                            img.dataset.src = img.src;
+                            img.src = '/static/favicons/default.ico';
+                            observer.observe(img);
+                        }
+                    });
+                }
+            }
+        });
     </script>
 
     {{ if .Data.TrackingCode }}

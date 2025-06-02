@@ -164,7 +164,6 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to initialize favicon service: %v", err)
 	}
-
 	// Initialize feed service
 	feedService := feed.NewService(db.DB, logger, faviconSvc)
 	feedService.Start()
@@ -175,6 +174,7 @@ func main() {
 		UseHTTPS:               cfg.ProductionMode,
 		DisableTemplateUpdates: cfg.DisableTemplateUpdates,
 		WebPath:                cfg.WebPath,
+		ProductionMode:         cfg.ProductionMode,
 	})
 	if err != nil {
 		logger.Fatalf("Failed to initialize server: %v", err)

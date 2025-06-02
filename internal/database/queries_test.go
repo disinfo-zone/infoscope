@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -57,10 +56,10 @@ func setupTestQueriesDB(t *testing.T) *DB {
 
 	// Feeds
 	feeds := []struct {
-		id    int64
-		url   string
-		title string
-		status string
+		id          int64
+		url         string
+		title       string
+		status      string
 		lastFetched time.Time
 	}{
 		{1, "http://example.com/feed1.xml", "Feed 1 (Active)", "active", time.Now().Add(-1 * time.Hour)},
@@ -223,7 +222,6 @@ func TestUpdateSetting(t *testing.T) {
 	// Ensure there's a slight delay for updated_at to change
 	time.Sleep(10 * time.Millisecond)
 
-
 	err = db.UpdateSetting(ctx, keyToUpdate, newValue, newType)
 	if err != nil {
 		t.Fatalf("UpdateSetting failed: %v", err)
@@ -247,7 +245,6 @@ func TestUpdateSetting(t *testing.T) {
 		t.Errorf("Expected updated_at (%v) to be after original (%v)", newUpdatedAt, originalUpdatedAt)
 	}
 
-
 	t.Run("insert new setting", func(t *testing.T) {
 		newKey := "brand_new_setting"
 		newKeyValue := "brand_new_value"
@@ -256,7 +253,7 @@ func TestUpdateSetting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("UpdateSetting for new key failed: %v", err)
 		}
-		
+
 		value, err := db.GetSetting(ctx, newKey)
 		if err != nil {
 			t.Fatalf("GetSetting for new key failed: %v", err)
@@ -300,13 +297,9 @@ func TestGetRecentEntries(t *testing.T) {
 			t.Errorf("FeedTitle not populated for entry '%s'", entries[0].Title)
 		}
 		// Check favicon (Entry 1-1 has one)
-		foundFavicon := false
 		for _, e := range entries {
 			if e.Title == "Entry 1-1 (Recent)" && e.FaviconURL != "http://example.com/favicon1.ico" {
 				t.Errorf("Expected favicon for 'Entry 1-1 (Recent)', got '%s'", e.FaviconURL)
-			}
-			if e.FaviconURL != "" {
-				foundFavicon = true
 			}
 		}
 		// This check depends on which entries are fetched. If Entry 1-1 is not in top 2, this might fail.
@@ -361,7 +354,7 @@ func TestGetActiveFeeds(t *testing.T) {
 	// Titles: "Feed 1 (Active)", "Feed 3 (Active-Old)", "Feed 4 (Cleanup)", "Feed 5 (Cleanup)"
 	allFeeds, _ := db.QueryContext(ctx, "SELECT title, status FROM feeds ORDER BY title")
 	var titles []string
-	for allFeeds.Next(){
+	for allFeeds.Next() {
 		var title, status string
 		allFeeds.Scan(&title, &status)
 		if status == "active" {
@@ -374,7 +367,6 @@ func TestGetActiveFeeds(t *testing.T) {
 		firstActiveTitle = titles[0]
 		lastActiveTitle = titles[len(titles)-1]
 	}
-
 
 	if len(feeds) != expectedActiveCount {
 		t.Errorf("Expected %d active feeds, got %d", expectedActiveCount, len(feeds))
@@ -448,7 +440,7 @@ func TestUpdateFeedStatus(t *testing.T) {
 	if lastError.Valid { // last_error should be NULL
 		t.Errorf("Expected last_error to be NULL, got '%s'", lastError.String)
 	}
-	
+
 	// Test incrementing error_count
 	db.UpdateFeedStatus(ctx, feedIDToTest, "error", "err1")
 	db.UpdateFeedStatus(ctx, feedIDToTest, "error", "err2")
@@ -509,7 +501,6 @@ func TestCleanupOldEntries(t *testing.T) {
 		}
 	}
 
-
 	// Check Feed 5
 	var countFeed5 int
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM entries WHERE feed_id = 5").Scan(&countFeed5)
@@ -520,4 +511,3 @@ func TestCleanupOldEntries(t *testing.T) {
 		t.Errorf("Feed 5: Expected 2 entries after cleanup (was < maxPosts), got %d", countFeed5)
 	}
 }
-```

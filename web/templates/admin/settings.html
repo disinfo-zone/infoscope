@@ -1,16 +1,16 @@
-{{ template "admin/layout.html" . }}
 {{ define "content" }}
 <div class="settings-container">
     <div class="panel">
-        <form id="settingsForm">
-            <div class="setting-group">
+        <form id="settingsForm">            <div class="setting-group">
                 <label for="siteTitle">SITE TITLE</label>
                 <input type="text" id="siteTitle" name="siteTitle" value="{{ index .Data.Settings "site_title" }}" required>
             </div>
             <div class="setting-group">
-                <label for="site_url">SITE URL</label>
-                <input type="url" id="site_url" name="site_url" value="{{ index .Data.Settings "site_url" }}" placeholder="e.g., https://yourdomain.com" required>
-                <div class="help-text">Important for RSS feed and canonical links. Should be the full public URL of your site.</div>
+                <label for="siteURL">SITE URL</label>
+                <input type="url" id="siteURL" name="siteURL" value="{{ index .Data.Settings "site_url" }}" required>
+                <div class="help-text">
+                    The base URL of your site (e.g., https://example.com). Used for RSS feed validation and absolute links.
+                </div>
             </div>
             <div class="setting-group">
                 <label for="maxPosts">MAXIMUM POSTS</label>
@@ -23,8 +23,7 @@
             <div class="setting-group">
                 <label for="headerLinkText">HEADER LINK TEXT</label>
                 <input type="text" id="headerLinkText" name="headerLinkText" value="{{ index .Data.Settings "header_link_text" }}" required>
-            </div>
-            <div class="setting-group">
+            </div>            <div class="setting-group">
                 <label for="headerLinkURL">HEADER LINK URL</label>
                 <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Data.Settings "header_link_url" }}" required>
             </div>
@@ -270,6 +269,7 @@
 /* Number input styling */
 input[type="number"] {
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 input[type="number"]::-webkit-outer-spin-button,
@@ -501,8 +501,7 @@ textarea:focus {
     border-radius: 4px;
     color: #7da9b7;
     font-family: 'Courier New', Courier, monospace;
-    font-size: 0.9rem;
-    transition: all 0.2s ease;
+    font-size: 0.9rem;    transition: all 0.2s ease;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -678,15 +677,14 @@ textarea:focus {
                     if (window.footerImageURL) {
                         imageFilename = window.footerImageURL;
                         console.log('Using uploaded footer image:', imageFilename);
-                    }
-        
-                    // Build settings data
+                    }                    // Build settings data
                     const formData = {
                         siteTitle: document.getElementById('siteTitle').value,
                         maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
                         updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
                         headerLinkText: document.getElementById('headerLinkText').value,
                         headerLinkURL: document.getElementById('headerLinkURL').value,
+                        siteURL: document.getElementById('siteURL').value,
                         footerLinkText: document.getElementById('footerLinkText').value,
                         footerLinkURL: document.getElementById('footerLinkURL').value,
                         footerImageHeight: document.getElementById('footerImageHeight').value,
@@ -695,8 +693,7 @@ textarea:focus {
                         timezone: document.getElementById('timezone').value,
                         trackingCode: document.getElementById('trackingCode').value,
                         metaDescription: document.getElementById('metaDescription').value,
-                        metaImageURL: metaImageURL,
-                        site_url: document.getElementById('site_url').value
+                        metaImageURL: metaImageURL
                     };
         
                     const response = await csrf.fetch('/admin/settings', {
