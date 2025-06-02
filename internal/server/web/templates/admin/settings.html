@@ -1,10 +1,16 @@
 {{ define "content" }}
 <div class="settings-container">
     <div class="panel">
-        <form id="settingsForm">
-            <div class="setting-group">
+        <form id="settingsForm">            <div class="setting-group">
                 <label for="siteTitle">SITE TITLE</label>
                 <input type="text" id="siteTitle" name="siteTitle" value="{{ index .Data.Settings "site_title" }}" required>
+            </div>
+            <div class="setting-group">
+                <label for="siteURL">SITE URL</label>
+                <input type="url" id="siteURL" name="siteURL" value="{{ index .Data.Settings "site_url" }}" required>
+                <div class="help-text">
+                    The base URL of your site (e.g., https://example.com). Used for RSS feed validation and absolute links.
+                </div>
             </div>
             <div class="setting-group">
                 <label for="maxPosts">MAXIMUM POSTS</label>
@@ -17,8 +23,7 @@
             <div class="setting-group">
                 <label for="headerLinkText">HEADER LINK TEXT</label>
                 <input type="text" id="headerLinkText" name="headerLinkText" value="{{ index .Data.Settings "header_link_text" }}" required>
-            </div>
-            <div class="setting-group">
+            </div>            <div class="setting-group">
                 <label for="headerLinkURL">HEADER LINK URL</label>
                 <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Data.Settings "header_link_url" }}" required>
             </div>
@@ -672,15 +677,14 @@ textarea:focus {
                     if (window.footerImageURL) {
                         imageFilename = window.footerImageURL;
                         console.log('Using uploaded footer image:', imageFilename);
-                    }
-        
-                    // Build settings data
+                    }                    // Build settings data
                     const formData = {
                         siteTitle: document.getElementById('siteTitle').value,
                         maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
                         updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
                         headerLinkText: document.getElementById('headerLinkText').value,
                         headerLinkURL: document.getElementById('headerLinkURL').value,
+                        siteURL: document.getElementById('siteURL').value,
                         footerLinkText: document.getElementById('footerLinkText').value,
                         footerLinkURL: document.getElementById('footerLinkURL').value,
                         footerImageHeight: document.getElementById('footerImageHeight').value,

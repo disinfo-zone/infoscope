@@ -134,7 +134,6 @@ func (s *Server) extractWebContent(forceUpdate bool) error {
 				}
 			}
 		}
-
 		if needsUpdate {
 			content, readErr := fs.ReadFile(webContent, path)
 			if readErr != nil {
@@ -199,8 +198,32 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
-	fileServer := http.FileServer(http.Dir(filepath.Join(s.config.WebPath, "static")))
-	mux.Handle("/static/", http.StripPrefix("/static/", fileServer))
+	// Create a static file server with caching headers for performance optimization
+	staticDir := filepath.Join(s.config.WebPath, "static")
+	fileServer := http.FileServer(http.Dir(staticDir))
+
+	// Wrap the file server with cache headers for better performance
+	cachedFileServer := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Add cache headers based on file type for performance optimization
+		if filepath.Ext(r.URL.Path) == ".ico" {
+			// Cache favicon files for 1 week
+			w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
+			w.Header().Set("Expires", time.Now().Add(7*24*time.Hour).Format(http.TimeFormat))
+		} else if filepath.Ext(r.URL.Path) == ".css" || filepath.Ext(r.URL.Path) == ".js" {
+			// Cache CSS and JS files for 1 day
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+			w.Header().Set("Expires", time.Now().Add(24*time.Hour).Format(http.TimeFormat))
+		} else {
+			// Default cache for other static files (1 hour)
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+			w.Header().Set("Expires", time.Now().Add(time.Hour).Format(http.TimeFormat))
+		}
+
+		// Serve the file
+		fileServer.ServeHTTP(w, r)
+	})
+
+	mux.Handle("/static/", http.StripPrefix("/static/", cachedFileServer))
 
 	mux.HandleFunc("/setup", s.handleSetup)
 	mux.HandleFunc("/setup/", s.handleSetup)
@@ -230,8 +253,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/upload-meta-image", s.requireAuth(s.imageHandler.HandleMetaImageUpload))
 
 	mux.HandleFunc("/rss.xml", s.handleRSS)
-	mux.HandleFunc("/rss", s.handleRSS)     // New route
-	mux.HandleFunc("/feed", s.handleRSS)    // New route
+	mux.HandleFunc("/rss", s.handleRSS)  // New route
+	mux.HandleFunc("/feed", s.handleRSS) // New route
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

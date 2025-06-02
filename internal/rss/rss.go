@@ -29,6 +29,12 @@ type Channel struct {
 	Items         []Item   `xml:"item"`
 }
 
+// GUID represents a GUID element in an RSS item.
+type GUID struct {
+	Value       string `xml:",chardata"`
+	IsPermaLink bool   `xml:"isPermaLink,attr,omitempty"`
+}
+
 // Item represents an item element in an RSS feed.
 type Item struct {
 	XMLName     xml.Name `xml:"item"`
@@ -36,5 +42,5 @@ type Item struct {
 	Link        string   `xml:"link"`
 	Description string   `xml:"description,omitempty"` // Optional, can be a summary or full content
 	PubDate     string   `xml:"pubDate,omitempty"`     // Should be in RFC1123Z format
-	GUID        string   `xml:"guid,omitempty"`        // A unique identifier for the item, can be the link
+	GUID        GUID     `xml:"guid,omitempty"`        // A unique identifier for the item
 }

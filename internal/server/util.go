@@ -26,11 +26,9 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.WriteHeader(code)
 	if payload != nil {
 		if err := json.NewEncoder(w).Encode(payload); err != nil {
-			// If encoding fails, log the error.
-			// This assumes a logger is accessible, or it might panic.
-			// For simplicity here, we're not logging, but in a real app, you would.
-			// http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-			// The above line is problematic as headers are already written.
+			// If encoding fails, we can't send an error response since headers are already written
+			// In a real application, you would log this error
+			_ = err
 		}
 	}
 }
