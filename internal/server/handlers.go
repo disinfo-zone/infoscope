@@ -6,13 +6,19 @@ import (
 	"database/sql"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"expvar"
 	"fmt"
 	"infoscope/internal/feed"
 	"infoscope/internal/rss"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
+
+	"golang.org/x/net/html"
 )
 
 // Metrics variables
@@ -20,6 +26,351 @@ var (
 	dbQueryCount    = expvar.NewInt("db_query_count")
 	dbQueryDuration = expvar.NewFloat("db_query_duration_ms")
 )
+
+// validateTrackingCode validates and sanitizes tracking code HTML
+// to prevent XSS attacks while allowing common analytics script patterns
+func validateTrackingCode(code string) (string, error) {
+	if code == "" {
+		return "", nil
+	}
+
+	// Wrap the code in a temporary container to create valid HTML
+	// This prevents the parser from adding implicit html/body wrappers
+	wrappedCode := "<div>" + code + "</div>"
+	
+	// Parse the HTML
+	doc, err := html.Parse(strings.NewReader(wrappedCode))
+	if err != nil {
+		return "", fmt.Errorf("invalid HTML: %v", err)
+	}
+
+	// Find the div container we added and process its children
+	var divNode *html.Node
+	var findDiv func(*html.Node)
+	findDiv = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "div" {
+			divNode = n
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			findDiv(c)
+		}
+	}
+	findDiv(doc)
+
+	if divNode == nil {
+		return "", errors.New("failed to parse HTML structure")
+	}
+
+	// Validate and rebuild only the children of our wrapper div
+	var validatedHTML strings.Builder
+	for c := divNode.FirstChild; c != nil; c = c.NextSibling {
+		if err := validateAndRebuildHTML(c, &validatedHTML); err != nil {
+			return "", err
+		}
+	}
+
+	return validatedHTML.String(), nil
+}
+
+// validateAndRebuildHTML recursively validates HTML nodes and rebuilds safe HTML
+func validateAndRebuildHTML(n *html.Node, output *strings.Builder) error {
+	switch n.Type {
+	case html.DocumentNode:
+		// Process children for document node
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if err := validateAndRebuildHTML(c, output); err != nil {
+				return err
+			}
+		}
+	case html.ElementNode:
+		if err := validateElement(n, output); err != nil {
+			return err
+		}
+	case html.TextNode:
+		// Escape text content to prevent injection
+		output.WriteString(html.EscapeString(n.Data))
+	case html.CommentNode:
+		// Allow comments but escape them
+		output.WriteString("<!--")
+		output.WriteString(html.EscapeString(n.Data))
+		output.WriteString("-->")
+	}
+	return nil
+}
+
+// validateElement validates and rebuilds HTML elements
+func validateElement(n *html.Node, output *strings.Builder) error {
+	switch strings.ToLower(n.Data) {
+	case "script":
+		return validateScriptElement(n, output)
+	case "img":
+		return validateImgElement(n, output)
+	case "meta":
+		return validateMetaElement(n, output)
+	case "iframe":
+		return validateIframeElement(n, output)
+	case "div", "span", "noscript":
+		return validateGenericElement(n, output)
+	default:
+		return fmt.Errorf("element '%s' is not allowed in tracking code", n.Data)
+	}
+}
+
+// validateScriptElement validates script tags, allowing only external scripts
+func validateScriptElement(n *html.Node, output *strings.Builder) error {
+	var src string
+	var safeAttrs []html.Attribute
+
+	// Check attributes
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "src":
+			if err := validateURL(attr.Val); err != nil {
+				return fmt.Errorf("invalid script src URL: %v", err)
+			}
+			src = attr.Val
+			safeAttrs = append(safeAttrs, attr)
+		case "async", "defer", "crossorigin", "integrity", "type":
+			safeAttrs = append(safeAttrs, attr)
+		case "id", "class":
+			// Allow id and class but sanitize values
+			if isValidAttributeValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		default:
+			if strings.HasPrefix(attr.Key, "data-") && isValidAttributeValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		}
+	}
+
+	// Require external source for script tags
+	if src == "" {
+		return errors.New("script tags must have a src attribute (inline JavaScript not allowed)")
+	}
+
+	// Check for any text content (inline JavaScript)
+	if hasTextContent(n) {
+		return errors.New("script tags cannot contain inline JavaScript")
+	}
+
+	// Write the validated script tag
+	output.WriteString("<script")
+	for _, attr := range safeAttrs {
+		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
+	}
+	output.WriteString("></script>")
+
+	return nil
+}
+
+// validateImgElement validates img tags for tracking pixels
+func validateImgElement(n *html.Node, output *strings.Builder) error {
+	var safeAttrs []html.Attribute
+
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "src":
+			if err := validateURL(attr.Val); err != nil {
+				return fmt.Errorf("invalid img src URL: %v", err)
+			}
+			safeAttrs = append(safeAttrs, attr)
+		case "width", "height", "alt", "loading":
+			if isValidAttributeValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		case "style":
+			if isValidStyleValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		}
+	}
+
+	output.WriteString("<img")
+	for _, attr := range safeAttrs {
+		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
+	}
+	output.WriteString(">")
+
+	return nil
+}
+
+// validateMetaElement validates meta tags
+func validateMetaElement(n *html.Node, output *strings.Builder) error {
+	var safeAttrs []html.Attribute
+
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "name", "content", "property":
+			if isValidAttributeValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		}
+	}
+
+	output.WriteString("<meta")
+	for _, attr := range safeAttrs {
+		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
+	}
+	output.WriteString(">")
+
+	return nil
+}
+
+// validateIframeElement validates iframe tags with restrictions
+func validateIframeElement(n *html.Node, output *strings.Builder) error {
+	var safeAttrs []html.Attribute
+
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "src":
+			if err := validateURL(attr.Val); err != nil {
+				return fmt.Errorf("invalid iframe src URL: %v", err)
+			}
+			// Allow iframes from any valid HTTP/HTTPS URL for self-hosted analytics
+			// Only validate the URL format and basic security, not domain restrictions
+			safeAttrs = append(safeAttrs, attr)
+		case "width", "height", "frameborder", "title":
+			if isValidAttributeValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		case "style":
+			if isValidStyleValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		}
+	}
+
+	output.WriteString("<iframe")
+	for _, attr := range safeAttrs {
+		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
+	}
+	output.WriteString(">")
+
+	// Process children
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if err := validateAndRebuildHTML(c, output); err != nil {
+			return err
+		}
+	}
+
+	output.WriteString("</iframe>")
+	return nil
+}
+
+// validateGenericElement validates div, span, noscript elements
+func validateGenericElement(n *html.Node, output *strings.Builder) error {
+	var safeAttrs []html.Attribute
+
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "id", "class":
+			if isValidAttributeValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		case "style":
+			if isValidStyleValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		default:
+			if strings.HasPrefix(attr.Key, "data-") && isValidAttributeValue(attr.Val) {
+				safeAttrs = append(safeAttrs, attr)
+			}
+		}
+	}
+
+	output.WriteString(fmt.Sprintf("<%s", n.Data))
+	for _, attr := range safeAttrs {
+		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
+	}
+	output.WriteString(">")
+
+	// Process children
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if err := validateAndRebuildHTML(c, output); err != nil {
+			return err
+		}
+	}
+
+	output.WriteString(fmt.Sprintf("</%s>", n.Data))
+	return nil
+}
+
+// Helper functions
+
+// validateURL checks if a URL is safe for use in tracking code
+func validateURL(urlStr string) error {
+	if urlStr == "" {
+		return errors.New("URL cannot be empty")
+	}
+
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("invalid URL format: %v", err)
+	}
+
+	// Only allow HTTP/HTTPS URLs
+	if parsedURL.Scheme != "https" && parsedURL.Scheme != "http" {
+		return fmt.Errorf("only HTTP/HTTPS URLs are allowed, got: %s", parsedURL.Scheme)
+	}
+
+	// Block obviously dangerous patterns but allow self-hosted analytics
+	// Only block localhost on standard web ports to prevent local attacks
+	// but allow custom domains and ports for self-hosted analytics
+	if (strings.Contains(parsedURL.Host, "localhost:80") ||
+		strings.Contains(parsedURL.Host, "localhost:443") ||
+		parsedURL.Host == "localhost" ||
+		strings.Contains(parsedURL.Host, "127.0.0.1:80") ||
+		strings.Contains(parsedURL.Host, "127.0.0.1:443") ||
+		parsedURL.Host == "127.0.0.1") {
+		return errors.New("URLs pointing to localhost on standard web ports are not allowed")
+	}
+
+	return nil
+}
+
+// isValidAttributeValue checks if an attribute value is safe
+func isValidAttributeValue(value string) bool {
+	// Reject values with potential script injection
+	lowerValue := strings.ToLower(value)
+	dangerous := []string{"javascript:", "data:", "vbscript:", "onload", "onerror", "onclick", "onmouseover"}
+	for _, danger := range dangerous {
+		if strings.Contains(lowerValue, danger) {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidStyleValue checks if a style attribute value is safe
+func isValidStyleValue(value string) bool {
+	// Basic style validation - reject dangerous CSS
+	lowerValue := strings.ToLower(value)
+	dangerous := []string{"javascript:", "expression(", "behavior:", "binding:", "url(javascript"}
+	for _, danger := range dangerous {
+		if strings.Contains(lowerValue, danger) {
+			return false
+		}
+	}
+	
+	// Only allow basic style properties
+	allowedProps := regexp.MustCompile(`^[\s\w\-:;.#%(),]+$`)
+	return allowedProps.MatchString(value)
+}
+
+// hasTextContent checks if a node has any text content (for detecting inline scripts)
+func hasTextContent(n *html.Node) bool {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.TextNode && strings.TrimSpace(c.Data) != "" {
+			return true
+		}
+		if hasTextContent(c) {
+			return true
+		}
+	}
+	return false
+}
 
 // Database helper methods for the Server struct
 func (s *Server) getSettings(ctx context.Context) (map[string]string, error) {
@@ -122,6 +473,12 @@ func (s *Server) getFeeds(ctx context.Context) ([]Feed, error) {
 }
 
 func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
+	// Validate and sanitize the tracking code before saving
+	validatedTrackingCode, err := validateTrackingCode(settings.TrackingCode)
+	if err != nil {
+		return fmt.Errorf("invalid tracking code: %w", err)
+	}
+	
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -148,7 +505,7 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"footer_link_url":     {settings.FooterLinkURL, "string"},
 		"footer_image_height": {settings.FooterImageHeight, "string"},
 		"footer_image_url":    {settings.FooterImageURL, "string"},
-		"tracking_code":       {settings.TrackingCode, "string"},
+		"tracking_code":       {validatedTrackingCode, "string"},
 		"favicon_url":         {settings.FaviconURL, "string"},
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
