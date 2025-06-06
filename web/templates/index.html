@@ -258,41 +258,6 @@
             window.open(url, '_blank');
             return false; // Prevent default link behavior
         }
-
-        // Optimize favicon loading on desktop
-        document.addEventListener('DOMContentLoaded', function() {
-            // Only apply optimizations on desktop (viewport wider than 768px)
-            if (window.innerWidth > 768) {
-                const favicons = document.querySelectorAll('.favicon');
-                
-                // Use Intersection Observer for lazy loading beyond the fold
-                if ('IntersectionObserver' in window) {
-                    const observer = new IntersectionObserver((entries) => {
-                        entries.forEach(entry => {
-                            if (entry.isIntersecting) {
-                                const img = entry.target;
-                                if (img.dataset.src) {
-                                    img.src = img.dataset.src;
-                                    img.removeAttribute('data-src');
-                                    observer.unobserve(img);
-                                }
-                            }
-                        });
-                    }, {
-                        rootMargin: '50px 0px'
-                    });
-
-                    // Only lazy load favicons beyond the first 15 entries
-                    favicons.forEach((img, index) => {
-                        if (index >= 15) {
-                            img.dataset.src = img.src;
-                            img.src = '/static/favicons/default.ico';
-                            observer.observe(img);
-                        }
-                    });
-                }
-            }
-        });
     </script>
 
     {{ if .Data.TrackingCode }}
