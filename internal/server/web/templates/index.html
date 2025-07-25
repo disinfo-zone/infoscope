@@ -236,7 +236,7 @@
                     {{ if .FeedTitle }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
                 </a>
                 {{ if .BodyText }}
-                <div class="body-text">{{ .BodyText }}</div>
+                <div class="body-text">{{ .BodyText | html }}</div>
                 {{ end }}
             </div>
             <span class="dots">............................................................................................................................</span>
