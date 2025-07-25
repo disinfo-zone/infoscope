@@ -2,7 +2,11 @@
 data/*.db
 data/*.db-*
 
+# Web Template
+web/
+
 # Generated files
+infoscope
 *.exe
 *.exe~
 *.dll
@@ -39,3 +43,6 @@ Thumbs.db
 # Build artifacts
 dist/
 *.syso
+infoscope
+infoscope.exe
+infoscope_test.exe

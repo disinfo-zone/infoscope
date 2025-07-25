@@ -1,4 +1,5 @@
 // internal/database/schema.go
+// Database schema and migration logic for Infoscope RSS Reader
 package database
 
 import (
@@ -363,6 +364,9 @@ func insertDefaultSettings(db *sql.DB) error {
 		"meta_description":    "A minimalist RSS river reader",
 		"meta_image_url":      "",
 		"site_url":            "",
+		"show_blog_name":      "false",
+		"show_body_text":      "false",
+		"body_text_length":    "200",
 	}
 
 	tx, err := db.Begin()

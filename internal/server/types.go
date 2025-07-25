@@ -1,4 +1,5 @@
 // internal/server/types.go
+// Server types and data structures for Infoscope RSS Reader
 package server
 
 import "time"
@@ -17,6 +18,7 @@ const (
 	SettingUpdateInterval SettingKey = "update_interval"
 )
 
+// EntryView represents a feed entry for display in templates
 type EntryView struct {
 	ID         int64  `json:"id"`
 	Title      string `json:"title"`
@@ -24,6 +26,8 @@ type EntryView struct {
 	FaviconURL      string    `json:"faviconUrl"`
 	Date            string    `json:"date"` // Formatted date for display
 	PublishedAtTime time.Time `json:"-"`    // Raw time for RSS, excluded from JSON
+	FeedTitle       string    `json:"feedTitle,omitempty"`
+	BodyText        string    `json:"bodyText,omitempty"`
 }
 
 type IndexData struct {
@@ -80,7 +84,10 @@ type Settings struct {
 	Timezone          string `json:"timezone"`
 	MetaDescription   string `json:"metaDescription"`
 	MetaImageURL      string `json:"metaImageURL"`
-	SiteURL           string `json:"siteURL"` // Added for site_url setting
+	SiteURL           string `json:"siteURL"`
+	ShowBlogName      bool   `json:"showBlogName"`
+	ShowBodyText      bool   `json:"showBodyText"`
+	BodyTextLength    int    `json:"bodyTextLength"`
 }
 
 type Feed struct {
