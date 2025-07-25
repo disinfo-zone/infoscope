@@ -233,7 +233,7 @@
             <img class="favicon" src="{{ .FaviconURL }}" loading="lazy" onerror="this.src='/static/favicons/default.ico'; this.onerror=null;" alt="">
             <div class="link-container">
                 <a href="{{ .URL }}" onclick="return trackClick({{ .ID }}, '{{ .URL }}')" target="_blank">
-                    {{ if .FeedTitle }}{{ .FeedTitle }}: {{ end }}{{ .Title }}
+                    {{ if .FeedTitle }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
                 </a>
                 {{ if .BodyText }}
                 <div class="body-text">{{ .BodyText }}</div>
