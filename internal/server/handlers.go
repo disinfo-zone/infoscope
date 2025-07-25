@@ -396,13 +396,31 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
 		s.logger.Printf("Getting recent entries with limit: %d", limit)
 	}
 
+	// Get settings to check if we should show blog names and body text
+	settings, err := s.getSettings(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting settings: %w", err)
+	}
+
+	showBlogName := settings["show_blog_name"] == "true"
+	showBodyText := settings["show_body_text"] == "true"
+	
+	bodyTextLength := 200 // default
+	if lengthStr, ok := settings["body_text_length"]; ok {
+		if length, err := strconv.Atoi(lengthStr); err == nil && length > 0 {
+			bodyTextLength = length
+		}
+	}
+
 	rows, err := s.db.QueryContext(ctx, `
         SELECT 
             e.id,
             e.title,
             e.url,
             e.favicon_url,
-            datetime(e.published_at) as date
+            datetime(e.published_at) as date,
+            f.title as feed_title,
+            e.content
         FROM entries e
         JOIN feeds f ON e.feed_id = f.id
         WHERE f.status != 'deleted' 
@@ -418,7 +436,10 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
 	for rows.Next() {
 		var e EntryView
 		var publishedAtStr string // Will hold the "YYYY-MM-DD HH:MM:SS" string from DB
-		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr); err != nil {
+		var feedTitle sql.NullString
+		var content sql.NullString
+		
+		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr, &feedTitle, &content); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
@@ -431,6 +452,17 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
 			// Log error if parsing fails, PublishedAtTime will be zero, Date will be empty
 			s.logger.Printf("Error parsing date string '%s' for EntryView: %v", publishedAtStr, err)
 		}
+
+		// Set feed title if enabled and available
+		if showBlogName && feedTitle.Valid {
+			e.FeedTitle = feedTitle.String
+		}
+
+		// Process body text if enabled and available
+		if showBodyText && content.Valid {
+			e.BodyText = ProcessBodyText(content.String, bodyTextLength)
+		}
+
 		entries = append(entries, e)
 	}
 
@@ -491,6 +523,18 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		return err
 	}
 	defer stmt.Close()
+	
+	// Convert boolean to string for storage
+	showBlogNameStr := "false"
+	if settings.ShowBlogName {
+		showBlogNameStr = "true"
+	}
+	
+	showBodyTextStr := "false"
+	if settings.ShowBodyText {
+		showBodyTextStr = "true"
+	}
+	
 	updates := map[string]struct {
 		value string
 		type_ string
@@ -510,6 +554,9 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
 		"meta_image_url":      {settings.MetaImageURL, "string"},
+		"show_blog_name":      {showBlogNameStr, "bool"},
+		"show_body_text":      {showBodyTextStr, "bool"},
+		"body_text_length":    {strconv.Itoa(settings.BodyTextLength), "int"},
 	}
 
 	for key, setting := range updates {

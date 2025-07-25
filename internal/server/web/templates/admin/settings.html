@@ -170,6 +170,43 @@
                     </optgroup>
                 </select>
             </div>
+            
+            <!-- Enhanced Entry Display Settings -->
+            <div class="setting-group display-section">
+                <h3>ENTRY DISPLAY SETTINGS</h3>
+                <div class="help-text" style="margin-bottom: 1rem;">
+                    Configure how entries are displayed on the main page.
+                </div>
+                
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showBlogName" name="showBlogName" {{ if eq (index .Data.Settings "show_blog_name") "true" }}checked{{ end }}>
+                        <span class="checkbox-text">Show Blog Name</span>
+                    </label>
+                    <div class="help-text">
+                        Display the feed/blog name as a prefix to entry titles (e.g., "Blog Name: Article Title").
+                    </div>
+                </div>
+                
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showBodyText" name="showBodyText" {{ if eq (index .Data.Settings "show_body_text") "true" }}checked{{ end }}>
+                        <span class="checkbox-text">Show Entry Preview</span>
+                    </label>
+                    <div class="help-text">
+                        Display a preview of the entry content below the title.
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label for="bodyTextLength">PREVIEW LENGTH (CHARACTERS)</label>
+                    <input type="number" id="bodyTextLength" name="bodyTextLength" value="{{ index .Data.Settings "body_text_length" }}" min="50" max="1000" required>
+                    <div class="help-text">
+                        Number of characters to show in the entry preview (50-1000 characters).
+                    </div>
+                </div>
+            </div>
+            
             <div class="setting-group backup-section">
                 <h3>BACKUP & RESTORE</h3>
                 <div class="backup-actions">
@@ -409,6 +446,51 @@ input[type="number"]::-webkit-inner-spin-button {
 
 .submit-button:hover {
     background: #39ff64;
+}
+
+/* Display section styles */
+.display-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #2a3450;
+}
+
+.display-section h3 {
+    color: #7da9b7;
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+    margin-bottom: 1.5rem;
+    font-weight: normal;
+}
+
+/* Checkbox styling */
+.checkbox-group {
+    margin-bottom: 1.5rem;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 0.75rem;
+    accent-color: #67bb79;
+    cursor: pointer;
+}
+
+.checkbox-text {
+    color: #7da9b7;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.checkbox-label:hover .checkbox-text {
+    color: #a5c5cf;
 }
 
 /* Backup section */
@@ -695,7 +777,10 @@ textarea:focus {
                         timezone: document.getElementById('timezone').value,
                         trackingCode: document.getElementById('trackingCode').value,
                         metaDescription: document.getElementById('metaDescription').value,
-                        metaImageURL: metaImageURL
+                        metaImageURL: metaImageURL,
+                        showBlogName: document.getElementById('showBlogName').checked,
+                        showBodyText: document.getElementById('showBodyText').checked,
+                        bodyTextLength: parseInt(document.getElementById('bodyTextLength').value, 10)
                     };
         
                     const response = await csrf.fetch('/admin/settings', {

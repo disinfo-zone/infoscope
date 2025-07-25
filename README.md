@@ -186,6 +186,10 @@ Production mode: Enforces HTTPS-only features including strict CSRF protection
    - Update interval
    - Header/footer customization
    - Analytics/tracking code integration
+   - **Enhanced Entry Display:**
+     - Show blog/feed names as prefixes to entry titles
+     - Display entry body text previews below titles (50-1000 characters)
+     - Both features can be configured independently
 4. Manage feeds:
    - Add/remove feeds
    - Preview feed content before adding

@@ -21,6 +21,7 @@ type Entry struct {
 	FeedID      int64
 	Title       string
 	URL         string
+	Content     string    // Add content field
 	PublishedAt time.Time
 	FaviconURL  string
 	FeedTitle   string // Joined from feeds table
@@ -117,7 +118,7 @@ func (db *DB) UpdateSetting(ctx context.Context, key, value, valueType string) e
 func (db *DB) GetRecentEntries(ctx context.Context, limit int) ([]Entry, error) {
 	rows, err := db.QueryContext(ctx, `
         SELECT e.id, e.feed_id, e.title, e.url, e.published_at,
-               e.favicon_url, f.title as feed_title
+               e.favicon_url, f.title as feed_title, e.content
         FROM entries e
         JOIN feeds f ON e.feed_id = f.id
         ORDER BY e.published_at DESC
@@ -132,12 +133,16 @@ func (db *DB) GetRecentEntries(ctx context.Context, limit int) ([]Entry, error) 
 	var entries []Entry
 	for rows.Next() {
 		var e Entry
+		var content sql.NullString
 		err := rows.Scan(
 			&e.ID, &e.FeedID, &e.Title, &e.URL,
-			&e.PublishedAt, &e.FaviconURL, &e.FeedTitle,
+			&e.PublishedAt, &e.FaviconURL, &e.FeedTitle, &content,
 		)
 		if err != nil {
 			return nil, err
+		}
+		if content.Valid {
+			e.Content = content.String
 		}
 		entries = append(entries, e)
 	}
