@@ -6,19 +6,18 @@ import (
 	"database/sql"
 	"encoding/json"
 	"encoding/xml"
-	"errors"
 	"expvar"
 	"fmt"
+	"html"
+	"net/url"
+	htmlparser "golang.org/x/net/html"
+	"infoscope/internal/database"
 	"infoscope/internal/feed"
 	"infoscope/internal/rss"
 	"net/http"
-	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/net/html"
 )
 
 // Metrics variables
@@ -26,351 +25,6 @@ var (
 	dbQueryCount    = expvar.NewInt("db_query_count")
 	dbQueryDuration = expvar.NewFloat("db_query_duration_ms")
 )
-
-// validateTrackingCode validates and sanitizes tracking code HTML
-// to prevent XSS attacks while allowing common analytics script patterns
-func validateTrackingCode(code string) (string, error) {
-	if code == "" {
-		return "", nil
-	}
-
-	// Wrap the code in a temporary container to create valid HTML
-	// This prevents the parser from adding implicit html/body wrappers
-	wrappedCode := "<div>" + code + "</div>"
-	
-	// Parse the HTML
-	doc, err := html.Parse(strings.NewReader(wrappedCode))
-	if err != nil {
-		return "", fmt.Errorf("invalid HTML: %v", err)
-	}
-
-	// Find the div container we added and process its children
-	var divNode *html.Node
-	var findDiv func(*html.Node)
-	findDiv = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "div" {
-			divNode = n
-			return
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			findDiv(c)
-		}
-	}
-	findDiv(doc)
-
-	if divNode == nil {
-		return "", errors.New("failed to parse HTML structure")
-	}
-
-	// Validate and rebuild only the children of our wrapper div
-	var validatedHTML strings.Builder
-	for c := divNode.FirstChild; c != nil; c = c.NextSibling {
-		if err := validateAndRebuildHTML(c, &validatedHTML); err != nil {
-			return "", err
-		}
-	}
-
-	return validatedHTML.String(), nil
-}
-
-// validateAndRebuildHTML recursively validates HTML nodes and rebuilds safe HTML
-func validateAndRebuildHTML(n *html.Node, output *strings.Builder) error {
-	switch n.Type {
-	case html.DocumentNode:
-		// Process children for document node
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			if err := validateAndRebuildHTML(c, output); err != nil {
-				return err
-			}
-		}
-	case html.ElementNode:
-		if err := validateElement(n, output); err != nil {
-			return err
-		}
-	case html.TextNode:
-		// Escape text content to prevent injection
-		output.WriteString(html.EscapeString(n.Data))
-	case html.CommentNode:
-		// Allow comments but escape them
-		output.WriteString("<!--")
-		output.WriteString(html.EscapeString(n.Data))
-		output.WriteString("-->")
-	}
-	return nil
-}
-
-// validateElement validates and rebuilds HTML elements
-func validateElement(n *html.Node, output *strings.Builder) error {
-	switch strings.ToLower(n.Data) {
-	case "script":
-		return validateScriptElement(n, output)
-	case "img":
-		return validateImgElement(n, output)
-	case "meta":
-		return validateMetaElement(n, output)
-	case "iframe":
-		return validateIframeElement(n, output)
-	case "div", "span", "noscript":
-		return validateGenericElement(n, output)
-	default:
-		return fmt.Errorf("element '%s' is not allowed in tracking code", n.Data)
-	}
-}
-
-// validateScriptElement validates script tags, allowing only external scripts
-func validateScriptElement(n *html.Node, output *strings.Builder) error {
-	var src string
-	var safeAttrs []html.Attribute
-
-	// Check attributes
-	for _, attr := range n.Attr {
-		switch strings.ToLower(attr.Key) {
-		case "src":
-			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid script src URL: %v", err)
-			}
-			src = attr.Val
-			safeAttrs = append(safeAttrs, attr)
-		case "async", "defer", "crossorigin", "integrity", "type":
-			safeAttrs = append(safeAttrs, attr)
-		case "id", "class":
-			// Allow id and class but sanitize values
-			if isValidAttributeValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		default:
-			if strings.HasPrefix(attr.Key, "data-") && isValidAttributeValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		}
-	}
-
-	// Require external source for script tags
-	if src == "" {
-		return errors.New("script tags must have a src attribute (inline JavaScript not allowed)")
-	}
-
-	// Check for any text content (inline JavaScript)
-	if hasTextContent(n) {
-		return errors.New("script tags cannot contain inline JavaScript")
-	}
-
-	// Write the validated script tag
-	output.WriteString("<script")
-	for _, attr := range safeAttrs {
-		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
-	}
-	output.WriteString("></script>")
-
-	return nil
-}
-
-// validateImgElement validates img tags for tracking pixels
-func validateImgElement(n *html.Node, output *strings.Builder) error {
-	var safeAttrs []html.Attribute
-
-	for _, attr := range n.Attr {
-		switch strings.ToLower(attr.Key) {
-		case "src":
-			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid img src URL: %v", err)
-			}
-			safeAttrs = append(safeAttrs, attr)
-		case "width", "height", "alt", "loading":
-			if isValidAttributeValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		case "style":
-			if isValidStyleValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		}
-	}
-
-	output.WriteString("<img")
-	for _, attr := range safeAttrs {
-		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
-	}
-	output.WriteString(">")
-
-	return nil
-}
-
-// validateMetaElement validates meta tags
-func validateMetaElement(n *html.Node, output *strings.Builder) error {
-	var safeAttrs []html.Attribute
-
-	for _, attr := range n.Attr {
-		switch strings.ToLower(attr.Key) {
-		case "name", "content", "property":
-			if isValidAttributeValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		}
-	}
-
-	output.WriteString("<meta")
-	for _, attr := range safeAttrs {
-		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
-	}
-	output.WriteString(">")
-
-	return nil
-}
-
-// validateIframeElement validates iframe tags with restrictions
-func validateIframeElement(n *html.Node, output *strings.Builder) error {
-	var safeAttrs []html.Attribute
-
-	for _, attr := range n.Attr {
-		switch strings.ToLower(attr.Key) {
-		case "src":
-			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid iframe src URL: %v", err)
-			}
-			// Allow iframes from any valid HTTP/HTTPS URL for self-hosted analytics
-			// Only validate the URL format and basic security, not domain restrictions
-			safeAttrs = append(safeAttrs, attr)
-		case "width", "height", "frameborder", "title":
-			if isValidAttributeValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		case "style":
-			if isValidStyleValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		}
-	}
-
-	output.WriteString("<iframe")
-	for _, attr := range safeAttrs {
-		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
-	}
-	output.WriteString(">")
-
-	// Process children
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if err := validateAndRebuildHTML(c, output); err != nil {
-			return err
-		}
-	}
-
-	output.WriteString("</iframe>")
-	return nil
-}
-
-// validateGenericElement validates div, span, noscript elements
-func validateGenericElement(n *html.Node, output *strings.Builder) error {
-	var safeAttrs []html.Attribute
-
-	for _, attr := range n.Attr {
-		switch strings.ToLower(attr.Key) {
-		case "id", "class":
-			if isValidAttributeValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		case "style":
-			if isValidStyleValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		default:
-			if strings.HasPrefix(attr.Key, "data-") && isValidAttributeValue(attr.Val) {
-				safeAttrs = append(safeAttrs, attr)
-			}
-		}
-	}
-
-	output.WriteString(fmt.Sprintf("<%s", n.Data))
-	for _, attr := range safeAttrs {
-		output.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, html.EscapeString(attr.Val)))
-	}
-	output.WriteString(">")
-
-	// Process children
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if err := validateAndRebuildHTML(c, output); err != nil {
-			return err
-		}
-	}
-
-	output.WriteString(fmt.Sprintf("</%s>", n.Data))
-	return nil
-}
-
-// Helper functions
-
-// validateURL checks if a URL is safe for use in tracking code
-func validateURL(urlStr string) error {
-	if urlStr == "" {
-		return errors.New("URL cannot be empty")
-	}
-
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return fmt.Errorf("invalid URL format: %v", err)
-	}
-
-	// Only allow HTTP/HTTPS URLs
-	if parsedURL.Scheme != "https" && parsedURL.Scheme != "http" {
-		return fmt.Errorf("only HTTP/HTTPS URLs are allowed, got: %s", parsedURL.Scheme)
-	}
-
-	// Block obviously dangerous patterns but allow self-hosted analytics
-	// Only block localhost on standard web ports to prevent local attacks
-	// but allow custom domains and ports for self-hosted analytics
-	if (strings.Contains(parsedURL.Host, "localhost:80") ||
-		strings.Contains(parsedURL.Host, "localhost:443") ||
-		parsedURL.Host == "localhost" ||
-		strings.Contains(parsedURL.Host, "127.0.0.1:80") ||
-		strings.Contains(parsedURL.Host, "127.0.0.1:443") ||
-		parsedURL.Host == "127.0.0.1") {
-		return errors.New("URLs pointing to localhost on standard web ports are not allowed")
-	}
-
-	return nil
-}
-
-// isValidAttributeValue checks if an attribute value is safe
-func isValidAttributeValue(value string) bool {
-	// Reject values with potential script injection
-	lowerValue := strings.ToLower(value)
-	dangerous := []string{"javascript:", "data:", "vbscript:", "onload", "onerror", "onclick", "onmouseover"}
-	for _, danger := range dangerous {
-		if strings.Contains(lowerValue, danger) {
-			return false
-		}
-	}
-	return true
-}
-
-// isValidStyleValue checks if a style attribute value is safe
-func isValidStyleValue(value string) bool {
-	// Basic style validation - reject dangerous CSS
-	lowerValue := strings.ToLower(value)
-	dangerous := []string{"javascript:", "expression(", "behavior:", "binding:", "url(javascript"}
-	for _, danger := range dangerous {
-		if strings.Contains(lowerValue, danger) {
-			return false
-		}
-	}
-	
-	// Only allow basic style properties
-	allowedProps := regexp.MustCompile(`^[\s\w\-:;.#%(),]+$`)
-	return allowedProps.MatchString(value)
-}
-
-// hasTextContent checks if a node has any text content (for detecting inline scripts)
-func hasTextContent(n *html.Node) bool {
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.TextNode && strings.TrimSpace(c.Data) != "" {
-			return true
-		}
-		if hasTextContent(c) {
-			return true
-		}
-	}
-	return false
-}
 
 // Database helper methods for the Server struct
 func (s *Server) getSettings(ctx context.Context) (map[string]string, error) {
@@ -392,25 +46,17 @@ func (s *Server) getSettings(ctx context.Context) (map[string]string, error) {
 }
 
 func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, error) {
+	return s.getRecentEntriesWithSettings(ctx, limit, nil)
+}
+
+func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, settings map[string]string) ([]EntryView, error) {
 	if !s.config.ProductionMode {
 		s.logger.Printf("Getting recent entries with limit: %d", limit)
 	}
 
-	// Get settings to check if we should show blog names and body text
-	settings, err := s.getSettings(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting settings: %w", err)
-	}
-
-	showBlogName := settings["show_blog_name"] == "true"
-	showBodyText := settings["show_body_text"] == "true"
-	
-	bodyTextLength := 200 // default
-	if lengthStr, ok := settings["body_text_length"]; ok {
-		if length, err := strconv.Atoi(lengthStr); err == nil && length > 0 {
-			bodyTextLength = length
-		}
-	}
+	// Get a larger set initially to account for filtering
+	// We'll fetch more entries and then filter them down
+	fetchLimit := limit * 3 // Fetch 3x more to account for potential filtering
 
 	rows, err := s.db.QueryContext(ctx, `
         SELECT 
@@ -419,14 +65,14 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
             e.url,
             e.favicon_url,
             datetime(e.published_at) as date,
-            f.title as feed_title,
-            e.content
+            e.content,
+            f.title as feed_title
         FROM entries e
         JOIN feeds f ON e.feed_id = f.id
         WHERE f.status != 'deleted' 
         ORDER BY e.published_at DESC
         LIMIT ?
-    `, limit)
+    `, fetchLimit)
 	if err != nil {
 		return nil, fmt.Errorf("query error: %w", err)
 	}
@@ -436,10 +82,8 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
 	for rows.Next() {
 		var e EntryView
 		var publishedAtStr string // Will hold the "YYYY-MM-DD HH:MM:SS" string from DB
-		var feedTitle sql.NullString
-		var content sql.NullString
-		
-		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr, &feedTitle, &content); err != nil {
+		var content, feedTitle sql.NullString
+		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr, &content, &feedTitle); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
@@ -453,21 +97,33 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
 			s.logger.Printf("Error parsing date string '%s' for EntryView: %v", publishedAtStr, err)
 		}
 
-		// Set feed title if enabled and available
-		if showBlogName && feedTitle.Valid {
+		// Set body text and feed title
+		if content.Valid {
+			e.BodyText = content.String
+		}
+		if feedTitle.Valid {
 			e.FeedTitle = feedTitle.String
 		}
 
-		// Process body text if enabled and available
-		if showBodyText && content.Valid {
-			e.BodyText = ProcessBodyText(content.String, bodyTextLength)
+		// Process body text based on settings if provided
+		if settings != nil && e.BodyText != "" {
+			if bodyLengthStr, ok := settings["body_text_length"]; ok {
+				if bodyLength, err := strconv.Atoi(bodyLengthStr); err == nil && bodyLength > 0 {
+					e.BodyText = ProcessBodyText(e.BodyText, bodyLength)
+				}
+			}
 		}
 
 		entries = append(entries, e)
+
+		// Stop when we have enough entries after filtering
+		if len(entries) >= limit {
+			break
+		}
 	}
 
 	if !s.config.ProductionMode {
-		s.logger.Printf("Found %d entries in query", len(entries))
+		s.logger.Printf("Found %d entries after filtering (requested %d)", len(entries), limit)
 		if len(entries) > 0 {
 			s.logger.Printf("Sample entry: %+v", entries[0])
 		}
@@ -505,12 +161,6 @@ func (s *Server) getFeeds(ctx context.Context) ([]Feed, error) {
 }
 
 func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
-	// Validate and sanitize the tracking code before saving
-	validatedTrackingCode, err := validateTrackingCode(settings.TrackingCode)
-	if err != nil {
-		return fmt.Errorf("invalid tracking code: %w", err)
-	}
-	
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -524,15 +174,10 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 	}
 	defer stmt.Close()
 	
-	// Convert boolean to string for storage
-	showBlogNameStr := "false"
-	if settings.ShowBlogName {
-		showBlogNameStr = "true"
-	}
-	
-	showBodyTextStr := "false"
-	if settings.ShowBodyText {
-		showBodyTextStr = "true"
+	// Validate tracking code before updating
+	validatedTrackingCode, err := validateTrackingCode(settings.TrackingCode)
+	if err != nil {
+		return fmt.Errorf("invalid tracking code: %w", err)
 	}
 	
 	updates := map[string]struct {
@@ -554,8 +199,8 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
 		"meta_image_url":      {settings.MetaImageURL, "string"},
-		"show_blog_name":      {showBlogNameStr, "bool"},
-		"show_body_text":      {showBodyTextStr, "bool"},
+		"show_blog_name":      {strconv.FormatBool(settings.ShowBlogName), "bool"},
+		"show_body_text":      {strconv.FormatBool(settings.ShowBodyText), "bool"},
 		"body_text_length":    {strconv.Itoa(settings.BodyTextLength), "int"},
 	}
 
@@ -724,7 +369,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if !s.config.ProductionMode {
 		s.logger.Printf("Database state: %d feeds, %d entries", feedCount, entryCount)
 	}
-	entries, err := s.getRecentEntries(r.Context(), maxPosts)
+	entries, err := s.getRecentEntriesWithSettings(r.Context(), maxPosts, settings)
 	if err != nil {
 		s.logger.Printf("Error getting entries: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -773,11 +418,29 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
+		
+		// Get filter data for the settings page
+		filters, err := s.getFiltersForTemplate(r.Context())
+		if err != nil {
+			s.logger.Printf("Error getting filters: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		
+		filterGroups, err := s.getFilterGroupsForTemplate(r.Context())
+		if err != nil {
+			s.logger.Printf("Error getting filter groups: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		
 		data := SettingsTemplateData{
 			BaseTemplateData: BaseTemplateData{CSRFToken: csrfToken},
 			Title:            "Settings",
 			Active:           "settings",
 			Settings:         settings,
+			Filters:          filters,
+			FilterGroups:     filterGroups,
 		}
 		if err := s.renderTemplate(w, r, "admin/settings.html", data); err != nil {
 			s.logger.Printf("Error rendering settings template: %v", err)
@@ -942,5 +605,365 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		// Write a JSON error payload if possible
 		jsonError := fmt.Sprintf(`{"error":"failed to encode metrics: %v"}`, err)
 		fmt.Fprintln(w, jsonError)
+	}
+}
+
+// getFiltersForTemplate gets filters for template rendering
+func (s *Server) getFiltersForTemplate(ctx context.Context) ([]map[string]interface{}, error) {
+	db := &database.DB{DB: s.db}
+	filters, err := db.GetAllEntryFilters(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
+	result := make([]map[string]interface{}, len(filters))
+	for i, filter := range filters {
+		result[i] = map[string]interface{}{
+			"id":            filter.ID,
+			"name":          filter.Name,
+			"pattern":       filter.Pattern,
+			"pattern_type":  filter.PatternType,
+			"case_sensitive": filter.CaseSensitive,
+			"created_at":    filter.CreatedAt,
+			"updated_at":    filter.UpdatedAt,
+		}
+	}
+	return result, nil
+}
+
+// getFilterGroupsForTemplate gets filter groups for template rendering
+func (s *Server) getFilterGroupsForTemplate(ctx context.Context) ([]map[string]interface{}, error) {
+	db := &database.DB{DB: s.db}
+	groups, err := db.GetAllFilterGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
+	result := make([]map[string]interface{}, len(groups))
+	for i, group := range groups {
+		// Get rules for this group
+		rules, err := db.GetFilterGroupRules(ctx, group.ID)
+		if err != nil {
+			return nil, err
+		}
+		
+		result[i] = map[string]interface{}{
+			"id":         group.ID,
+			"name":       group.Name,
+			"action":     group.Action,
+			"is_active":  group.IsActive,
+			"priority":   group.Priority,
+			"rules":      rules,
+			"created_at": group.CreatedAt,
+			"updated_at": group.UpdatedAt,
+		}
+	}
+	return result, nil
+}
+
+// validateTrackingCode validates and sanitizes tracking code HTML
+func validateTrackingCode(code string) (string, error) {
+	// If empty, return empty
+	if strings.TrimSpace(code) == "" {
+		return "", nil
+	}
+
+	// Parse the HTML
+	doc, err := htmlparser.Parse(strings.NewReader(code))
+	if err != nil {
+		return "", fmt.Errorf("invalid HTML: %w", err)
+	}
+
+	// Sanitize the HTML
+	sanitized, err := sanitizeTrackingHTML(doc)
+	if err != nil {
+		return "", err
+	}
+
+	return sanitized, nil
+}
+
+// sanitizeTrackingHTML sanitizes HTML for tracking code
+func sanitizeTrackingHTML(n *htmlparser.Node) (string, error) {
+	var buf strings.Builder
+	err := sanitizeTrackingNode(n, &buf)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// sanitizeTrackingNode recursively sanitizes HTML nodes
+func sanitizeTrackingNode(n *htmlparser.Node, buf *strings.Builder) error {
+	switch n.Type {
+	case htmlparser.DocumentNode:
+		// Process children
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if err := sanitizeTrackingNode(c, buf); err != nil {
+				return err
+			}
+		}
+	case htmlparser.ElementNode:
+		switch strings.ToLower(n.Data) {
+		case "script":
+			return sanitizeScriptTag(n, buf)
+		case "img":
+			return sanitizeImgTag(n, buf)
+		case "iframe":
+			return sanitizeIframeTag(n, buf)
+		case "meta":
+			return sanitizeMetaTag(n, buf)
+		case "noscript":
+			return sanitizeNoscriptTag(n, buf)
+		default:
+			// Skip other tags
+			return nil
+		}
+	case htmlparser.TextNode:
+		// Only include text nodes that are children of allowed elements
+		if n.Parent != nil && isAllowedParent(n.Parent.Data) {
+			buf.WriteString(html.EscapeString(n.Data))
+		}
+	}
+	return nil
+}
+
+// sanitizeScriptTag sanitizes script tags
+func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
+	var src, async, defer_ string
+	var hasInlineScript bool
+
+	// Check if script has inline content
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == htmlparser.TextNode && strings.TrimSpace(c.Data) != "" {
+			hasInlineScript = true
+			break
+		}
+	}
+
+	// If it has inline script content, reject it
+	if hasInlineScript {
+		return fmt.Errorf("script tags must have a src attribute (inline JavaScript not allowed)")
+	}
+
+	// Extract attributes
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "src":
+			if err := validateURL(attr.Val); err != nil {
+				return fmt.Errorf("invalid script src URL: %w", err)
+			}
+			src = attr.Val
+		case "async":
+			async = "async"
+		case "defer":
+			defer_ = "defer"
+		case "type":
+			// Allow type attribute but ignore for now
+		default:
+			// Remove other attributes like onclick, etc.
+		}
+	}
+
+	// Must have src attribute
+	if src == "" {
+		return fmt.Errorf("script tags must have a src attribute (inline JavaScript not allowed)")
+	}
+
+	// Write sanitized script tag
+	buf.WriteString("<script src=\"")
+	buf.WriteString(html.EscapeString(src))
+	buf.WriteString("\"")
+	
+	if async != "" {
+		buf.WriteString(" async=\"\"")
+	}
+	if defer_ != "" {
+		buf.WriteString(" defer=\"\"")
+	}
+	
+	buf.WriteString("></script>")
+	return nil
+}
+
+// sanitizeImgTag sanitizes img tags
+func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) error {
+	var src, width, height, alt string
+
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "src":
+			if err := validateURL(attr.Val); err != nil {
+				return fmt.Errorf("invalid img src URL: %w", err)
+			}
+			src = attr.Val
+		case "width":
+			width = attr.Val
+		case "height":
+			height = attr.Val
+		case "alt":
+			alt = attr.Val
+		default:
+			// Remove other attributes like onerror, onclick, etc.
+		}
+	}
+
+	if src == "" {
+		return nil // Skip img without src
+	}
+
+	buf.WriteString("<img src=\"")
+	buf.WriteString(html.EscapeString(src))
+	buf.WriteString("\"")
+	
+	if width != "" {
+		buf.WriteString(" width=\"")
+		buf.WriteString(html.EscapeString(width))
+		buf.WriteString("\"")
+	}
+	if height != "" {
+		buf.WriteString(" height=\"")
+		buf.WriteString(html.EscapeString(height))
+		buf.WriteString("\"")
+	}
+	if alt != "" {
+		buf.WriteString(" alt=\"")
+		buf.WriteString(html.EscapeString(alt))
+		buf.WriteString("\"")
+	}
+	
+	buf.WriteString(">")
+	return nil
+}
+
+// sanitizeIframeTag sanitizes iframe tags
+func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) error {
+	var src, width, height string
+
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "src":
+			if err := validateURL(attr.Val); err != nil {
+				return fmt.Errorf("invalid iframe src URL: %w", err)
+			}
+			src = attr.Val
+		case "width":
+			width = attr.Val
+		case "height":
+			height = attr.Val
+		default:
+			// Remove other attributes
+		}
+	}
+
+	if src == "" {
+		return nil // Skip iframe without src
+	}
+
+	buf.WriteString("<iframe src=\"")
+	buf.WriteString(html.EscapeString(src))
+	buf.WriteString("\"")
+	
+	if width != "" {
+		buf.WriteString(" width=\"")
+		buf.WriteString(html.EscapeString(width))
+		buf.WriteString("\"")
+	}
+	if height != "" {
+		buf.WriteString(" height=\"")
+		buf.WriteString(html.EscapeString(height))
+		buf.WriteString("\"")
+	}
+	
+	buf.WriteString("></iframe>")
+	return nil
+}
+
+// sanitizeMetaTag sanitizes meta tags
+func sanitizeMetaTag(n *htmlparser.Node, buf *strings.Builder) error {
+	var name, content, property string
+
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "name":
+			name = attr.Val
+		case "content":
+			content = attr.Val
+		case "property":
+			property = attr.Val
+		}
+	}
+
+	if name != "" || property != "" {
+		buf.WriteString("<meta")
+		if name != "" {
+			buf.WriteString(" name=\"")
+			buf.WriteString(html.EscapeString(name))
+			buf.WriteString("\"")
+		}
+		if property != "" {
+			buf.WriteString(" property=\"")
+			buf.WriteString(html.EscapeString(property))
+			buf.WriteString("\"")
+		}
+		if content != "" {
+			buf.WriteString(" content=\"")
+			buf.WriteString(html.EscapeString(content))
+			buf.WriteString("\"")
+		}
+		buf.WriteString(">")
+	}
+	return nil
+}
+
+// sanitizeNoscriptTag sanitizes noscript tags
+func sanitizeNoscriptTag(n *htmlparser.Node, buf *strings.Builder) error {
+	buf.WriteString("<noscript>")
+	
+	// Process children
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if err := sanitizeTrackingNode(c, buf); err != nil {
+			return err
+		}
+	}
+	
+	buf.WriteString("</noscript>")
+	return nil
+}
+
+// validateURL validates URLs for tracking code
+func validateURL(urlStr string) error {
+	if urlStr == "" {
+		return fmt.Errorf("empty URL")
+	}
+
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("invalid URL format: %w", err)
+	}
+
+	// Only allow HTTP and HTTPS
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("only HTTP/HTTPS URLs are allowed, got: %s", u.Scheme)
+	}
+
+	// Block localhost on standard web ports for security
+	if strings.ToLower(u.Hostname()) == "localhost" {
+		port := u.Port()
+		if port == "" || port == "80" || port == "443" {
+			return fmt.Errorf("URLs pointing to localhost on standard web ports are not allowed")
+		}
+	}
+
+	return nil
+}
+
+// isAllowedParent checks if a parent element is allowed to contain text
+func isAllowedParent(tagName string) bool {
+	switch strings.ToLower(tagName) {
+	case "script", "noscript":
+		return true
+	default:
+		return false
 	}
 }

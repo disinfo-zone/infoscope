@@ -163,3 +163,15 @@ func (s *Service) DeleteFeed(id int64) error {
 
 	return tx.Commit()
 }
+
+// GetFilterEngine returns the FilterEngine instance for filtering entries
+func (s *Service) GetFilterEngine() *FilterEngine {
+	return s.fetcher.filterEngine
+}
+
+// InvalidateFilterCache invalidates the filter cache to ensure changes take effect immediately
+func (s *Service) InvalidateFilterCache() {
+	if s.fetcher != nil && s.fetcher.filterEngine != nil {
+		s.fetcher.filterEngine.InvalidateCache()
+	}
+}

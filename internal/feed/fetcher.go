@@ -16,22 +16,24 @@ import (
 )
 
 type Fetcher struct {
-	db         *sql.DB
-	logger     *log.Logger
-	parser     *gofeed.Parser
-	client     *http.Client
-	faviconSvc *favicon.Service
-	cache      *sync.Map // Add in-memory cache
+	db           *sql.DB
+	logger       *log.Logger
+	parser       *gofeed.Parser
+	client       *http.Client
+	faviconSvc   *favicon.Service
+	cache        *sync.Map // Add in-memory cache
+	filterEngine *FilterEngine
 }
 
 func NewFetcher(db *sql.DB, logger *log.Logger, faviconSvc *favicon.Service) *Fetcher {
 	return &Fetcher{
-		db:         db,
-		logger:     logger,
-		parser:     gofeed.NewParser(),
-		client:     &http.Client{Timeout: 30 * time.Second}, // Increased timeout
-		faviconSvc: faviconSvc,
-		cache:      &sync.Map{},
+		db:           db,
+		logger:       logger,
+		parser:       gofeed.NewParser(),
+		client:       &http.Client{Timeout: 30 * time.Second}, // Increased timeout
+		faviconSvc:   faviconSvc,
+		cache:        &sync.Map{},
+		filterEngine: NewFilterEngine(db),
 	}
 }
 
@@ -155,6 +157,9 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 		result.Error = fmt.Errorf("error parsing feed: %w", err)
 		return result
 	}
+	
+	// Store the parsed feed title in the result for later use
+	result.FeedTitle = parsedFeed.Title
 
 	// Get latest entry timestamp from database
 	var latestTimestampStr sql.NullString
@@ -215,11 +220,23 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 }
 
 func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error {
+	// Apply filters to entries before saving
+	filteredEntries, filteredCount := f.applyFilters(ctx, result.Entries)
+	
+	// Log filtering statistics
+	if filteredCount > 0 {
+		f.logger.Printf("Filtered %d out of %d entries from feed %s", 
+			filteredCount, len(result.Entries), result.Feed.URL)
+	}
+	
+	// Update result with filtered entries
+	result.Entries = filteredEntries
+	
 	if len(result.Entries) == 0 {
-		// Update last_fetched time even if no new entries
+		// Update last_fetched time and title even if no entries remain after filtering
 		_, err := f.db.ExecContext(ctx,
-			"UPDATE feeds SET last_fetched = DATETIME(?) WHERE id = ?",
-			time.Now().UTC().Format("2006-01-02 15:04:05"), result.Feed.ID,
+			"UPDATE feeds SET last_fetched = DATETIME(?), title = ? WHERE id = ?",
+			time.Now().UTC().Format("2006-01-02 15:04:05"), result.FeedTitle, result.Feed.ID,
 		)
 		return err
 	}
@@ -230,10 +247,10 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	}
 	defer tx.Rollback()
 
-	// Update feed last_fetched time
+	// Update feed last_fetched time and title
 	_, err = tx.ExecContext(ctx,
-		"UPDATE feeds SET last_fetched = DATETIME(?) WHERE id = ?",
-		time.Now().UTC().Format("2006-01-02 15:04:05"), result.Feed.ID,
+		"UPDATE feeds SET last_fetched = DATETIME(?), title = ? WHERE id = ?",
+		time.Now().UTC().Format("2006-01-02 15:04:05"), result.FeedTitle, result.Feed.ID,
 	)
 	if err != nil {
 		return err
@@ -298,4 +315,35 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	}
 
 	return tx.Commit()
+}
+
+// applyFilters applies the filtering system to a list of entries
+func (f *Fetcher) applyFilters(ctx context.Context, entries []Entry) ([]Entry, int) {
+	if len(entries) == 0 {
+		return entries, 0
+	}
+
+	var filteredEntries []Entry
+	var filteredCount int
+
+	for _, entry := range entries {
+		decision, err := f.filterEngine.FilterEntry(ctx, entry.Title)
+		if err != nil {
+			// Log error but don't fail the entire process
+			f.logger.Printf("Error applying filters to entry '%s': %v", entry.Title, err)
+			// Default to keeping the entry if filtering fails
+			filteredEntries = append(filteredEntries, entry)
+			continue
+		}
+
+		switch decision {
+		case FilterKeep:
+			filteredEntries = append(filteredEntries, entry)
+		case FilterDiscard:
+			filteredCount++
+			f.logger.Printf("Filtered out entry: %s", entry.Title)
+		}
+	}
+
+	return filteredEntries, filteredCount
 }

@@ -2,12 +2,9 @@ package server
 
 import (
 	"encoding/json"
-	"html"
 	"net/http"
 	"regexp"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 )
 
 // headerWritten checks if response headers have already been written
@@ -38,79 +35,70 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	}
 }
 
-// stripHTML removes HTML tags from a string and unescapes HTML entities
-func stripHTML(content string) string {
-	if content == "" {
+// stripHTML removes HTML tags from a string and normalizes whitespace
+func stripHTML(input string) string {
+	if input == "" {
 		return ""
 	}
-
+	
 	// Remove HTML tags
-	re := regexp.MustCompile(`<[^>]*>`)
-	content = re.ReplaceAllString(content, "")
-
-	// Unescape HTML entities
-	content = html.UnescapeString(content)
-
-	// Replace multiple whitespace with single space
-	re = regexp.MustCompile(`\s+`)
-	content = re.ReplaceAllString(content, " ")
-
-	// Trim whitespace
-	return strings.TrimSpace(content)
+	htmlTagRegex := regexp.MustCompile(`<[^>]*>`)
+	text := htmlTagRegex.ReplaceAllString(input, "")
+	
+	// Decode common HTML entities
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&#39;", "'")
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	
+	// Clean up extra whitespace
+	text = strings.TrimSpace(text)
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	
+	return text
 }
 
-// truncateText truncates text to the specified length, breaking at word boundaries when possible
-func truncateText(text string, maxLength int) string {
-	if len(text) <= maxLength {
-		return text
-	}
-	
-	// If the text is longer than maxLength, find a good break point
-	if maxLength <= 0 {
+// truncateText truncates text to the specified length, avoiding word breaks
+func truncateText(input string, maxLength int) string {
+	if input == "" || maxLength <= 0 {
 		return ""
 	}
 	
-	// Handle edge case for very short maxLength
-	if maxLength < 10 {
-		// For very short limits, just cut at the character boundary
-		if maxLength <= 3 {
-			return "..."
-		}
-		cutPoint := maxLength - 3
-		if utf8.ValidString(text[:cutPoint]) {
-			return text[:cutPoint] + "..."
-		}
-		// Find valid UTF-8 boundary
-		for i := cutPoint; i > 0; i-- {
-			if utf8.ValidString(text[:i]) {
-				return text[:i] + "..."
-			}
-		}
+	if len(input) <= maxLength {
+		return input
+	}
+	
+	// Account for the "..." suffix
+	actualLength := maxLength - 3
+	if actualLength <= 0 {
 		return "..."
 	}
 	
-	// Try to break at word boundary
-	truncated := text[:maxLength-3] // Leave space for "..."
-	
-	// Find the last space within our limit
-	lastSpace := strings.LastIndexFunc(truncated, unicode.IsSpace)
-	
-	if lastSpace > maxLength/2 { // Only use word boundary if it's not too far back
-		truncated = truncated[:lastSpace]
+	text := input[:actualLength]
+	// Find the last space to avoid cutting words, but only if we have reasonable space
+	if lastSpace := strings.LastIndex(text, " "); lastSpace > actualLength/2 {
+		text = text[:lastSpace]
 	}
+	text += "..."
 	
-	return strings.TrimSpace(truncated) + "..."
+	return text
 }
 
-// ProcessBodyText strips HTML and truncates content for display
-func ProcessBodyText(content string, maxLength int) string {
-	if content == "" {
+// ProcessBodyText strips HTML tags and truncates text to the specified length
+func ProcessBodyText(input string, maxLength int) string {
+	if input == "" {
 		return ""
 	}
-
-	// Strip HTML tags and clean up text
-	cleanText := stripHTML(content)
-
-	// Truncate to specified length
-	return truncateText(cleanText, maxLength)
+	
+	// Remove HTML tags
+	text := stripHTML(input)
+	
+	// Truncate if necessary
+	if maxLength > 0 {
+		text = truncateText(text, maxLength)
+	}
+	
+	return text
 }

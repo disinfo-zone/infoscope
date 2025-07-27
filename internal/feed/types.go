@@ -25,7 +25,8 @@ type Entry struct {
 }
 
 type FetchResult struct {
-	Feed    Feed
-	Entries []Entry
-	Error   error
+	Feed      Feed
+	Entries   []Entry
+	FeedTitle string
+	Error     error
 }
