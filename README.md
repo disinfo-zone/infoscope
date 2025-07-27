@@ -5,7 +5,7 @@ Infoscope is a minimalist public RSS river reader designed to reduce information
 ## The Problem
 
 Traditional RSS readers can create anxiety:
-- Unread counts become a constant reminder of "falling behind"
+- Unread counts are a constant reminder of "falling behind"
 - The pressure to "catch up" turns reading into a chore 
 - Private feed lists keep valuable curation hidden from others
 - Infinite archives make it hard to "let go" of old content
@@ -207,15 +207,6 @@ Production mode: Enforces HTTPS-only features including strict CSRF protection
 
 Infoscope includes a powerful filtering system that allows administrators to automatically curate content by keeping or discarding entries based on title patterns. This helps maintain high-quality content streams and reduces information noise.
 
-### Key Features
-
-- **Pattern Matching**: Create filters using either simple keyword matching or advanced regular expressions
-- **Boolean Logic**: Combine multiple filters with AND/OR operators for sophisticated filtering rules
-- **Action Control**: Choose whether matching entries should be kept or discarded
-- **Priority System**: Order filter groups by priority to control evaluation sequence
-- **Real-time Processing**: Filters are applied automatically as new entries are fetched
-- **Performance Optimized**: Intelligent caching system ensures fast filtering without impacting feed updates
-
 ### How It Works
 
 The filtering system operates in two levels:
@@ -233,7 +224,7 @@ Entry filters are the building blocks of the filtering system. Each filter defin
 - **Case Sensitivity**: Whether matching should be case-sensitive
 
 **Examples:**
-- Keyword filter: Pattern "AI" matches titles containing "AI", "artificial intelligence", etc.
+- Keyword filter: Pattern "AI" matches titles containing "AI"
 - Regex filter: Pattern `(?i)\b(crypto|bitcoin|blockchain)\b` matches cryptocurrency-related terms (case-insensitive)
 
 ### Building Filter Groups
@@ -261,42 +252,6 @@ Filter A AND Filter B OR Filter C
 This matches entries that either:
 - Match both Filter A AND Filter B, OR
 - Match Filter C
-
-### User Interface
-
-The admin interface provides an intuitive way to manage filters:
-
-1. **Filter Management**: Create, edit, and delete individual entry filters
-2. **Group Builder**: Visual interface for creating filter groups with drag-and-drop filter assignment
-3. **Logic Designer**: Point-and-click boolean operator selection with visual feedback
-4. **Testing Tools**: Preview how filters will affect your content before activation
-
-### Performance Considerations
-
-The filtering system is designed for efficiency:
-
-- **Caching**: Filter results are cached for 5 minutes to reduce computation overhead
-- **Smart Evaluation**: Boolean logic uses short-circuit evaluation for optimal performance
-- **Batch Processing**: Filters are applied during feed updates, not on every page load
-- **Memory Management**: Cache is automatically invalidated when filter rules change
-
-### Best Practices
-
-1. **Start Simple**: Begin with basic keyword filters before moving to complex regex patterns
-2. **Test Thoroughly**: Use the preview functionality to verify filter behavior
-3. **Order Matters**: Set priorities carefully - higher priority groups are evaluated first
-4. **Monitor Impact**: Regularly review filtered content to ensure desired results
-5. **Combine Actions**: Use both "keep" and "discard" groups for fine-tuned content curation
-
-### Example Use Cases
-
-- **Quality Control**: Discard entries with spam indicators or low-quality patterns
-- **Topic Focus**: Keep only entries related to specific subjects of interest  
-- **Language Filtering**: Filter content by language or region
-- **Source Curation**: Prioritize content from trusted sources while filtering unreliable ones
-- **Trend Filtering**: Temporarily filter trending topics that may be overrepresented
-
-The filtering system transforms Infoscope from a simple RSS aggregator into an intelligent content curation platform, helping administrators maintain high-quality, focused information streams for their audiences.
 
 ## License
 
