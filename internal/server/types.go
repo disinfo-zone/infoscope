@@ -64,9 +64,11 @@ type AdminPageData struct {
 
 type SettingsTemplateData struct {
 	BaseTemplateData
-	Title    string
-	Active   string
-	Settings map[string]string
+	Title        string
+	Active       string
+	Settings     map[string]string
+	Filters      []map[string]interface{}
+	FilterGroups []map[string]interface{}
 }
 
 type Settings struct {

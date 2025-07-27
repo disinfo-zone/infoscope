@@ -171,38 +171,151 @@
                 </select>
             </div>
             
-            <!-- Enhanced Entry Display Settings -->
-            <div class="setting-group display-section">
-                <h3>ENTRY DISPLAY SETTINGS</h3>
-                <div class="help-text" style="margin-bottom: 1rem;">
+            <!-- Entry Display Settings -->
+            <div class="setting-group">
+                <label>ENTRY DISPLAY SETTINGS</label>
+                <div class="help-text">
                     Configure how entries are displayed on the main page.
                 </div>
                 
-                <div class="checkbox-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="showBlogName" name="showBlogName" {{ if eq (index .Data.Settings "show_blog_name") "true" }}checked{{ end }}>
-                        <span class="checkbox-text">Show Blog Name</span>
-                    </label>
-                    <div class="help-text">
-                        Display the feed/blog name as a prefix to entry titles (e.g., "Blog Name: Article Title").
+                <div class="form-row">
+                    <div class="checkbox-group">
+                        <label class="checkbox-label" for="showBlogName">
+                            <input type="checkbox" id="showBlogName" name="show_blog_name" 
+                                   {{ if eq (index .Data.Settings "show_blog_name") "true" }}checked{{ end }}>
+                            Show Blog Name
+                        </label>
+                        <div class="help-text">
+                            Display the feed/blog name as a prefix to entry titles (e.g., "Blog Name: Article Title").
+                        </div>
                     </div>
-                </div>
-                
-                <div class="checkbox-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="showBodyText" name="showBodyText" {{ if eq (index .Data.Settings "show_body_text") "true" }}checked{{ end }}>
-                        <span class="checkbox-text">Show Entry Preview</span>
-                    </label>
-                    <div class="help-text">
-                        Display a preview of the entry content below the title.
+                    
+                    <div class="checkbox-group">
+                        <label class="checkbox-label" for="showBodyText">
+                            <input type="checkbox" id="showBodyText" name="show_body_text" 
+                                   {{ if eq (index .Data.Settings "show_body_text") "true" }}checked{{ end }}>
+                            Show Entry Preview
+                        </label>
+                        <div class="help-text">
+                            Display a preview of the entry content below the title.
+                        </div>
                     </div>
                 </div>
                 
                 <div class="setting-group">
                     <label for="bodyTextLength">PREVIEW LENGTH (CHARACTERS)</label>
-                    <input type="number" id="bodyTextLength" name="bodyTextLength" value="{{ index .Data.Settings "body_text_length" }}" min="50" max="1000" required>
+                    <input type="number" id="bodyTextLength" name="body_text_length" 
+                           value="{{ index .Data.Settings "body_text_length" }}" 
+                           min="50" max="1000" required>
                     <div class="help-text">
                         Number of characters to show in the entry preview (50-1000 characters).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Entry Filtering System -->
+            <div class="setting-group">
+                <label>ENTRY FILTERING</label>
+                <div class="help-text">
+                    Create smart filter groups to automatically keep or discard RSS entries. Build groups by combining multiple filters with AND/OR logic.
+                </div>
+                
+                <!-- Filter Groups Management -->
+                <div class="filter-groups-container">
+                    <div class="filter-groups-header">
+                        <h4>Filter Groups</h4>
+                        <button type="button" class="action-btn primary" onclick="showCreateGroupModal()">
+                            <span>+</span> New Group
+                        </button>
+                    </div>
+                    
+                    <div class="filter-groups-list" id="filterGroupsList">
+                        {{ range .Data.FilterGroups }}
+                        <div class="filter-group-card {{ if not .is_active }}inactive{{ end }}" data-group-id="{{ .id }}">
+                            <div class="group-header">
+                                <div class="group-title">
+                                    <h5>{{ .name }}</h5>
+                                    <div class="group-badges">
+                                        <span class="action-badge {{ .action }}">{{ if eq .action "keep" }}KEEP{{ else }}DISCARD{{ end }}</span>
+                                        <span class="priority-badge">P{{ .priority }}</span>
+                                        {{ if not .is_active }}<span class="status-badge inactive">INACTIVE</span>{{ end }}
+                                    </div>
+                                </div>
+                                <div class="group-controls">
+                                    <button type="button" class="control-btn" onclick="toggleGroup({{ .id }}, {{ .is_active }})">
+                                        {{ if .is_active }}Disable{{ else }}Enable{{ end }}
+                                    </button>
+                                    <button type="button" class="control-btn" onclick="editGroup({{ .id }})">Edit</button>
+                                    <button type="button" class="control-btn danger" onclick="deleteGroup({{ .id }})">Delete</button>
+                                </div>
+                            </div>
+                            
+                            <div class="group-rules">
+                                {{ if .rules }}
+                                    {{ range $index, $rule := .rules }}
+                                        {{ if gt $index 0 }}<span class="logic-operator">{{ $rule.Operator }}</span>{{ end }}
+                                        <div class="rule-item">
+                                            <span class="filter-name">{{ $rule.Filter.Name }}</span>
+                                            <span class="filter-pattern">{{ $rule.Filter.Pattern }}</span>
+                                            <span class="filter-type">{{ $rule.Filter.PatternType }}</span>
+                                        </div>
+                                    {{ end }}
+                                {{ else }}
+                                    <div class="empty-rules">
+                                        <span>No filters assigned</span>
+                                        <button type="button" class="link-btn" onclick="addFiltersToGroup({{ .id }})">Add Filters</button>
+                                    </div>
+                                {{ end }}
+                            </div>
+                        </div>
+                        {{ end }}
+                        
+                        {{ if not .Data.FilterGroups }}
+                        <div class="empty-state">
+                            <div class="empty-icon">📋</div>
+                            <h5>No Filter Groups</h5>
+                            <p>Create your first filter group to start organizing your RSS entries automatically.</p>
+                            <button type="button" class="action-btn primary" onclick="showCreateGroupModal()">Create First Group</button>
+                        </div>
+                        {{ end }}
+                    </div>
+                </div>
+                
+                <!-- Available Filters Library -->
+                <div class="filters-library">
+                    <div class="filters-header">
+                        <h4>Filter Library</h4>
+                        <button type="button" class="action-btn secondary" onclick="showCreateFilterModal()">
+                            <span>+</span> New Filter
+                        </button>
+                    </div>
+                    
+                    <div class="filters-grid" id="filtersGrid">
+                        {{ range .Data.Filters }}
+                        <div class="filter-card" data-filter-id="{{ .id }}" draggable="true">
+                            <div class="filter-header">
+                                <h6>{{ .name }}</h6>
+                                <div class="filter-actions">
+                                    <button type="button" class="icon-btn" onclick="editFilter({{ .id }})" title="Edit">✏️</button>
+                                    <button type="button" class="icon-btn danger" onclick="deleteFilter({{ .id }})" title="Delete">🗑️</button>
+                                </div>
+                            </div>
+                            <div class="filter-details">
+                                <div class="filter-pattern">{{ .pattern }}</div>
+                                <div class="filter-meta">
+                                    <span class="type-badge {{ .pattern_type }}">{{ if eq .pattern_type "keyword" }}KEYWORD{{ else if eq .pattern_type "regex" }}REGEX{{ else }}{{ .pattern_type }}{{ end }}</span>
+                                    {{ if .case_sensitive }}<span class="feature-badge">Case Sensitive</span>{{ end }}
+                                </div>
+                            </div>
+                        </div>
+                        {{ end }}
+                        
+                        {{ if not .Data.Filters }}
+                        <div class="empty-state small">
+                            <div class="empty-icon">🔍</div>
+                            <p>No filters created yet. Build your first filter to get started.</p>
+                        </div>
+                        {{ end }}
                     </div>
                 </div>
             </div>
@@ -233,14 +346,12 @@
             </div>
             <div class="setting-group">
                 <label for="newPassword">NEW PASSWORD</label>
-                <input type="password" id="newPassword" name="newPassword" required minlength="12">
-                <div class="help-text">
-                    Must be at least 12 characters with uppercase, lowercase, digit, and special character.
-                </div>
+                <input type="password" id="newPassword" name="newPassword" required minlength="8">
+                 <div class="help-text">Minimum 8 characters required.</div>
             </div>
             <div class="setting-group">
                 <label for="confirmNewPassword">CONFIRM NEW PASSWORD</label>
-                <input type="password" id="confirmNewPassword" name="confirmNewPassword" required minlength="12">
+                <input type="password" id="confirmNewPassword" name="confirmNewPassword" required minlength="8">
             </div>
             <button type="submit" class="submit-button">CHANGE PASSWORD</button>
             <div id="passwordChangeStatus" class="status"></div>
@@ -448,51 +559,6 @@ input[type="number"]::-webkit-inner-spin-button {
     background: #39ff64;
 }
 
-/* Display section styles */
-.display-section {
-    margin-top: 2rem;
-    padding-top: 2rem;
-    border-top: 1px solid #2a3450;
-}
-
-.display-section h3 {
-    color: #7da9b7;
-    font-size: 1rem;
-    letter-spacing: 0.1em;
-    margin-bottom: 1.5rem;
-    font-weight: normal;
-}
-
-/* Checkbox styling */
-.checkbox-group {
-    margin-bottom: 1.5rem;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    margin-bottom: 0.5rem;
-}
-
-.checkbox-label input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    margin-right: 0.75rem;
-    accent-color: #67bb79;
-    cursor: pointer;
-}
-
-.checkbox-text {
-    color: #7da9b7;
-    font-size: 0.9rem;
-    cursor: pointer;
-}
-
-.checkbox-label:hover .checkbox-text {
-    color: #a5c5cf;
-}
-
 /* Backup section */
 .backup-section {
     margin-top: 2rem;
@@ -574,6 +640,42 @@ textarea:focus {
     outline: none;
     border-color: #67bb79;
     box-shadow: 0 0 0 1px #67bb79;
+}
+
+/* Checkbox styling */
+.checkbox-group {
+    margin-bottom: 1rem;
+}
+
+.checkbox-label {
+    display: flex !important;
+    align-items: flex-start;
+    gap: 0.7rem;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+    color: #7da9b7;
+    font-size: 0.9rem;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto !important;
+    margin: 0;
+    margin-top: 0.1rem;
+    transform: scale(1.2);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
 }
 
 /* Timzone Select */
@@ -690,419 +792,2465 @@ textarea:focus {
         padding: 0.875rem 1rem;
     }
 }
+
+/* ===== PREMIUM FILTER SYSTEM STYLES ===== */
+
+/* Filter Groups Container */
+.filter-groups-container {
+    margin-bottom: 2rem;
+}
+
+.filter-groups-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #2a3450;
+}
+
+.filter-groups-header h4 {
+    color: #a5c5cf;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+/* Action Buttons */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.action-btn.primary {
+    background: #67bb79;
+    color: #121a2b;
+}
+
+.action-btn.primary:hover {
+    background: #39ff64;
+    transform: translateY(-1px);
+}
+
+.action-btn.secondary {
+    background: #2a3450;
+    color: #7da9b7;
+    border: 1px solid #3a4460;
+}
+
+.action-btn.secondary:hover {
+    background: #3a4460;
+    border-color: #4a5470;
+}
+
+/* Filter Group Cards */
+.filter-group-card {
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+}
+
+.filter-group-card:hover {
+    border-color: #3a4460;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.filter-group-card.inactive {
+    opacity: 0.6;
+    border-color: #1a2438;
+}
+
+.group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.group-title h5 {
+    color: #a5c5cf;
+    font-size: 1.1rem;
+    margin: 0 0 0.5rem 0;
+    font-weight: 500;
+}
+
+.group-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.action-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.action-badge.keep {
+    background: rgba(103, 187, 121, 0.2);
+    color: #67bb79;
+    border: 1px solid #67bb79;
+}
+
+.action-badge.discard {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+    border: 1px solid #ff6b6b;
+}
+
+.priority-badge {
+    background: rgba(125, 169, 183, 0.2);
+    color: #7da9b7;
+    border: 1px solid #7da9b7;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge.inactive {
+    background: rgba(87, 108, 117, 0.2);
+    color: #576c75;
+    border: 1px solid #576c75;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.group-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.control-btn {
+    padding: 0.4rem 0.8rem;
+    background: #2a3450;
+    color: #7da9b7;
+    border: 1px solid #3a4460;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.control-btn:hover {
+    background: #3a4460;
+}
+
+.control-btn.danger {
+    background: rgba(255, 107, 107, 0.1);
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+}
+
+.control-btn.danger:hover {
+    background: rgba(255, 107, 107, 0.2);
+}
+
+/* Group Rules */
+.group-rules {
+    background: #1a2438;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.rule-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #0c1220;
+    padding: 0.4rem 0.8rem;
+    border-radius: 15px;
+    margin: 0.25rem;
+    border: 1px solid #2a3450;
+}
+
+.filter-name {
+    color: #a5c5cf;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.filter-pattern {
+    color: #7da9b7;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.8rem;
+    background: rgba(125, 169, 183, 0.1);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+}
+
+.filter-type {
+    background: rgba(165, 197, 207, 0.2);
+    color: #a5c5cf;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.logic-operator {
+    background: #67bb79;
+    color: #121a2b;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin: 0 0.25rem;
+}
+
+.empty-rules {
+    text-align: center;
+    color: #576c75;
+    font-style: italic;
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: #67bb79;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin-left: 0.5rem;
+}
+
+.link-btn:hover {
+    color: #39ff64;
+}
+
+/* Filters Library */
+.filters-library {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #2a3450;
+}
+
+.filters-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.filters-header h4 {
+    color: #a5c5cf;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+/* Filter Cards */
+.filter-card {
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    padding: 1rem;
+    transition: all 0.2s ease;
+    cursor: grab;
+}
+
+.filter-card:hover {
+    border-color: #3a4460;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filter-card:active {
+    cursor: grabbing;
+}
+
+.filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.filter-header h6 {
+    color: #a5c5cf;
+    font-size: 0.95rem;
+    margin: 0;
+    font-weight: 500;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    padding: 0.2rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+}
+
+.icon-btn:hover {
+    background: #2a3450;
+}
+
+.icon-btn.danger:hover {
+    background: rgba(255, 107, 107, 0.2);
+}
+
+.filter-details {
+    margin-top: 0.5rem;
+}
+
+.filter-pattern {
+    color: #7da9b7;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+    background: rgba(125, 169, 183, 0.1);
+    padding: 0.3rem 0.6rem;
+    border-radius: 3px;
+    margin-bottom: 0.5rem;
+    display: block;
+    word-break: break-all;
+}
+
+.filter-meta {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.type-badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.type-badge.keyword {
+    background: rgba(103, 187, 121, 0.2);
+    color: #67bb79;
+}
+
+.type-badge.regex {
+    background: rgba(255, 167, 38, 0.2);
+    color: #ffa726;
+}
+
+.feature-badge {
+    background: rgba(165, 197, 207, 0.2);
+    color: #a5c5cf;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+/* Empty States */
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #576c75;
+}
+
+.empty-state.small {
+    padding: 2rem 1rem;
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state h5 {
+    color: #7da9b7;
+    font-size: 1.1rem;
+    margin: 0 0 0.75rem 0;
+}
+
+.empty-state p {
+    margin: 0 0 1.5rem 0;
+    line-height: 1.5;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(2px);
+}
+
+.modal-content {
+    background: #1a2438;
+    margin: 5% auto;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #2a3450;
+}
+
+.modal-header h3 {
+    color: #a5c5cf;
+    font-size: 1.2rem;
+    margin: 0;
+    font-weight: 500;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: #7da9b7;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: #2a3450;
+    color: #a5c5cf;
+}
+
+.modal-body {
+    padding: 2rem;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1.5rem 2rem;
+    border-top: 1px solid #2a3450;
+}
+
+/* Form Elements in Modals */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-group label {
+    display: block;
+    color: #7da9b7;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    color: #7da9b7;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #67bb79;
+    box-shadow: 0 0 0 1px #67bb79;
+}
+
+.checkbox-label {
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto !important;
+    margin: 0;
+}
+
+.checkbox-custom {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
+    background: #67bb79;
+    border-color: #67bb79;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkbox-custom::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #121a2b;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* Modal Buttons */
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn.primary {
+    background: #67bb79;
+    color: #121a2b;
+}
+
+.btn.primary:hover {
+    background: #39ff64;
+}
+
+.btn.secondary {
+    background: #2a3450;
+    color: #7da9b7;
+    border: 1px solid #3a4460;
+}
+
+.btn.secondary:hover {
+    background: #3a4460;
+}
+
+.btn.danger {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+    border: 1px solid #ff6b6b;
+}
+
+.btn.danger:hover {
+    background: rgba(255, 107, 107, 0.3);
+}
+
+.filter-info, .group-info {
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.filter-info h5, .group-info h5 {
+    color: #a5c5cf;
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+}
+
+.filter-info .pattern, .group-info .description {
+    color: #7da9b7;
+    font-family: 'Courier New', Courier, monospace;
+    background: rgba(125, 169, 183, 0.1);
+    padding: 0.3rem 0.6rem;
+    border-radius: 3px;
+    margin: 0.5rem 0;
+    display: block;
+}
+
+/* Filter Assignment Interface */
+.filter-assignment {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #2a3450;
+}
+
+.filter-assignment h4 {
+    color: #a5c5cf;
+    font-size: 0.95rem;
+    margin: 0 0 0.75rem 0;
+}
+
+.assigned-filters,
+.available-filters {
+    min-height: 100px;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.filter-assignment-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1a2438;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    border: 1px solid #2a3450;
+}
+
+.filter-assignment-item:last-child {
+    margin-bottom: 0;
+}
+
+.assignment-info {
+    flex: 1;
+}
+
+.assignment-name {
+    color: #a5c5cf;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.assignment-pattern {
+    color: #7da9b7;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.8rem;
+}
+
+.assignment-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.assignment-btn {
+    padding: 0.3rem 0.6rem;
+    background: #2a3450;
+    color: #7da9b7;
+    border: 1px solid #3a4460;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.assignment-btn:hover {
+    background: #3a4460;
+}
+
+.assignment-btn.primary {
+    background: #67bb79;
+    color: #121a2b;
+    border-color: #67bb79;
+}
+
+.assignment-btn.primary:hover {
+    background: #39ff64;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .filters-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .group-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .group-controls {
+        flex-wrap: wrap;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 2% auto;
+    }
+    
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 1rem;
+    }
+}
 </style>
 {{ end }}
 {{ define "scripts" }}
 <script>
-    // Wait for the DOM to be fully loaded before attaching event listeners
-    document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all functionality
+    initializeSettingsForm();
+    initializeFilterSystem();
+    initializeBackupSystem();
+    initializePasswordForm();
+    initializeImageUploads();
+});
 
-        // Form submission handler
-        const settingsForm = document.getElementById('settingsForm');
-        if (settingsForm) {
-            settingsForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                console.log('Settings form submitted');
-                const status = document.getElementById('status');
+// Settings Form Handler
+function initializeSettingsForm() {
+    const settingsForm = document.getElementById('settingsForm');
+    if (!settingsForm) return;
+    
+    settingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        try {
+            // Handle image uploads first
+            const imageInput = document.getElementById('footerImage');
+            const faviconInput = document.getElementById('favicon');
+            const metaImageInput = document.getElementById('metaImage');
+            
+            let imageFilename = '{{ index .Data.Settings "footer_image_url" }}';
+            let faviconFilename = '{{ index .Data.Settings "favicon_url" }}';
+            let metaImageFilename = '{{ index .Data.Settings "meta_image_url" }}';
+            
+            // Upload footer image if selected
+            if (imageInput && imageInput.files && imageInput.files[0]) {
+                const imageFormData = new FormData();
+                imageFormData.append('image', imageInput.files[0]);
                 
-                try {
-                    // Handle image uploads first
-                    const imageInput = document.getElementById('footerImage');
-                    const faviconInput = document.getElementById('favicon');
-                    let imageFilename = '{{ index .Data.Settings "footer_image_url" }}';
-                    let faviconFilename = '{{ index .Data.Settings "favicon_url" }}';
-                    let metaImageURL = '{{ index .Data.Settings "meta_image_url" }}';
-                    
-                    if (imageInput.files.length > 0) {
-                        console.log('Uploading new footer image...');
-                        const formData = new FormData();
-                        formData.append('image', imageInput.files[0]);
-                        
-                        const response = await csrf.fetch('/admin/upload-image', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            console.error('Footer image upload failed:', errorText);
-                            throw new Error(errorText);
-                        }
-                        
-                        imageFilename = await response.text();
-                        console.log('Footer image uploaded successfully:', imageFilename);
-                    }
-        
-                    if (faviconInput.files.length > 0) {
-                        console.log('Uploading new favicon...');
-                        const formData = new FormData();
-                        formData.append('favicon', faviconInput.files[0]);
-                        
-                        const response = await csrf.fetch('/admin/upload-favicon', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            console.error('Favicon upload failed:', errorText);
-                            throw new Error(errorText);
-                        }
-                        
-                        faviconFilename = await response.text();
-                        console.log('Favicon uploaded successfully:', faviconFilename);
-                    }
-        
-                    if (window.metaImageURL) {
-                        metaImageURL = window.metaImageURL;
-                        console.log('Using uploaded meta image:', metaImageURL);
-                    }
-
-                    if (window.footerImageURL) {
-                        imageFilename = window.footerImageURL;
-                        console.log('Using uploaded footer image:', imageFilename);
-                    }                    // Build settings data
-                    const formData = {
-                        siteTitle: document.getElementById('siteTitle').value,
-                        maxPosts: parseInt(document.getElementById('maxPosts').value, 10),
-                        updateInterval: parseInt(document.getElementById('updateInterval').value, 10),
-                        headerLinkText: document.getElementById('headerLinkText').value,
-                        headerLinkURL: document.getElementById('headerLinkURL').value,
-                        siteURL: document.getElementById('siteURL').value,
-                        footerLinkText: document.getElementById('footerLinkText').value,
-                        footerLinkURL: document.getElementById('footerLinkURL').value,
-                        footerImageHeight: document.getElementById('footerImageHeight').value,
-                        footerImageURL: imageFilename,
-                        faviconURL: faviconFilename,
-                        timezone: document.getElementById('timezone').value,
-                        trackingCode: document.getElementById('trackingCode').value,
-                        metaDescription: document.getElementById('metaDescription').value,
-                        metaImageURL: metaImageURL,
-                        showBlogName: document.getElementById('showBlogName').checked,
-                        showBodyText: document.getElementById('showBodyText').checked,
-                        bodyTextLength: parseInt(document.getElementById('bodyTextLength').value, 10)
-                    };
-        
-                    const response = await csrf.fetch('/admin/settings', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(formData)
-                    });
-        
-                    if (!response.ok) {
-                        throw new Error('Failed to save settings');
-                    }
-        
-                    status.textContent = 'Settings saved successfully!';
-                    status.className = 'status success';
-                    setTimeout(() => {
-                        status.className = 'status';
-                    }, 3000);
-        
-                } catch (err) {
-                    console.error('SAVE SETTINGS FAILED:', err);
-                    status.textContent = 'Error saving settings: ' + err.message;
-                    status.className = 'status error';
-                    setTimeout(() => {
-                        status.className = 'status';
-                    }, 3000);
-                }
-            });
-        }
-
-        // Image upload handlers
-        const metaImageInput = document.getElementById('metaImage');
-        if (metaImageInput) {
-           metaImageInput.addEventListener('change', async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const container = e.target.closest('.upload-container');
-                const statusEl = document.getElementById('metaImageStatus');
-                const previewEl = document.getElementById('metaImagePreview');
-
-                try {
-                    container.classList.add('uploading');
-                    statusEl.textContent = 'Uploading...';
-                    statusEl.className = 'image-upload-status';
-
-                    const formData = new FormData();
-                    formData.append('image', file);
-                    
-                    const response = await fetch('/admin/upload-meta-image', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-Token': csrf.getToken()
-                        },
-                        body: formData,
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(await response.text());
-                    }
-
-                    const filename = await response.text();
-                    
-                    if (!previewEl.querySelector('img')) {
-                        const img = document.createElement('img');
-                        img.style.maxHeight = '100px';
-                        previewEl.appendChild(img);
-                    }
-
-                    const img = previewEl.querySelector('img');
-                    img.src = `/static/images/${filename}`;
-                    previewEl.style.display = 'block';
-                    
-                    window.metaImageURL = filename;
-                    
-                    container.classList.remove('uploading');
-                    statusEl.textContent = 'Upload successful!';
-                    statusEl.className = 'image-upload-status success';
-
-                } catch (err) {
-                    console.error('Upload failed:', err);
-                    container.classList.remove('uploading');
-                    statusEl.textContent = `Upload failed: ${err.message}`;
-                    statusEl.className = 'image-upload-status error';
-                }
-            });
-        }
-        
-        const footerImageInput = document.getElementById('footerImage');
-        if (footerImageInput) {
-             footerImageInput.addEventListener('change', async (e) => {
-                 const file = e.target.files[0];
-                if (!file) return;
-            
-                const container = e.target.closest('.upload-container');
-                const statusEl = document.getElementById('footerImageStatus');
-                const previewEl = document.getElementById('footerImagePreview');
-            
-                try {
-                    container.classList.add('uploading');
-                    statusEl.textContent = 'Uploading...';
-                    statusEl.className = 'image-upload-status';
-            
-                    const formData = new FormData();
-                    formData.append('image', file);
-                    
-                    // Use plain fetch without setting any Content-Type header
-                    const response = await fetch('/admin/upload-meta-image', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-Token': csrf.getToken()
-                        },
-                        body: formData,
-                        // Don't set Content-Type - browser will set correct multipart/form-data
-                    });
-            
-                    if (!response.ok) {
-                        throw new Error(await response.text());
-                    }
-            
-                    const filename = await response.text();
-                    
-                    if (!previewEl.querySelector('img')) {
-                        const img = document.createElement('img');
-                        img.style.maxHeight = '100px';
-                        previewEl.appendChild(img);
-                    }
-            
-                    const img = previewEl.querySelector('img');
-                    img.src = `/static/images/${filename}`;
-                    previewEl.style.display = 'block';
-                    
-                    window.footerImageURL = filename;
-                    
-                    container.classList.remove('uploading');
-                    statusEl.textContent = 'Upload successful!';
-                    statusEl.className = 'image-upload-status success';
-            
-                } catch (err) {
-                    console.error('Upload failed:', err);
-                    container.classList.remove('uploading');
-                    statusEl.textContent = `Upload failed: ${err.message}`;
-                    statusEl.className = 'image-upload-status error';
-                }
-            });
-        }
-
-        // Backup/restore functions
-        function showStatus(message, type) {
-            const status = document.getElementById('status');
-            status.textContent = message;
-            status.className = 'status ' + type;
-            setTimeout(() => {
-                status.className = 'status';
-            }, 3000);
-        }
-        
-        function showBackupStatus(message, type) {
-            const status = document.getElementById('backupStatus');
-            status.textContent = message;
-            status.className = 'backup-status ' + type;
-            setTimeout(() => {
-                status.className = 'backup-status';
-            }, 3000);
-        }
-        
-        // Export backup
-        const exportButton = document.getElementById('exportBackup');
-        if (exportButton) {
-            exportButton.addEventListener('click', async () => {
-                try {
-                    const response = await csrf.fetch('/admin/backup/export', {
-                        method: 'GET'
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('Failed to create backup');
-                    }
-            
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'backup.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-            
-                    showBackupStatus('Backup exported successfully!', 'success');
-                } catch (err) {
-                    console.error('Export failed:', err);
-                    showBackupStatus('Export failed: ' + err.message, 'error');
-                }
-            });
-        }
-        
-        // Import backup
-        const importButton = document.getElementById('importBackup');
-        if (importButton) {
-             importButton.addEventListener('click', async () => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'application/json';
+                const imageResponse = await fetch('/admin/upload-image', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': '{{ .CSRFToken }}'
+                    },
+                    body: imageFormData
+                });
                 
-                input.onchange = async (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
+                if (imageResponse.ok) {
+                    const imageResult = await imageResponse.json();
+                    imageFilename = imageResult.filename;
+                } else {
+                    const imageError = await imageResponse.text();
+                    throw new Error(`Image upload failed: ${imageError}`);
+                }
+            }
             
-                    try {
-                        const formData = new FormData();
-                        formData.append('backup', file);
+            // Upload favicon if selected
+            if (faviconInput && faviconInput.files && faviconInput.files[0]) {
+                const faviconFormData = new FormData();
+                faviconFormData.append('favicon', faviconInput.files[0]);
+                
+                const faviconResponse = await fetch('/admin/upload-favicon', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': '{{ .CSRFToken }}'
+                    },
+                    body: faviconFormData
+                });
+                
+                if (faviconResponse.ok) {
+                    const faviconResult = await faviconResponse.json();
+                    faviconFilename = faviconResult.filename;
+                } else {
+                    const faviconError = await faviconResponse.text();
+                    throw new Error(`Favicon upload failed: ${faviconError}`);
+                }
+            }
             
-                        const response = await csrf.fetch('/admin/backup/import', {
-                            method: 'POST',
-                            body: formData
-                        });
+            // Upload meta image if selected
+            if (metaImageInput && metaImageInput.files && metaImageInput.files[0]) {
+                const metaImageFormData = new FormData();
+                metaImageFormData.append('image', metaImageInput.files[0]);
+                
+                const metaImageResponse = await fetch('/admin/upload-meta-image', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': '{{ .CSRFToken }}'
+                    },
+                    body: metaImageFormData
+                });
+                
+                if (metaImageResponse.ok) {
+                    const metaImageResult = await metaImageResponse.json();
+                    metaImageFilename = metaImageResult.filename;
+                } else {
+                    const metaImageError = await metaImageResponse.text();
+                    throw new Error(`Meta image upload failed: ${metaImageError}`);
+                }
+            }
             
-                        if (!response.ok) {
-                            throw new Error('Failed to import backup');
-                        }
+            // Prepare settings data
+            const formData = new FormData(document.getElementById('settingsForm'));
+            const settings = {};
             
-                        showBackupStatus('Backup imported successfully!', 'success');
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1500);
-                    } catch (err) {
-                        console.error('Import failed:', err);
-                        showBackupStatus('Import failed: ' + err.message, 'error');
-                    }
-                };
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'image' && key !== 'favicon') {
+                    settings[key] = value;
+                }
+            }
             
-                input.click();
+            // Override with uploaded filenames
+            settings.footer_image_url = imageFilename;
+            settings.favicon_url = faviconFilename;
+            settings.meta_image_url = metaImageFilename;
+            
+            // Save settings
+            const response = await fetch('/admin/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ .CSRFToken }}'
+                },
+                body: JSON.stringify(settings)
             });
+            
+            if (response.ok) {
+                showNotification('Settings saved successfully!', 'success');
+            } else {
+                const error = await response.text();
+                showNotification(`Error saving settings: ${error}`, 'error');
+            }
+            
+        } catch (error) {
+            showNotification(`Error: ${error.message}`, 'error');
         }
-
-        // Password Change Handler
-        const passwordForm = document.getElementById('passwordChangeForm');
-        if (passwordForm) {
-            passwordForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                console.log('Password change form submitted via JS');
-                const status = document.getElementById('passwordChangeStatus');
-                const currentPassword = document.getElementById('currentPassword').value;
-                const newPassword = document.getElementById('newPassword').value;
-                const confirmNewPassword = document.getElementById('confirmNewPassword').value;
-
-                // Clear previous status
-                status.textContent = '';
-                status.className = 'status';
-                status.style.display = 'none';
-
-                // Basic client-side validation
-                if (newPassword !== confirmNewPassword) {
-                    status.textContent = 'New passwords do not match.';
-                    status.className = 'status error';
-                    status.style.display = 'block';
-                    return;
-                }
-                if (newPassword.length < 12) {
-                    status.textContent = 'New password must be at least 12 characters long.';
-                    status.className = 'status error';
-                    status.style.display = 'block';
-                    return;
-                }
-
-                // Additional client-side validation for password complexity
-                const hasUpper = /[A-Z]/.test(newPassword);
-                const hasLower = /[a-z]/.test(newPassword);
-                const hasDigit = /\d/.test(newPassword);
-                const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
-
-                if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
-                    status.textContent = 'Password must include uppercase, lowercase, digit, and special character.';
-                    status.className = 'status error';
-                    status.style.display = 'block';
-                    return;
-                }
-
-                status.textContent = 'Changing password...';
-                status.className = 'status';
-                status.style.display = 'block';
-
-                try {
-                    console.log('Sending POST to /admin/change-password');
-                    const response = await csrf.fetch('/admin/change-password', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            currentPassword: currentPassword,
-                            newPassword: newPassword
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(result.error || `Server error: ${response.status}`);
-                    }
-
-                    status.textContent = result.message || 'Password changed successfully!';
-                    status.className = 'status success';
-                    document.getElementById('passwordChangeForm').reset();
-
-                } catch (err) {
-                    console.error('PASSWORD CHANGE FAILED:', err);
-                    status.textContent = 'Error changing password: ' + err.message;
-                    status.className = 'status error';
-                } finally {
-                    setTimeout(() => {
-                        status.className = 'status';
-                        status.style.display = 'none';
-                    }, 5000);
-                }
-            });
-        } else {
-            console.error("Element with ID 'passwordChangeForm' not found!");
-        }
-
     });
+}
+
+// Password Form Handler
+function initializePasswordForm() {
+    const passwordForm = document.getElementById('passwordChangeForm');
+    if (!passwordForm) return;
+    
+    passwordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const currentPassword = document.getElementById('currentPassword').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+        
+        if (newPassword !== confirmNewPassword) {
+            showNotification('New passwords do not match.', 'error');
+            return;
+        }
+        
+        if (newPassword.length < 8) {
+            showNotification('New password must be at least 8 characters long.', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/admin/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ .CSRFToken }}'
+                },
+                body: JSON.stringify({
+                    currentPassword: currentPassword,
+                    newPassword: newPassword
+                })
+            });
+            
+            if (response.ok) {
+                showNotification('Password changed successfully!', 'success');
+                passwordForm.reset();
+            } else {
+                const error = await response.text();
+                showNotification(error, 'error');
+            }
+        } catch (error) {
+            showNotification(`Error: ${error.message}`, 'error');
+        }
+    });
+}
+
+// Image Upload Handlers
+function initializeImageUploads() {
+    const fileInputs = ['footerImage', 'favicon', 'metaImage'];
+    
+    fileInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const previewId = inputId + 'Preview'; 
+                const statusId = inputId + 'Status';
+                
+                const preview = document.getElementById(previewId);
+                const status = document.getElementById(statusId);
+                
+                if (file) {
+                    // Validate file size (1MB max)
+                    if (file.size > 1024 * 1024) {
+                        if (status) {
+                            status.className = 'image-upload-status error';
+                            status.textContent = 'File size must be less than 1MB';
+                        }
+                        input.value = '';
+                        return;
+                    }
+                    
+                    // Validate file type
+                    const validTypes = inputId === 'favicon' 
+                        ? ['image/x-icon', 'image/vnd.microsoft.icon', 'image/png']
+                        : ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                        
+                    if (!validTypes.includes(file.type)) {
+                        if (status) {
+                            status.className = 'image-upload-status error';
+                            status.textContent = inputId === 'favicon' 
+                                ? 'Please select an ICO or PNG file'
+                                : 'Please select a valid image file';
+                        }
+                        input.value = '';
+                        return;
+                    }
+                    
+                    // Show success status
+                    if (status) {
+                        status.className = 'image-upload-status success';
+                        status.textContent = `Selected: ${file.name}`;
+                    }
+                    
+                    // Show preview
+                    if (preview) {
+                        preview.style.display = 'block';
+                        const img = preview.querySelector('img');
+                        if (img) {
+                            const reader = new FileReader();
+                            reader.onload = function(e) {
+                                img.src = e.target.result;
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    }
+                } else {
+                    // Clear preview and status
+                    if (preview) preview.style.display = 'none';
+                    if (status) {
+                        status.className = 'image-upload-status';
+                        status.textContent = '';
+                    }
+                }
+            });
+        }
+    });
+}
+
+// Backup System
+function initializeBackupSystem() {
+    // Export backup functionality is handled by the global function
+    // Import is handled by the global handleImport function
+}
+
+// === FILTER MANAGEMENT SYSTEM ===
+let currentEditingGroupId = null;
+let currentEditingFilterId = null;
+let currentDeletingFilterId = null;
+let currentDeletingGroupId = null;
+let availableFilters = [];
+
+function initializeFilterSystem() {
+    // Setup modal handlers
+    setupModalHandlers();
+    
+    // Setup drag and drop
+    setupDragAndDrop();
+    
+    // Setup operator change handlers
+    setupOperatorChangeHandlers();
+    
+    // Load filters data
+    loadFiltersData();
+}
+
+function setupModalHandlers() {
+    // Close modals when clicking outside
+    window.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal')) {
+            closeModal(e.target.id);
+        }
+    });
+    
+    // Close modals with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const openModal = document.querySelector('.modal[style*="block"]');
+            if (openModal) {
+                closeModal(openModal.id);
+            }
+        }
+    });
+}
+
+function setupDragAndDrop() {
+    const filterCards = document.querySelectorAll('.filter-card');
+    
+    filterCards.forEach(card => {
+        card.addEventListener('dragstart', handleDragStart);
+        card.addEventListener('dragend', handleDragEnd);
+    });
+    
+    const groupCards = document.querySelectorAll('.filter-group-card');
+    groupCards.forEach(group => {
+        group.addEventListener('dragover', handleDragOver);
+        group.addEventListener('drop', handleDrop);
+    });
+}
+
+function setupOperatorChangeHandlers() {
+    // Use event delegation to handle operator changes for dynamically created elements
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('assignment-operator')) {
+            const filterId = e.target.dataset.filterId;
+            const newOperator = e.target.value;
+            updateFilterOperator(filterId, newOperator);
+        }
+    });
+}
+
+function handleDragStart(e) {
+    e.dataTransfer.setData('text/plain', e.target.dataset.filterId);
+    e.target.style.opacity = '0.5';
+}
+
+function handleDragEnd(e) {
+    e.target.style.opacity = '1';
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.style.borderColor = '#67bb79';
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.style.borderColor = '#2a3450';
+    
+    const filterId = e.dataTransfer.getData('text/plain');
+    const groupId = e.currentTarget.dataset.groupId;
+    
+    if (filterId && groupId) {
+        addFilterToGroup(filterId, groupId);
+    }
+}
+
+async function loadFiltersData() {
+    try {
+        const response = await fetch('/admin/filters');
+        if (response.ok) {
+            availableFilters = await response.json();
+        }
+    } catch (error) {
+        console.error('Error loading filters:', error);
+    }
+}
+
+// Modal Functions
+function showCreateGroupModal() {
+    document.getElementById('createGroupModal').style.display = 'block';
+    document.getElementById('modalGroupName').focus();
+}
+
+function showCreateFilterModal() {
+    document.getElementById('createFilterModal').style.display = 'block';
+    document.getElementById('modalFilterName').focus();
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+    
+    // Reset form fields
+    const modal = document.getElementById(modalId);
+    const inputs = modal.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        if (input.type === 'checkbox') {
+            input.checked = input.id === 'modalGroupActive';
+        } else if (input.type === 'number') {
+            input.value = input.id === 'modalGroupPriority' ? '0' : '';
+        } else {
+            input.value = '';
+        }
+    });
+    
+    // Clear editing states
+    if (modalId === 'editGroupModal') {
+        currentEditingGroupId = null;
+    }
+    if (modalId === 'editFilterModal') {
+        currentEditingFilterId = null;
+    }
+    if (modalId === 'deleteFilterModal') {
+        currentDeletingFilterId = null;
+    }
+    if (modalId === 'deleteGroupModal') {
+        currentDeletingGroupId = null;
+    }
+}
+
+// Group Management Functions
+async function saveGroup() {
+    const name = document.getElementById('modalGroupName').value.trim();
+    const action = document.getElementById('modalGroupAction').value;
+    const priority = parseInt(document.getElementById('modalGroupPriority').value) || 0;
+    const isActive = document.getElementById('modalGroupActive').checked;
+    
+    if (!name) {
+        showNotification('Please enter a group name', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/admin/filter-groups', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                name: name,
+                action: action,
+                priority: priority,
+                is_active: isActive
+            })
+        });
+        
+        if (response.ok) {
+            showNotification('Filter group created successfully', 'success');
+            closeModal('createGroupModal');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const error = await response.text();
+            showNotification(`Error creating group: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error creating group: ${error.message}`, 'error');
+    }
+}
+
+async function editGroup(groupId) {
+    currentEditingGroupId = groupId;
+    
+    try {
+        const response = await fetch(`/admin/filter-groups/${groupId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch group data');
+        }
+        
+        const result = await response.json();
+        const group = result.data || result;
+        
+        // Populate form
+        document.getElementById('editGroupName').value = group.name;
+        document.getElementById('editGroupAction').value = group.action;
+        document.getElementById('editGroupPriority').value = group.priority;
+        document.getElementById('editGroupActive').checked = group.is_active;
+        
+        // Update modal title
+        document.getElementById('editGroupModalTitle').textContent = `Edit Filter Group: ${group.name}`;
+        
+        // Load filters for assignment
+        await loadFiltersForAssignment(groupId);
+        
+        // Show modal
+        document.getElementById('editGroupModal').style.display = 'block';
+        
+    } catch (error) {
+        showNotification(`Error loading group: ${error.message}`, 'error');
+    }
+}
+
+async function updateGroup() {
+    if (!currentEditingGroupId) return;
+    
+    const name = document.getElementById('editGroupName').value.trim();
+    const action = document.getElementById('editGroupAction').value;
+    const priority = parseInt(document.getElementById('editGroupPriority').value) || 0;
+    const isActive = document.getElementById('editGroupActive').checked;
+    
+    if (!name) {
+        showNotification('Please enter a group name', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/filter-groups/${currentEditingGroupId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                name: name,
+                action: action,
+                priority: priority,
+                is_active: isActive
+            })
+        });
+        
+        if (response.ok) {
+            showNotification('Filter group updated successfully', 'success');
+            closeModal('editGroupModal');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const error = await response.text();
+            showNotification(`Error updating group: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error updating group: ${error.message}`, 'error');
+    }
+}
+
+async function toggleGroup(groupId, currentStatus) {
+    try {
+        // First fetch the current group data
+        const getResponse = await fetch(`/admin/filter-groups/${groupId}`);
+        if (!getResponse.ok) {
+            throw new Error('Failed to fetch group data');
+        }
+        
+        const result = await getResponse.json();
+        const group = result.data;
+        
+        // Update with toggled status
+        const response = await fetch(`/admin/filter-groups/${groupId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                name: group.name,
+                action: group.action,
+                priority: group.priority,
+                is_active: !currentStatus
+            })
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            const error = await response.text();
+            showNotification(`Error toggling group: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error toggling group: ${error.message}`, 'error');
+    }
+}
+
+async function deleteGroup(groupId) {
+    try {
+        // Fetch the group data to show in the confirmation modal
+        const response = await fetch(`/admin/filter-groups/${groupId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch group data');
+        }
+        
+        const result = await response.json();
+        const group = result.data;
+        
+        // Populate the delete modal with group info
+        const groupInfo = document.getElementById('deleteGroupInfo');
+        groupInfo.innerHTML = `
+            <h5>${group.name}</h5>
+            <div class="description">
+                Action: <span class="action-badge ${group.action}">${group.action.toUpperCase()}</span> | 
+                Priority: <span class="priority-badge">P${group.priority}</span>
+            </div>
+        `;
+        
+        // Store the group ID for the confirmation function
+        currentDeletingGroupId = groupId;
+        
+        // Show the modal
+        document.getElementById('deleteGroupModal').style.display = 'block';
+        
+    } catch (error) {
+        showNotification(`Error loading group: ${error.message}`, 'error');
+    }
+}
+
+async function confirmDeleteGroup() {
+    if (!currentDeletingGroupId) {
+        showNotification('No group selected for deletion', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/filter-groups/${currentDeletingGroupId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            }
+        });
+        
+        if (response.ok) {
+            showNotification('Filter group deleted successfully', 'success');
+            closeModal('deleteGroupModal');
+            currentDeletingGroupId = null;
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const error = await response.text();
+            showNotification(`Error deleting group: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error deleting group: ${error.message}`, 'error');
+    }
+}
+
+// Filter Management Functions
+async function saveFilter() {
+    const name = document.getElementById('modalFilterName').value.trim();
+    const pattern = document.getElementById('modalFilterPattern').value.trim();
+    const type = document.getElementById('modalFilterType').value;
+    const caseSensitive = document.getElementById('modalFilterCaseSensitive').checked;
+    
+    if (!name || !pattern) {
+        showNotification('Please enter both name and pattern', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/admin/filters', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                name: name,
+                pattern: pattern,
+                pattern_type: type,
+                case_sensitive: caseSensitive
+            })
+        });
+        
+        if (response.ok) {
+            showNotification('Filter created successfully', 'success');
+            closeModal('createFilterModal');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const error = await response.text();
+            showNotification(`Error creating filter: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error creating filter: ${error.message}`, 'error');
+    }
+}
+
+async function editFilter(filterId) {
+    try {
+        // Fetch the filter data
+        const response = await fetch(`/admin/filters/${filterId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch filter data');
+        }
+        
+        const result = await response.json();
+        const filter = result.data;
+        
+        // Populate the edit modal with current values
+        document.getElementById('editFilterName').value = filter.name;
+        document.getElementById('editFilterPattern').value = filter.pattern;
+        document.getElementById('editFilterType').value = filter.pattern_type;
+        document.getElementById('editFilterCaseSensitive').checked = filter.case_sensitive;
+        
+        // Store the filter ID for the update function
+        currentEditingFilterId = filterId;
+        
+        // Show the modal
+        document.getElementById('editFilterModal').style.display = 'block';
+        document.getElementById('editFilterName').focus();
+        
+    } catch (error) {
+        showNotification(`Error loading filter: ${error.message}`, 'error');
+    }
+}
+
+async function updateFilter() {
+    const name = document.getElementById('editFilterName').value.trim();
+    const pattern = document.getElementById('editFilterPattern').value.trim();
+    const type = document.getElementById('editFilterType').value;
+    const caseSensitive = document.getElementById('editFilterCaseSensitive').checked;
+    
+    if (!name || !pattern) {
+        showNotification('Please enter both name and pattern', 'error');
+        return;
+    }
+    
+    if (!currentEditingFilterId) {
+        showNotification('No filter selected for editing', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/filters/${currentEditingFilterId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                name: name,
+                pattern: pattern,
+                pattern_type: type,
+                case_sensitive: caseSensitive
+            })
+        });
+        
+        if (response.ok) {
+            showNotification('Filter updated successfully', 'success');
+            closeModal('editFilterModal');
+            currentEditingFilterId = null;
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const error = await response.text();
+            showNotification(`Error updating filter: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error updating filter: ${error.message}`, 'error');
+    }
+}
+
+async function deleteFilter(filterId) {
+    try {
+        // Fetch the filter data to show in the confirmation modal
+        const response = await fetch(`/admin/filters/${filterId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch filter data');
+        }
+        
+        const result = await response.json();
+        const filter = result.data;
+        
+        // Populate the delete modal with filter info
+        const filterInfo = document.getElementById('deleteFilterInfo');
+        filterInfo.innerHTML = `
+            <h5>${filter.name}</h5>
+            <div class="pattern">${filter.pattern}</div>
+            <div class="filter-meta">
+                <span class="type-badge ${filter.pattern_type}">${filter.pattern_type.toUpperCase()}</span>
+                ${filter.case_sensitive ? '<span class="feature-badge">Case Sensitive</span>' : ''}
+            </div>
+        `;
+        
+        // Store the filter ID for the confirmation function
+        currentDeletingFilterId = filterId;
+        
+        // Show the modal
+        document.getElementById('deleteFilterModal').style.display = 'block';
+        
+    } catch (error) {
+        showNotification(`Error loading filter: ${error.message}`, 'error');
+    }
+}
+
+async function confirmDeleteFilter() {
+    if (!currentDeletingFilterId) {
+        showNotification('No filter selected for deletion', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/filters/${currentDeletingFilterId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            }
+        });
+        
+        if (response.ok) {
+            showNotification('Filter deleted successfully', 'success');
+            closeModal('deleteFilterModal');
+            currentDeletingFilterId = null;
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const error = await response.text();
+            showNotification(`Error deleting filter: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error deleting filter: ${error.message}`, 'error');
+    }
+}
+
+// Filter Assignment Functions
+async function loadFiltersForAssignment(groupId) {
+    try {
+        // Load all filters
+        const filtersResponse = await fetch('/admin/filters');
+        const filtersResult = await filtersResponse.json();
+        availableFilters = filtersResult.data || filtersResult;
+        
+        // Load group rules
+        const rulesResponse = await fetch(`/admin/filter-groups/${groupId}/rules`);
+        const rulesResult = await rulesResponse.json();
+        const groupRules = rulesResult.data || rulesResult;
+        
+        renderFilterAssignment(groupRules);
+        
+    } catch (error) {
+        showNotification(`Error loading filters: ${error.message}`, 'error');
+    }
+}
+
+function renderFilterAssignment(assignedRules) {
+    const assignedContainer = document.getElementById('assignedFilters');
+    const availableContainer = document.getElementById('availableFilters');
+    
+    if (!assignedContainer || !availableContainer) return;
+    
+    // Clear containers
+    assignedContainer.innerHTML = '';
+    availableContainer.innerHTML = '';
+    
+    // Ensure assignedRules is an array
+    if (!Array.isArray(assignedRules)) {
+        assignedRules = [];
+    }
+    
+    // Get assigned filter IDs
+    const assignedIds = assignedRules.map(rule => rule.filter_id);
+    
+    // Render assigned filters
+    assignedRules.forEach((rule, index) => {
+        const filter = availableFilters.find(f => f.id === rule.filter_id);
+        if (filter) {
+            assignedContainer.appendChild(createAssignmentItem(filter, true, rule.operator, index));
+        }
+    });
+    
+    // Render available filters
+    availableFilters.forEach(filter => {
+        if (!assignedIds.includes(filter.id)) {
+            availableContainer.appendChild(createAssignmentItem(filter, false));
+        }
+    });
+    
+    if (assignedContainer.children.length === 0) {
+        assignedContainer.innerHTML = '<div class="empty-state small">No filters assigned</div>';
+    }
+    
+    if (availableContainer.children.length === 0) {
+        availableContainer.innerHTML = '<div class="empty-state small">No available filters</div>';
+    }
+}
+
+function createAssignmentItem(filter, isAssigned, operator = 'AND', position = 0) {
+    const item = document.createElement('div');
+    item.className = 'filter-assignment-item';
+    
+    // For assigned filters, show operator before the filter (except for the first one)
+    const operatorHTML = isAssigned && position > 0 ? `
+        <div class="logic-operator-section">
+            <select class="assignment-operator" data-filter-id="${filter.id}">
+                <option value="AND" ${operator === 'AND' ? 'selected' : ''}>AND</option>
+                <option value="OR" ${operator === 'OR' ? 'selected' : ''}>OR</option>
+            </select>
+        </div>
+    ` : '';
+    
+    item.innerHTML = `
+        ${operatorHTML}
+        <div class="assignment-info">
+            <div class="assignment-name">${filter.name}</div>
+            <div class="assignment-pattern">${filter.pattern}</div>
+        </div>
+        <div class="assignment-actions">
+            ${isAssigned ? `
+                <button class="assignment-btn" onclick="removeFilterFromGroup(${filter.id})">Remove</button>
+            ` : `
+                <button class="assignment-btn primary" onclick="addFilterToGroup(${filter.id}, ${currentEditingGroupId})">Add</button>
+            `}
+        </div>
+    `;
+    
+    return item;
+}
+
+async function addFilterToGroup(filterId, groupId) {
+    try {
+        // First, get current rules
+        const rulesResponse = await fetch(`/admin/filter-groups/${groupId}/rules`);
+        const rulesResult = await rulesResponse.json();
+        const currentRules = rulesResult.data || rulesResult || [];
+        
+        // Debug logging
+        console.log('Rules response:', rulesResponse.ok);
+        console.log('Rules result:', rulesResult);
+        console.log('Current rules:', currentRules);
+        console.log('Is array?', Array.isArray(currentRules));
+        
+        // Ensure currentRules is an array
+        const rulesArray = Array.isArray(currentRules) ? currentRules : [];
+        
+        // Check if filter is already assigned
+        if (rulesArray.some(rule => rule.filter_id === parseInt(filterId))) {
+            showNotification('Filter already assigned to this group', 'error');
+            return;
+        }
+        
+        // Add the new rule
+        const newRules = [
+            ...rulesArray.map((rule, index) => ({
+                filter_id: rule.filter_id,
+                operator: rule.operator,
+                position: index
+            })),
+            {
+                filter_id: parseInt(filterId),
+                operator: rulesArray.length === 0 ? 'AND' : 'OR', // First filter gets 'AND', subsequent ones default to 'OR'
+                position: rulesArray.length
+            }
+        ];
+        
+        // Update the group rules
+        const response = await fetch(`/admin/filter-groups/${groupId}/rules`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                rules: newRules
+            })
+        });
+        
+        if (response.ok) {
+            showNotification('Filter added to group', 'success');
+            if (currentEditingGroupId) {
+                await loadFiltersForAssignment(currentEditingGroupId);
+            }
+        } else {
+            const error = await response.text();
+            showNotification(`Error adding filter: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error adding filter: ${error.message}`, 'error');
+    }
+}
+
+async function updateFilterOperator(filterId, newOperator) {
+    if (!currentEditingGroupId) return;
+    
+    try {
+        // Validate operator
+        if (newOperator !== 'AND' && newOperator !== 'OR') {
+            showNotification('Invalid operator. Must be AND or OR.', 'error');
+            return;
+        }
+        
+        // Get current rules
+        const rulesResponse = await fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`);
+        if (!rulesResponse.ok) {
+            throw new Error(`Failed to fetch current rules: ${rulesResponse.status}`);
+        }
+        
+        const rulesResult = await rulesResponse.json();
+        const currentRules = rulesResult.data || rulesResult || [];
+        const rulesArray = Array.isArray(currentRules) ? currentRules : [];
+        
+        // Find and update the operator for the specific filter
+        const updatedRules = rulesArray.map((rule, index) => ({
+            filter_id: rule.filter_id,
+            operator: rule.filter_id === parseInt(filterId) ? newOperator : rule.operator,
+            position: index
+        }));
+        
+        // Validate that we found the filter to update
+        const foundFilter = updatedRules.find(rule => rule.filter_id === parseInt(filterId));
+        if (!foundFilter) {
+            throw new Error('Filter not found in group rules');
+        }
+        
+        // Save the updated rules
+        const response = await fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                rules: updatedRules
+            })
+        });
+        
+        if (response.ok) {
+            showNotification(`Operator updated to ${newOperator}`, 'success');
+        } else {
+            const errorText = await response.text();
+            throw new Error(errorText || `Server error: ${response.status}`);
+        }
+    } catch (error) {
+        console.error('Error updating operator:', error);
+        showNotification(`Error updating operator: ${error.message}`, 'error');
+        // Reload the assignment view to revert the dropdown
+        if (currentEditingGroupId) {
+            await loadFiltersForAssignment(currentEditingGroupId);
+        }
+    }
+}
+
+async function removeFilterFromGroup(filterId) {
+    if (!currentEditingGroupId) return;
+    
+    try {
+        // First, get current rules
+        const rulesResponse = await fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`);
+        const rulesResult = await rulesResponse.json();
+        const currentRules = rulesResult.data || rulesResult || [];
+        
+        // Ensure currentRules is an array
+        const rulesArray = Array.isArray(currentRules) ? currentRules : [];
+        
+        // Remove the filter and update positions
+        const newRules = rulesArray
+            .filter(rule => rule.filter_id !== parseInt(filterId))
+            .map((rule, index) => ({
+                filter_id: rule.filter_id,
+                operator: rule.operator,
+                position: index
+            }));
+        
+        // Update the group rules
+        const response = await fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                rules: newRules
+            })
+        });
+        
+        if (response.ok) {
+            showNotification('Filter removed from group', 'success');
+            await loadFiltersForAssignment(currentEditingGroupId);
+        } else {
+            const error = await response.text();
+            showNotification(`Error removing filter: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error removing filter: ${error.message}`, 'error');
+    }
+}
+
+async function addFiltersToGroup(groupId) {
+    currentEditingGroupId = groupId;
+    
+    try {
+        // Fetch group data to get the name
+        const groupResponse = await fetch(`/admin/filter-groups/${groupId}`);
+        if (!groupResponse.ok) {
+            throw new Error('Failed to fetch group data');
+        }
+        
+        const groupResult = await groupResponse.json();
+        const group = groupResult.data || groupResult;
+        
+        // Update modal title
+        document.getElementById('editGroupModalTitle').textContent = `Add Filters to Group: ${group.name}`;
+        
+        // Clear the form fields since we're just adding filters
+        document.getElementById('editGroupName').value = group.name;
+        document.getElementById('editGroupAction').value = group.action;
+        document.getElementById('editGroupPriority').value = group.priority;
+        document.getElementById('editGroupActive').checked = group.is_active;
+        
+        // Load filters for assignment
+        await loadFiltersForAssignment(groupId);
+        document.getElementById('editGroupModal').style.display = 'block';
+        
+    } catch (error) {
+        showNotification(`Error loading group: ${error.message}`, 'error');
+    }
+}
+
+// Backup functions (global scope for onclick handlers)
+async function exportBackup() {
+    try {
+        const response = await fetch('/admin/backup/export', {
+            headers: {
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            }
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `infoscope-backup-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showNotification('Backup exported successfully', 'success');
+        } else {
+            const error = await response.text();
+            showNotification(`Export failed: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Export error: ${error.message}`, 'error');
+    }
+}
+
+async function handleImport() {
+    const fileInput = document.getElementById('importFile');
+    const file = fileInput.files[0];
+    
+    if (!file) return;
+    
+    if (!confirm('This will replace all current data. Are you sure?')) {
+        fileInput.value = '';
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('backup', file);
+        
+        const response = await fetch('/admin/backup/import', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: formData
+        });
+        
+        if (response.ok) {
+            showNotification('Backup imported successfully. Reloading...', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            const error = await response.text();
+            showNotification(`Import failed: ${error}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`Import error: ${error.message}`, 'error');
+    } finally {
+        fileInput.value = '';
+    }
+}
+
+// Notification system
+function showNotification(message, type) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()">&times;</button>
+    `;
+    
+    // Add styles
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        border-radius: 4px;
+        color: white;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.9rem;
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease;
+    `;
+    
+    // Type-specific styling
+    switch (type) {
+        case 'success':
+            notification.style.background = '#67bb79';
+            notification.style.color = '#121a2b';
+            break;
+        case 'error':
+            notification.style.background = '#ff6b6b';
+            break;
+        case 'info':
+            notification.style.background = '#7da9b7';
+            notification.style.color = '#121a2b';
+            break;
+    }
+    
+    // Add to page
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 5000);
+}
+
+// Add CSS for notification animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+    .notification button {
+        background: none;
+        border: none;
+        color: inherit;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.8);
+        backdrop-filter: blur(3px);
+    }
+    
+    .modal-content {
+        background: linear-gradient(135deg, #1a2438 0%, #243248 100%);
+        border: 1px solid #2a3450;
+        border-radius: 6px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        margin: 5% auto;
+        padding: 0;
+        width: 90%;
+        max-width: 600px;
+        color: #c7d2fe;
+        font-family: 'Courier New', Courier, monospace;
+    }
+    
+    .modal-large {
+        max-width: 900px;
+    }
+    
+    .modal-header {
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid #2a3450;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .modal-header h3 {
+        margin: 0;
+        color: #67bb79;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+    
+    .modal-close {
+        background: none;
+        border: none;
+        color: #c7d2fe;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 3px;
+        transition: all 0.2s ease;
+    }
+    
+    .modal-close:hover {
+        background: rgba(255,255,255,0.1);
+        color: #ff6b6b;
+    }
+    
+    .modal-body {
+        padding: 2rem;
+    }
+    
+    .modal-form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .modal-form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #67bb79;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+    
+    .modal-form-group input,
+    .modal-form-group select {
+        width: 100%;
+        padding: 0.7rem;
+        border: 1px solid #2a3450;
+        border-radius: 4px;
+        background: #121a2b;
+        color: #c7d2fe;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.9rem;
+    }
+    
+    .modal-form-group input:focus,
+    .modal-form-group select:focus {
+        outline: none;
+        border-color: #67bb79;
+        box-shadow: 0 0 0 2px rgba(103, 187, 121, 0.2);
+    }
+    
+    .form-help {
+        font-size: 0.8rem;
+        color: #7da9b7;
+        margin-top: 0.3rem;
+        font-style: italic;
+    }
+    
+    .checkbox-label {
+        display: flex !important;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+    
+    .checkbox-label input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+    }
+    
+    .modal-footer {
+        padding: 1.5rem 2rem;
+        border-top: 1px solid #2a3450;
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+    }
+    
+    .filter-assignment {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #2a3450;
+    }
+    
+    .filter-assignment h4 {
+        color: #67bb79;
+        margin-bottom: 1rem;
+        font-size: 1rem;
+    }
+    
+    .assigned-filters,
+    .available-filters {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #2a3450;
+        border-radius: 4px;
+        background: #121a2b;
+        margin-bottom: 1.5rem;
+    }
+    
+    .filter-assignment-item {
+        display: flex;
+        align-items: center;
+        padding: 0.8rem;
+        border-bottom: 1px solid #1a2438;
+        gap: 0.5rem;
+    }
+    
+    .filter-assignment-item:last-child {
+        border-bottom: none;
+    }
+    
+    .assignment-info {
+        flex: 1;
+    }
+    
+    .assignment-name {
+        font-weight: bold;
+        color: #c7d2fe;
+        margin-bottom: 0.2rem;
+    }
+    
+    .assignment-pattern {
+        font-size: 0.8rem;
+        color: #7da9b7;
+        font-family: monospace;
+    }
+    
+    .assignment-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-left: auto;
+    }
+    
+    .assignment-operator {
+        padding: 0.5rem 0.7rem;
+        border: 1px solid #2a3450;
+        border-radius: 4px;
+        background: #121a2b;
+        color: #c7d2fe;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.8rem;
+        width: auto;
+        min-width: 80px;
+        transition: all 0.2s ease;
+    }
+    
+    .assignment-operator:focus {
+        outline: none;
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+    }
+    
+    .assignment-btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+        border: 1px solid #2a3450;
+        border-radius: 3px;
+        background: #1a2438;
+        color: #c7d2fe;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .assignment-btn:hover {
+        background: #2a3450;
+        border-color: #67bb79;
+    }
+    
+    .assignment-btn.primary {
+        background: #67bb79;
+        color: #121a2b;
+        border-color: #67bb79;
+    }
+    
+    .assignment-btn.primary:hover {
+        background: #7cc98a;
+        border-color: #7cc98a;
+    }
+    
+    .logic-operator-section {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem;
+        margin-right: 1rem;
+        background: rgba(103, 187, 121, 0.1);
+        border-radius: 4px;
+        border: 1px solid rgba(103, 187, 121, 0.3);
+    }
+    
+    .logic-operator-section .assignment-operator {
+        background: transparent;
+        border: none;
+        color: #67bb79;
+        font-weight: 600;
+        padding: 0.2rem 0.4rem;
+        font-size: 0.8rem;
+    }
+    
+    .logic-operator-section .assignment-operator:focus {
+        box-shadow: none;
+        outline: 1px solid #67bb79;
+    }
+    
+    .empty-state.small {
+        padding: 2rem;
+        text-align: center;
+        color: #7da9b7;
+        font-style: italic;
+    }
+`;
+document.head.appendChild(style);
+
 </script>
+
+<!-- Create Filter Group Modal -->
+<div id="createGroupModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Create Filter Group</h3>
+            <button class="modal-close" onclick="closeModal('createGroupModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-form-group">
+                <label for="modalGroupName">Group Name:</label>
+                <input type="text" id="modalGroupName" placeholder="Enter group name">
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="modalGroupAction">Action:</label>
+                <select id="modalGroupAction">
+                    <option value="keep">Keep (show matching entries)</option>
+                    <option value="discard">Discard (hide matching entries)</option>
+                </select>
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="modalGroupPriority">Priority:</label>
+                <input type="number" id="modalGroupPriority" value="0" min="0">
+                <div class="form-help">Higher priority groups are processed first</div>
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="modalGroupActive" checked>
+                    Active
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn secondary" onclick="closeModal('createGroupModal')">Cancel</button>
+            <button type="button" class="btn primary" onclick="saveGroup()">Create Group</button>
+        </div>
+    </div>
+</div>
+
+<!-- Create Filter Modal -->
+<div id="createFilterModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Create Filter</h3>
+            <button class="modal-close" onclick="closeModal('createFilterModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-form-group">
+                <label for="modalFilterName">Filter Name:</label>
+                <input type="text" id="modalFilterName" placeholder="Enter filter name">
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="modalFilterPattern">Pattern:</label>
+                <input type="text" id="modalFilterPattern" placeholder="Enter search pattern">
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="modalFilterType">Pattern Type:</label>
+                <select id="modalFilterType">
+                    <option value="keyword">Keyword</option>
+                    <option value="regex">Regular Expression</option>
+                </select>
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="modalFilterCaseSensitive">
+                    Case Sensitive
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn secondary" onclick="closeModal('createFilterModal')">Cancel</button>
+            <button type="button" class="btn primary" onclick="saveFilter()">Create Filter</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Filter Modal -->
+<div id="editFilterModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Filter</h3>
+            <button class="modal-close" onclick="closeModal('editFilterModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-form-group">
+                <label for="editFilterName">Filter Name:</label>
+                <input type="text" id="editFilterName" placeholder="Enter filter name">
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="editFilterPattern">Pattern:</label>
+                <input type="text" id="editFilterPattern" placeholder="Enter search pattern">
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="editFilterType">Pattern Type:</label>
+                <select id="editFilterType">
+                    <option value="keyword">Keyword</option>
+                    <option value="regex">Regular Expression</option>
+                </select>
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="editFilterCaseSensitive">
+                    Case Sensitive
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn secondary" onclick="closeModal('editFilterModal')">Cancel</button>
+            <button type="button" class="btn primary" onclick="updateFilter()">Update Filter</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Group Modal -->
+<div id="editGroupModal" class="modal">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3 id="editGroupModalTitle">Edit Filter Group</h3>
+            <button class="modal-close" onclick="closeModal('editGroupModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-form-group">
+                <label for="editGroupName">Group Name:</label>
+                <input type="text" id="editGroupName" placeholder="Enter group name">
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="editGroupAction">Action:</label>
+                <select id="editGroupAction">
+                    <option value="keep">Keep (show matching entries)</option>
+                    <option value="discard">Discard (hide matching entries)</option>
+                </select>
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="editGroupPriority">Priority:</label>
+                <input type="number" id="editGroupPriority" value="0" min="0">
+                <div class="form-help">Higher priority groups are processed first</div>
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="editGroupActive">
+                    Active
+                </label>
+            </div>
+            
+            <!-- Filter Assignment Section -->
+            <div class="filter-assignment">
+                <h4>Assigned Filters</h4>
+                <div class="assigned-filters" id="assignedFilters">
+                    <!-- Dynamically populated -->
+                </div>
+                
+                <h4>Available Filters</h4>
+                <div class="available-filters" id="availableFilters">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn secondary" onclick="closeModal('editGroupModal')">Cancel</button>
+            <button type="button" class="btn primary" onclick="updateGroup()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Filter Modal -->
+<div id="deleteFilterModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Delete Filter</h3>
+            <button class="modal-close" onclick="closeModal('deleteFilterModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to delete this filter?</p>
+            <p><strong>Warning:</strong> This filter will be removed from all groups that use it.</p>
+            <div id="deleteFilterInfo" class="filter-info">
+                <!-- Filter details will be populated here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn secondary" onclick="closeModal('deleteFilterModal')">Cancel</button>
+            <button type="button" class="btn primary danger" onclick="confirmDeleteFilter()">Delete Filter</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Group Modal -->
+<div id="deleteGroupModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Delete Group</h3>
+            <button class="modal-close" onclick="closeModal('deleteGroupModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to delete this filter group?</p>
+            <p><strong>Warning:</strong> This action cannot be undone.</p>
+            <div id="deleteGroupInfo" class="group-info">
+                <!-- Group details will be populated here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn secondary" onclick="closeModal('deleteGroupModal')">Cancel</button>
+            <button type="button" class="btn primary danger" onclick="confirmDeleteGroup()">Delete Group</button>
+        </div>
+    </div>
+</div>
+
 {{ end }}

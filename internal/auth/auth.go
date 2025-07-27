@@ -37,5 +37,6 @@ func CleanExpiredSessions(db *sql.DB) error {
 }
 
 func (s *Session) IsExpired() bool {
-	return s.ExpiresAt.Before(time.Now())
+	now := time.Now()
+	return s.ExpiresAt.Before(now) || s.ExpiresAt.Equal(now)
 }

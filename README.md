@@ -193,9 +193,110 @@ Production mode: Enforces HTTPS-only features including strict CSRF protection
 4. Manage feeds:
    - Add/remove feeds
    - Preview feed content before adding
-5. Backup/restore:
+5. **Entry Filtering System:**
+   - Create custom filters to automatically keep or discard entries based on title patterns
+   - Support for both keyword matching and regular expressions
+   - Advanced boolean logic with AND/OR operators for complex filtering rules
+   - Filter groups with customizable priority ordering
+   - Real-time filtering with intelligent caching for optimal performance
+6. Backup/restore:
    - Export settings and feed lists
    - Import configuration from backup
+
+## Entry Filtering System
+
+Infoscope includes a powerful filtering system that allows administrators to automatically curate content by keeping or discarding entries based on title patterns. This helps maintain high-quality content streams and reduces information noise.
+
+### Key Features
+
+- **Pattern Matching**: Create filters using either simple keyword matching or advanced regular expressions
+- **Boolean Logic**: Combine multiple filters with AND/OR operators for sophisticated filtering rules
+- **Action Control**: Choose whether matching entries should be kept or discarded
+- **Priority System**: Order filter groups by priority to control evaluation sequence
+- **Real-time Processing**: Filters are applied automatically as new entries are fetched
+- **Performance Optimized**: Intelligent caching system ensures fast filtering without impacting feed updates
+
+### How It Works
+
+The filtering system operates in two levels:
+
+1. **Entry Filters**: Individual pattern-based filters that match against entry titles
+2. **Filter Groups**: Collections of entry filters combined with boolean logic
+
+### Creating Entry Filters
+
+Entry filters are the building blocks of the filtering system. Each filter defines:
+
+- **Name**: A descriptive name for easy identification
+- **Pattern**: The text or regex pattern to match against entry titles
+- **Pattern Type**: Either "keyword" for simple text matching or "regex" for regular expressions
+- **Case Sensitivity**: Whether matching should be case-sensitive
+
+**Examples:**
+- Keyword filter: Pattern "AI" matches titles containing "AI", "artificial intelligence", etc.
+- Regex filter: Pattern `(?i)\b(crypto|bitcoin|blockchain)\b` matches cryptocurrency-related terms (case-insensitive)
+
+### Building Filter Groups
+
+Filter groups combine multiple entry filters using boolean logic:
+
+- **Group Name**: Descriptive name for the filter group
+- **Action**: Choose "keep" (only show matching entries) or "discard" (hide matching entries)
+- **Priority**: Lower numbers = higher priority (evaluated first)
+- **Active Status**: Enable/disable the entire group
+- **Filter Rules**: The actual filters and their boolean relationships
+
+### Boolean Logic
+
+The system supports sophisticated boolean combinations:
+
+- **AND**: All connected filters must match
+- **OR**: Any of the connected filters can match
+- **Mixed Logic**: Combine AND/OR operators for complex rules
+
+**Example Filter Group Logic:**
+```
+Filter A AND Filter B OR Filter C
+```
+This matches entries that either:
+- Match both Filter A AND Filter B, OR
+- Match Filter C
+
+### User Interface
+
+The admin interface provides an intuitive way to manage filters:
+
+1. **Filter Management**: Create, edit, and delete individual entry filters
+2. **Group Builder**: Visual interface for creating filter groups with drag-and-drop filter assignment
+3. **Logic Designer**: Point-and-click boolean operator selection with visual feedback
+4. **Testing Tools**: Preview how filters will affect your content before activation
+
+### Performance Considerations
+
+The filtering system is designed for efficiency:
+
+- **Caching**: Filter results are cached for 5 minutes to reduce computation overhead
+- **Smart Evaluation**: Boolean logic uses short-circuit evaluation for optimal performance
+- **Batch Processing**: Filters are applied during feed updates, not on every page load
+- **Memory Management**: Cache is automatically invalidated when filter rules change
+
+### Best Practices
+
+1. **Start Simple**: Begin with basic keyword filters before moving to complex regex patterns
+2. **Test Thoroughly**: Use the preview functionality to verify filter behavior
+3. **Order Matters**: Set priorities carefully - higher priority groups are evaluated first
+4. **Monitor Impact**: Regularly review filtered content to ensure desired results
+5. **Combine Actions**: Use both "keep" and "discard" groups for fine-tuned content curation
+
+### Example Use Cases
+
+- **Quality Control**: Discard entries with spam indicators or low-quality patterns
+- **Topic Focus**: Keep only entries related to specific subjects of interest  
+- **Language Filtering**: Filter content by language or region
+- **Source Curation**: Prioritize content from trusted sources while filtering unreliable ones
+- **Trend Filtering**: Temporarily filter trending topics that may be overrepresented
+
+The filtering system transforms Infoscope from a simple RSS aggregator into an intelligent content curation platform, helping administrators maintain high-quality, focused information streams for their audiences.
 
 ## License
 

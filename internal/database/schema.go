@@ -90,6 +90,39 @@ CREATE TABLE IF NOT EXISTS click_stats (
     key TEXT PRIMARY KEY,
     value INTEGER NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Entry filters table
+CREATE TABLE IF NOT EXISTS entry_filters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    pattern TEXT NOT NULL,
+    pattern_type TEXT NOT NULL CHECK(pattern_type IN ('keyword', 'regex')),
+    case_sensitive BOOLEAN NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Filter groups table
+CREATE TABLE IF NOT EXISTS filter_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    action TEXT NOT NULL CHECK(action IN ('keep', 'discard')),
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    priority INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Filter group rules table (junction table)
+CREATE TABLE IF NOT EXISTS filter_group_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    filter_id INTEGER NOT NULL,
+    operator TEXT NOT NULL CHECK(operator IN ('AND', 'OR')) DEFAULT 'AND',
+    position INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (group_id) REFERENCES filter_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (filter_id) REFERENCES entry_filters(id) ON DELETE CASCADE
 );`
 
 const Indexes = `
@@ -106,7 +139,12 @@ CREATE INDEX IF NOT EXISTS idx_clicks_count ON clicks(click_count DESC);
 CREATE INDEX IF NOT EXISTS idx_clicks_date ON clicks(last_clicked DESC);
 
 -- Session index
-CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);`
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
+
+-- Filter indexes
+CREATE INDEX IF NOT EXISTS idx_entry_filters_type ON entry_filters(pattern_type);
+CREATE INDEX IF NOT EXISTS idx_filter_groups_active_priority ON filter_groups(is_active, priority);
+CREATE INDEX IF NOT EXISTS idx_filter_group_rules_group_position ON filter_group_rules(group_id, position);`
 
 // DB represents our database connection and operations
 type DB struct {
@@ -225,6 +263,11 @@ func createSchema(db *sql.DB) error {
 	// Keep existing migrations
 	if err := performMigrations(db); err != nil {
 		return fmt.Errorf("error performing migrations: %w", err)
+	}
+
+	// Migrate filter tables
+	if err := migrateFilterTables(db); err != nil {
+		return fmt.Errorf("error migrating filter tables: %w", err)
 	}
 
 	// Create indexes after tables are committed
@@ -462,6 +505,34 @@ func migrateSettingsTable(db *sql.DB) error {
 					return fmt.Errorf("error setting default value for '%s' in 'settings' table: %w", col.name, err)
 				}
 			}
+		}
+	}
+
+	return nil
+}
+
+// migrateFilterTables ensures all filter-related tables exist with proper triggers
+func migrateFilterTables(db *sql.DB) error {
+	// Create triggers for updated_at columns on filter tables
+	triggers := []string{
+		`CREATE TRIGGER IF NOT EXISTS entry_filters_updated_at_trigger
+		AFTER UPDATE ON entry_filters
+		FOR EACH ROW
+		BEGIN
+			UPDATE entry_filters SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+		END;`,
+		
+		`CREATE TRIGGER IF NOT EXISTS filter_groups_updated_at_trigger
+		AFTER UPDATE ON filter_groups
+		FOR EACH ROW
+		BEGIN
+			UPDATE filter_groups SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+		END;`,
+	}
+
+	for _, trigger := range triggers {
+		if _, err := db.Exec(trigger); err != nil {
+			return fmt.Errorf("error creating filter trigger: %w", err)
 		}
 	}
 

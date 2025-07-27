@@ -245,6 +245,14 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/metrics/", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/change-password", s.requireAuth(s.handleChangePassword))
 	mux.HandleFunc("/admin/change-password/", s.requireAuth(s.handleChangePassword))
+	
+	// Filter management routes
+	mux.HandleFunc("/admin/filters", s.requireAuth(s.handleFilterRoutes))
+	mux.HandleFunc("/admin/filters/", s.requireAuth(s.handleFilterRoutes))
+	mux.HandleFunc("/admin/filter-groups", s.requireAuth(s.handleFilterGroupRoutes))
+	mux.HandleFunc("/admin/filter-groups/", s.requireAuth(s.handleFilterGroupRoutes))
+	mux.HandleFunc("/admin/filter-test", s.requireAuth(s.TestFilter))
+	
 	mux.HandleFunc("/admin", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/admin/", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/click", s.handleClick)

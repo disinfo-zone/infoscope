@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"infoscope/internal/database"
 	"infoscope/internal/favicon"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -84,49 +85,14 @@ type testEnv struct {
 // setupTestDB only sets up the database and common services not dependent on mock server.
 func setupTestDB(t *testing.T) *testEnv {
 	t.Helper()
-	db, err := sql.Open("sqlite3", ":memory:")
+	
+	// Use a temporary file instead of in-memory database to avoid WAL mode issues
+	tempFile := t.TempDir() + "/test.db"
+	
+	// Use NewDB to get a DB instance with schema and migrations applied
+	dbInstance, err := database.NewDB(tempFile, database.DefaultConfig())
 	if err != nil {
-		t.Fatalf("Failed to open test database: %v", err)
-	}
-
-	// Create tables (simplified schema for feed tests)
-	_, err = db.Exec(`
-        CREATE TABLE feeds (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT UNIQUE NOT NULL,
-            title TEXT,
-            last_fetched TIMESTAMP,
-			status TEXT,
-			error_count INTEGER DEFAULT 0,
-			last_error TEXT,
-			last_modified TEXT,
-			etag TEXT,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            feed_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            url TEXT UNIQUE NOT NULL,
-			content TEXT,
-			guid TEXT,
-            published_at TIMESTAMP NOT NULL,
-            favicon_url TEXT,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (feed_id) REFERENCES feeds(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );
-		INSERT INTO settings (key, value) VALUES ('max_posts', '100');
-    `)
-	if err != nil {
-		db.Close()
-		t.Fatalf("Failed to create test tables: %v", err)
+		t.Fatalf("Failed to create test database via NewDB: %v", err)
 	}
 
 	logger := log.New(io.Discard, "", 0)
@@ -134,22 +100,22 @@ func setupTestDB(t *testing.T) *testEnv {
 	tempDir := t.TempDir()
 	faviconSvc, err := favicon.NewService(tempDir)
 	if err != nil {
-		db.Close()
+		dbInstance.Close()
 		t.Fatalf("Failed to create favicon service: %v", err)
 	}
 
 	return &testEnv{
-		db:         db,
+		db:         dbInstance.DB, // Access the underlying sql.DB from the database.DB wrapper
 		logger:     logger,
 		faviconSvc: faviconSvc,
 	}
 }
 
 func TestService(t *testing.T) {
-	env := setupTestDB(t)
-	defer env.db.Close()
-
 	t.Run("Add feed", func(t *testing.T) {
+		env := setupTestDB(t)
+		defer env.db.Close()
+		
 		mockServer := newMockFeedServer(t, func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, sampleRSS)
 		})
@@ -172,6 +138,9 @@ func TestService(t *testing.T) {
 	})
 
 	t.Run("Update feeds", func(t *testing.T) {
+		env := setupTestDB(t)
+		defer env.db.Close()
+		
 		mockServer := newMockFeedServer(t, func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, sampleAtom)
 		})
@@ -216,6 +185,9 @@ func TestService(t *testing.T) {
 	})
 
 	t.Run("Delete feed", func(t *testing.T) {
+		env := setupTestDB(t)
+		defer env.db.Close()
+		
 		service := NewService(env.db, env.logger, env.faviconSvc)
 		feedURL := "http://example.com/todelete"
 		res, err := env.db.Exec("INSERT INTO feeds (url, title) VALUES (?, ?)", feedURL, "To Delete")
@@ -249,10 +221,10 @@ func TestService(t *testing.T) {
 }
 
 func TestFetcher(t *testing.T) {
-	env := setupTestDB(t)
-	defer env.db.Close()
-
 	t.Run("Fetch single feed", func(t *testing.T) {
+		env := setupTestDB(t)
+		defer env.db.Close()
+		
 		mockServer := newMockFeedServer(t, func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, sampleRSS)
 		})
@@ -294,6 +266,9 @@ func TestFetcher(t *testing.T) {
 	})
 
 	t.Run("Update all feeds", func(t *testing.T) {
+		env := setupTestDB(t)
+		defer env.db.Close()
+		
 		mockServer1 := newMockFeedServer(t, func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, sampleRSS)
 		})
@@ -384,8 +359,8 @@ func TestValidateFeedURL(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Expected error for HTTP 404, got nil")
 		}
-		if !strings.Contains(err.Error(), "status code: 404") && !strings.Contains(err.Error(), "failed to fetch feed") {
-			t.Errorf("Expected error related to 404, got %v", err)
+		if err != ErrNotAFeed {
+			t.Errorf("Expected ErrNotAFeed for 404, got %v", err)
 		}
 	})
 
@@ -408,7 +383,10 @@ func TestValidateFeedURL(t *testing.T) {
 
 	t.Run("Invalid Scheme", func(t *testing.T) {
 		_, err := ValidateFeedURL("ftp://example.com/feed.rss")
-		if err != ErrInvalidURL {
+		if err == nil {
+			t.Fatalf("Expected error for ftp scheme, got nil")
+		}
+		if !strings.Contains(err.Error(), "invalid feed URL: must use HTTP or HTTPS") {
 			t.Errorf("Expected ErrInvalidURL for ftp scheme, got %v", err)
 		}
 	})
@@ -418,7 +396,7 @@ func TestValidateFeedURL(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Expected error for unreachable URL, got nil")
 		}
-		if !strings.Contains(err.Error(), "failed to fetch feed") {
+		if !strings.Contains(err.Error(), "could not reach URL:") {
 			t.Errorf("Expected error related to unreachable host, got %v", err)
 		}
 	})
