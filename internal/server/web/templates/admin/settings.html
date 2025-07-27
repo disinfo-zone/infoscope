@@ -1,7 +1,9 @@
 {{ define "content" }}
 <div class="settings-container">
     <div class="panel">
-        <form id="settingsForm">            <div class="setting-group">
+        <form id="settingsForm">
+            <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+            <div class="setting-group">
                 <label for="siteTitle">SITE TITLE</label>
                 <input type="text" id="siteTitle" name="siteTitle" value="{{ index .Data.Settings "site_title" }}" required>
             </div>
