@@ -35,8 +35,8 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	}
 }
 
-// ProcessBodyText strips HTML tags and truncates text to the specified length
-func ProcessBodyText(input string, maxLength int) string {
+// stripHTML removes HTML tags from a string and normalizes whitespace
+func stripHTML(input string) string {
 	if input == "" {
 		return ""
 	}
@@ -45,18 +45,59 @@ func ProcessBodyText(input string, maxLength int) string {
 	htmlTagRegex := regexp.MustCompile(`<[^>]*>`)
 	text := htmlTagRegex.ReplaceAllString(input, "")
 	
+	// Decode common HTML entities
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&#39;", "'")
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	
 	// Clean up extra whitespace
 	text = strings.TrimSpace(text)
 	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
 	
+	return text
+}
+
+// truncateText truncates text to the specified length, avoiding word breaks
+func truncateText(input string, maxLength int) string {
+	if input == "" || maxLength <= 0 {
+		return ""
+	}
+	
+	if len(input) <= maxLength {
+		return input
+	}
+	
+	// Account for the "..." suffix
+	actualLength := maxLength - 3
+	if actualLength <= 0 {
+		return "..."
+	}
+	
+	text := input[:actualLength]
+	// Find the last space to avoid cutting words, but only if we have reasonable space
+	if lastSpace := strings.LastIndex(text, " "); lastSpace > actualLength/2 {
+		text = text[:lastSpace]
+	}
+	text += "..."
+	
+	return text
+}
+
+// ProcessBodyText strips HTML tags and truncates text to the specified length
+func ProcessBodyText(input string, maxLength int) string {
+	if input == "" {
+		return ""
+	}
+	
+	// Remove HTML tags
+	text := stripHTML(input)
+	
 	// Truncate if necessary
-	if maxLength > 0 && len(text) > maxLength {
-		text = text[:maxLength]
-		// Find the last space to avoid cutting words
-		if lastSpace := strings.LastIndex(text, " "); lastSpace > maxLength/2 {
-			text = text[:lastSpace]
-		}
-		text += "..."
+	if maxLength > 0 {
+		text = truncateText(text, maxLength)
 	}
 	
 	return text
