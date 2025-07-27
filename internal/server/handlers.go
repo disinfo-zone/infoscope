@@ -173,6 +173,13 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		return err
 	}
 	defer stmt.Close()
+	
+	// Validate tracking code before updating
+	validatedTrackingCode, err := validateTrackingCode(settings.TrackingCode)
+	if err != nil {
+		return fmt.Errorf("invalid tracking code: %w", err)
+	}
+	
 	updates := map[string]struct {
 		value string
 		type_ string
@@ -187,7 +194,7 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"footer_link_url":     {settings.FooterLinkURL, "string"},
 		"footer_image_height": {settings.FooterImageHeight, "string"},
 		"footer_image_url":    {settings.FooterImageURL, "string"},
-		"tracking_code":       {validateTrackingCode(settings.TrackingCode), "string"},
+		"tracking_code":       {validatedTrackingCode, "string"},
 		"favicon_url":         {settings.FaviconURL, "string"},
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
