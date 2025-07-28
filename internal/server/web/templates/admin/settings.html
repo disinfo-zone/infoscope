@@ -1659,9 +1659,9 @@ function initializeSettingsForm() {
                     const mappedKey = fieldNameMap[key] || key;
                     
                     // Convert string values to appropriate types
-                    if (key === 'maxPosts' || key === 'updateInterval' || key === 'body_text_length') {
+                    if (key === 'maxPosts' || key === 'updateInterval' || mappedKey === 'bodyTextLength') {
                         settings[mappedKey] = parseInt(value, 10);
-                    } else if (key === 'show_blog_name' || key === 'show_body_text') {
+                    } else if (mappedKey === 'showBlogName' || mappedKey === 'showBodyText') {
                         settings[mappedKey] = value === 'on' || value === 'true';
                     } else {
                         settings[mappedKey] = value;
