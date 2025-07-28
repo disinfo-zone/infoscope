@@ -128,7 +128,14 @@
             white-space: nowrap;
             font-size: 0.9em;
         }
-    
+
+        .body-text-style {
+            grid-column: 2 / 4;
+            color: #7da9b7;
+            font-size: 0.9em;
+            margin-top: 0.5rem;
+        }
+
         .footer {
             text-align: center;
             margin-top: auto;
@@ -220,7 +227,7 @@
                 </a>
             </div>
             {{ if eq (index $.Data.Settings "show_body_text") "true" }}
-            <div class="body-text" style="grid-column: 2 / 4; color: #7da9b7; font-size: 0.9em; margin-top: 0.5rem;">
+            <div class="body-text body-text-style">
                 {{ .BodyText | html }}
             </div>
             {{ end }}
