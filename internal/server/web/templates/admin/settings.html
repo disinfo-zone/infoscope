@@ -1643,16 +1643,36 @@ function initializeSettingsForm() {
             const formData = new FormData(document.getElementById('settingsForm'));
             const settings = {};
             
+            // Map form field names to struct field names
+            const fieldNameMap = {
+                'show_blog_name': 'showBlogName',
+                'show_body_text': 'showBodyText', 
+                'body_text_length': 'bodyTextLength',
+                'footer_image_url': 'footerImageURL',
+                'favicon_url': 'faviconURL',
+                'meta_image_url': 'metaImageURL'
+            };
+            
             for (let [key, value] of formData.entries()) {
-                if (key !== 'image' && key !== 'favicon') {
-                    settings[key] = value;
+                if (key !== 'image' && key !== 'favicon' && key !== 'csrf_token') {
+                    // Map snake_case to camelCase where needed
+                    const mappedKey = fieldNameMap[key] || key;
+                    
+                    // Convert string values to appropriate types
+                    if (key === 'maxPosts' || key === 'updateInterval' || key === 'body_text_length') {
+                        settings[mappedKey] = parseInt(value, 10);
+                    } else if (key === 'show_blog_name' || key === 'show_body_text') {
+                        settings[mappedKey] = value === 'on' || value === 'true';
+                    } else {
+                        settings[mappedKey] = value;
+                    }
                 }
             }
             
-            // Override with uploaded filenames
-            settings.footer_image_url = imageFilename;
-            settings.favicon_url = faviconFilename;
-            settings.meta_image_url = metaImageFilename;
+            // Override with uploaded filenames using correct field names
+            settings.footerImageURL = imageFilename;
+            settings.faviconURL = faviconFilename;
+            settings.metaImageURL = metaImageFilename;
             
             // Save settings
             const response = await fetch('/admin/settings', {
