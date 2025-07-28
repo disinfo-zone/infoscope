@@ -234,11 +234,21 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	
 	if len(result.Entries) == 0 {
 		// Update last_fetched time and title even if no entries remain after filtering
-		_, err := f.db.ExecContext(ctx,
-			"UPDATE feeds SET last_fetched = DATETIME(?), title = ? WHERE id = ?",
-			time.Now().UTC().Format("2006-01-02 15:04:05"), result.FeedTitle, result.Feed.ID,
-		)
-		return err
+		// Only update title if the new title is not empty
+		if result.FeedTitle != "" {
+			_, err := f.db.ExecContext(ctx,
+				"UPDATE feeds SET last_fetched = DATETIME(?), title = ? WHERE id = ?",
+				time.Now().UTC().Format("2006-01-02 15:04:05"), result.FeedTitle, result.Feed.ID,
+			)
+			return err
+		} else {
+			// If the title is empty, only update the last_fetched time
+			_, err := f.db.ExecContext(ctx,
+				"UPDATE feeds SET last_fetched = DATETIME(?) WHERE id = ?",
+				time.Now().UTC().Format("2006-01-02 15:04:05"), result.Feed.ID,
+			)
+			return err
+		}
 	}
 
 	tx, err := f.db.BeginTx(ctx, nil)
@@ -247,11 +257,19 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	}
 	defer tx.Rollback()
 
-	// Update feed last_fetched time and title
-	_, err = tx.ExecContext(ctx,
-		"UPDATE feeds SET last_fetched = DATETIME(?), title = ? WHERE id = ?",
-		time.Now().UTC().Format("2006-01-02 15:04:05"), result.FeedTitle, result.Feed.ID,
-	)
+	// Update feed last_fetched time and title, but only if the new title is not empty
+	if result.FeedTitle != "" {
+		_, err = tx.ExecContext(ctx,
+			"UPDATE feeds SET last_fetched = DATETIME(?), title = ? WHERE id = ?",
+			time.Now().UTC().Format("2006-01-02 15:04:05"), result.FeedTitle, result.Feed.ID,
+		)
+	} else {
+		// If the title is empty, only update the last_fetched time
+		_, err = tx.ExecContext(ctx,
+			"UPDATE feeds SET last_fetched = DATETIME(?) WHERE id = ?",
+			time.Now().UTC().Format("2006-01-02 15:04:05"), result.Feed.ID,
+		)
+	}
 	if err != nil {
 		return err
 	}
