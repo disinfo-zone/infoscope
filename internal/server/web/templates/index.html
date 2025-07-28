@@ -70,9 +70,9 @@
     
         .entry {
            display: grid;
-            grid-template-columns: auto auto 1fr auto;
+            grid-template-columns: auto 1fr auto auto;
             gap: 10px;
-            align-items: flex-start;
+            align-items: center;
             margin-bottom: 0.5rem;
             padding: 0.5rem;
             border-radius: 4px;
@@ -116,16 +116,6 @@
         .link-container a:hover {
             color: #67bb79;
         }
-        
-        /* Styles for body text preview */
-        .body-text {
-            color: #5a6b7a;
-            font-size: 0.85em;
-            line-height: 1.3;
-            margin-top: 0.3rem;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-        }
     
         .dots {
             color: #2a3450;
@@ -161,7 +151,7 @@
         @media (max-width: 600px) {
             .entry {
                 grid-template-columns: auto 1fr;
-                grid-template-rows: auto auto auto;
+                grid-template-rows: auto auto;
                 gap: 5px;
             }
     
@@ -174,20 +164,13 @@
                 grid-row: 1;
                 grid-column: 2;
             }
-            
-            .body-text {
-                grid-row: 2;
-                grid-column: 1 / -1;
-                margin-top: 0.2rem;
-                font-size: 0.8em;
-            }
     
             .dots {
                 display: none;
             }
     
             .date {
-                grid-row: 3;
+                grid-row: 2;
                 grid-column: 2;
                 justify-self: start;
             }        }
@@ -233,12 +216,14 @@
             <img class="favicon" src="{{ .FaviconURL }}" loading="lazy" onerror="this.src='/static/favicons/default.ico'; this.onerror=null;" alt="">
             <div class="link-container">
                 <a href="{{ .URL }}" onclick="return trackClick({{ .ID }}, '{{ .URL }}')" target="_blank">
-                    {{ if .FeedTitle }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
+                    {{ if and .FeedTitle (eq (index $.Data.Settings "show_blog_name") "true") }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
                 </a>
-                {{ if .BodyText }}
-                <div class="body-text">{{ .BodyText | html }}</div>
-                {{ end }}
             </div>
+            {{ if eq (index $.Data.Settings "show_body_text") "true" }}
+            <div class="body-text" style="grid-column: 2 / 4; color: #7da9b7; font-size: 0.9em; margin-top: 0.5rem;">
+                {{ .BodyText | html }}
+            </div>
+            {{ end }}
             <span class="dots">............................................................................................................................</span>
             <span class="date">{{ .Date }}</span>
         </div>
