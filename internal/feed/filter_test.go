@@ -2,7 +2,9 @@
 package feed
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"infoscope/internal/database"
 )
@@ -328,5 +330,287 @@ func TestFilterEngine_CacheClearing(t *testing.T) {
 	// Check cache is cleared
 	if len(fe.regexCache) != 0 {
 		t.Error("Expected regex cache to be cleared")
+	}
+}
+
+// TestFilterEngine_KeepFilterBehavior tests that "keep" filters work as whitelists
+func TestFilterEngine_KeepFilterBehavior(t *testing.T) {
+	env := setupTestDB(t)
+	defer env.db.Close()
+
+	// Add filter tables to the test database
+	_, err := env.db.Exec(database.Schema)
+	if err != nil {
+		t.Fatalf("Failed to create filter tables: %v", err)
+	}
+
+	fe := NewFilterEngine(env.db)
+
+	// Mock active filter groups with a "keep" filter
+	fe.cacheMutex.Lock()
+	fe.cachedGroups = []database.FilterGroup{
+		{
+			ID:       1,
+			Name:     "Keep Go Posts",
+			Action:   "keep",
+			Priority: 1,
+			IsActive: true,
+			Rules: []database.FilterGroupRule{
+				{
+					ID:       1,
+					FilterID: 1,
+					Operator: "OR",
+					Position: 0,
+					Filter: &database.EntryFilter{
+						ID:            1,
+						Pattern:       "Go",
+						PatternType:   "keyword",
+						CaseSensitive: false,
+					},
+				},
+			},
+		},
+	}
+	fe.lastUpdated = time.Now()
+	fe.cacheMutex.Unlock()
+
+	// Test that entries matching the "keep" filter are kept
+	decision, err := fe.FilterEntry(context.Background(), "Learning Go Programming")
+	if err != nil {
+		t.Fatalf("Error filtering entry: %v", err)
+	}
+	if decision != FilterKeep {
+		t.Error("Expected entry matching 'keep' filter to be kept")
+	}
+
+	// Test that entries NOT matching the "keep" filter are discarded (whitelist behavior)
+	decision, err = fe.FilterEntry(context.Background(), "Python Tutorial")
+	if err != nil {
+		t.Fatalf("Error filtering entry: %v", err)
+	}
+	if decision != FilterDiscard {
+		t.Error("Expected entry NOT matching 'keep' filter to be discarded (this was the bug)")
+	}
+}
+
+// TestFilterEngine_DiscardFilterBehavior tests that "discard" filters work as blacklists
+func TestFilterEngine_DiscardFilterBehavior(t *testing.T) {
+	env := setupTestDB(t)
+	defer env.db.Close()
+
+	// Add filter tables to the test database
+	_, err := env.db.Exec(database.Schema)
+	if err != nil {
+		t.Fatalf("Failed to create filter tables: %v", err)
+	}
+
+	fe := NewFilterEngine(env.db)
+
+	// Mock active filter groups with a "discard" filter
+	fe.cacheMutex.Lock()
+	fe.cachedGroups = []database.FilterGroup{
+		{
+			ID:       1,
+			Name:     "Discard Spam",
+			Action:   "discard",
+			Priority: 1,
+			IsActive: true,
+			Rules: []database.FilterGroupRule{
+				{
+					ID:       1,
+					FilterID: 1,
+					Operator: "OR",
+					Position: 0,
+					Filter: &database.EntryFilter{
+						ID:            1,
+						Pattern:       "spam",
+						PatternType:   "keyword",
+						CaseSensitive: false,
+					},
+				},
+			},
+		},
+	}
+	fe.lastUpdated = time.Now()
+	fe.cacheMutex.Unlock()
+
+	// Test that entries matching the "discard" filter are discarded
+	decision, err := fe.FilterEntry(context.Background(), "This is spam content")
+	if err != nil {
+		t.Fatalf("Error filtering entry: %v", err)
+	}
+	if decision != FilterDiscard {
+		t.Error("Expected entry matching 'discard' filter to be discarded")
+	}
+
+	// Test that entries NOT matching the "discard" filter are kept (blacklist behavior)
+	decision, err = fe.FilterEntry(context.Background(), "Legitimate news article")
+	if err != nil {
+		t.Fatalf("Error filtering entry: %v", err)
+	}
+	if decision != FilterKeep {
+		t.Error("Expected entry NOT matching 'discard' filter to be kept")
+	}
+}
+
+// TestFilterEngine_MixedKeepDiscardFilters tests behavior when both keep and discard filters are present
+func TestFilterEngine_MixedKeepDiscardFilters(t *testing.T) {
+	env := setupTestDB(t)
+	defer env.db.Close()
+
+	// Add filter tables to the test database
+	_, err := env.db.Exec(database.Schema)
+	if err != nil {
+		t.Fatalf("Failed to create filter tables: %v", err)
+	}
+
+	fe := NewFilterEngine(env.db)
+
+	// Mock active filter groups with both keep and discard filters
+	fe.cacheMutex.Lock()
+	fe.cachedGroups = []database.FilterGroup{
+		{
+			ID:       1,
+			Name:     "Keep Go Posts",
+			Action:   "keep",
+			Priority: 1,
+			IsActive: true,
+			Rules: []database.FilterGroupRule{
+				{
+					ID:       1,
+					FilterID: 1,
+					Operator: "OR",
+					Position: 0,
+					Filter: &database.EntryFilter{
+						ID:            1,
+						Pattern:       "Go",
+						PatternType:   "keyword",
+						CaseSensitive: false,
+					},
+				},
+			},
+		},
+		{
+			ID:       2,
+			Name:     "Discard Spam",
+			Action:   "discard",
+			Priority: 2,
+			IsActive: true,
+			Rules: []database.FilterGroupRule{
+				{
+					ID:       2,
+					FilterID: 2,
+					Operator: "OR",
+					Position: 0,
+					Filter: &database.EntryFilter{
+						ID:            2,
+						Pattern:       "spam",
+						PatternType:   "keyword",
+						CaseSensitive: false,
+					},
+				},
+			},
+		},
+	}
+	fe.lastUpdated = time.Now()
+	fe.cacheMutex.Unlock()
+
+	// When keep filters are present, only keep filters should matter
+	// Test: Entry matches keep filter → should be kept
+	decision, err := fe.FilterEntry(context.Background(), "Learning Go Programming")
+	if err != nil {
+		t.Fatalf("Error filtering entry: %v", err)
+	}
+	if decision != FilterKeep {
+		t.Error("Expected entry matching 'keep' filter to be kept even with discard filters present")
+	}
+
+	// Test: Entry matches discard filter but no keep filter → should be discarded (because keep filters are present)
+	decision, err = fe.FilterEntry(context.Background(), "This is spam content")
+	if err != nil {
+		t.Fatalf("Error filtering entry: %v", err)
+	}
+	if decision != FilterDiscard {
+		t.Error("Expected entry not matching any 'keep' filter to be discarded when keep filters are present")
+	}
+
+	// Test: Entry matches neither keep nor discard filter → should be discarded (whitelist behavior)
+	decision, err = fe.FilterEntry(context.Background(), "Python Tutorial")
+	if err != nil {
+		t.Fatalf("Error filtering entry: %v", err)
+	}
+	if decision != FilterDiscard {
+		t.Error("Expected entry matching no 'keep' filters to be discarded (whitelist behavior)")
+	}
+}
+
+// TestFilterEngine_RealDatabaseKeepFilters tests keep filters with actual database operations
+func TestFilterEngine_RealDatabaseKeepFilters(t *testing.T) {
+	env := setupTestDB(t)
+	defer env.db.Close()
+
+	// Add filter tables to the test database
+	_, err := env.db.Exec(database.Schema)
+	if err != nil {
+		t.Fatalf("Failed to create filter tables: %v", err)
+	}
+
+	db := &database.DB{DB: env.db}
+	fe := NewFilterEngine(env.db)
+
+	// Create a keep filter in the database
+	filter, err := db.CreateEntryFilter(context.Background(), "Keep Go Articles", "Go", "keyword", false)
+	if err != nil {
+		t.Fatalf("Failed to create filter: %v", err)
+	}
+
+	// Create a keep filter group
+	group, err := db.CreateFilterGroup(context.Background(), "Keep Technical", "keep", 1)
+	if err != nil {
+		t.Fatalf("Failed to create filter group: %v", err)
+	}
+
+	// Add the filter to the group
+	err = db.AddFilterToGroup(context.Background(), group.ID, filter.ID, "OR", 0)
+	if err != nil {
+		t.Fatalf("Failed to add filter to group: %v", err)
+	}
+
+	// Clear any cached groups to force fresh database read
+	fe.InvalidateCache()
+
+	// Test with an entry that matches the keep filter
+	decision, err := fe.FilterEntry(context.Background(), "Learning Go Programming")
+	if err != nil {
+		t.Fatalf("Error filtering matching entry: %v", err)
+	}
+	if decision != FilterKeep {
+		t.Errorf("Expected keep filter to keep matching entry, got decision: %v", decision)
+	}
+
+	// Test with an entry that does NOT match the keep filter
+	decision, err = fe.FilterEntry(context.Background(), "Python Tutorial")
+	if err != nil {
+		t.Fatalf("Error filtering non-matching entry: %v", err)
+	}
+	if decision != FilterDiscard {
+		t.Errorf("Expected keep filter to discard non-matching entry (whitelist mode), got decision: %v", decision)
+		
+		// Debug: let's see what groups we actually got
+		groups, err := fe.getActiveFilterGroups(context.Background())
+		if err != nil {
+			t.Fatalf("Error getting filter groups: %v", err)
+		}
+		t.Logf("Found %d filter groups:", len(groups))
+		for i, group := range groups {
+			t.Logf("  Group %d: ID=%d, Name=%s, Action=%s, Active=%t, Rules=%d", 
+				i, group.ID, group.Name, group.Action, group.IsActive, len(group.Rules))
+			for j, rule := range group.Rules {
+				if rule.Filter != nil {
+					t.Logf("    Rule %d: Pattern=%s, Type=%s, CaseSensitive=%t", 
+						j, rule.Filter.Pattern, rule.Filter.PatternType, rule.Filter.CaseSensitive)
+				}
+			}
+		}
 	}
 }

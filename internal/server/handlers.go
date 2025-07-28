@@ -731,6 +731,14 @@ func sanitizeTrackingNode(n *htmlparser.Node, buf *strings.Builder) error {
 			return sanitizeMetaTag(n, buf)
 		case "noscript":
 			return sanitizeNoscriptTag(n, buf)
+		case "html", "head", "body":
+			// These are wrapper elements added by the HTML parser
+			// Skip them and process their children
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				if err := sanitizeTrackingNode(c, buf); err != nil {
+					return err
+				}
+			}
 		default:
 			// Skip other tags
 			return nil
@@ -963,10 +971,10 @@ func validateURL(urlStr string) error {
 		return fmt.Errorf("only HTTP/HTTPS URLs are allowed, got: %s", u.Scheme)
 	}
 
-	// Block localhost on standard web ports for security
+	// Block localhost on standard web ports and common development ports for security
 	if strings.ToLower(u.Hostname()) == "localhost" {
 		port := u.Port()
-		if port == "" || port == "80" || port == "443" {
+		if port == "" || port == "80" || port == "443" || port == "8080" {
 			return fmt.Errorf("URLs pointing to localhost on standard web ports are not allowed")
 		}
 	}

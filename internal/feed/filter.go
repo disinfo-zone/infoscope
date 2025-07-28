@@ -51,25 +51,51 @@ func (fe *FilterEngine) FilterEntry(ctx context.Context, title string) (FilterDe
 		return FilterKeep, nil
 	}
 
-	// Evaluate filter groups in priority order (ascending)
+	// Check if there are any "keep" filters among the groups
+	hasKeepFilters := false
 	for _, group := range groups {
-		matches, err := fe.evaluateFilterGroup(group, title)
-		if err != nil {
-			// Log error but continue with other groups
-			// In a production system, you might want to use structured logging
-			continue
-		}
-
-		if matches {
-			// First matching group determines the action
-			if group.Action == "discard" {
-				return FilterDiscard, nil
-			}
-			return FilterKeep, nil
+		if group.Action == "keep" {
+			hasKeepFilters = true
+			break
 		}
 	}
 
-	// If no groups match, keep the entry by default
+	// Handle "keep" filters (whitelist mode) - must be processed separately
+	if hasKeepFilters {
+		// For keep filters, we only care about keep filters, ignore discard filters
+		for _, group := range groups {
+			if group.Action == "keep" {
+				matches, err := fe.evaluateFilterGroup(group, title)
+				if err != nil {
+					// Log error but continue with other groups
+					continue
+				}
+				if matches {
+					// At least one keep filter matches - keep the entry
+					return FilterKeep, nil
+				}
+			}
+		}
+		// No keep filters matched - discard the entry (whitelist behavior)
+		return FilterDiscard, nil
+	}
+
+	// Handle "discard" filters (blacklist mode)
+	for _, group := range groups {
+		if group.Action == "discard" {
+			matches, err := fe.evaluateFilterGroup(group, title)
+			if err != nil {
+				// Log error but continue with other groups
+				continue
+			}
+			if matches {
+				// Discard filter matches - discard the entry
+				return FilterDiscard, nil
+			}
+		}
+	}
+
+	// No discard filters matched - keep the entry (blacklist behavior)
 	return FilterKeep, nil
 }
 
