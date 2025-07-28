@@ -98,8 +98,10 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 		}
 
 		// Set body text and feed title
-		if content.Valid && settings != nil && settings["show_body_text"] == "true" {
-			e.BodyText = content.String
+		if content.Valid && settings != nil {
+			if showBodyText, ok := settings["show_body_text"]; ok && showBodyText == "true" {
+				e.BodyText = content.String
+			}
 		}
 		if feedTitle.Valid {
 			e.FeedTitle = feedTitle.String
