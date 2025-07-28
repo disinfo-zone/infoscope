@@ -79,12 +79,26 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 	defer rows.Close()
 
 	var entries []EntryView
+	filterEngine := s.feedService.GetFilterEngine()
+	
 	for rows.Next() {
 		var e EntryView
 		var publishedAtStr string // Will hold the "YYYY-MM-DD HH:MM:SS" string from DB
 		var content, feedTitle sql.NullString
 		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr, &content, &feedTitle); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
+		}
+
+		// Apply filters to the entry title
+		if filterEngine != nil {
+			decision, err := filterEngine.FilterEntry(ctx, e.Title)
+			if err != nil {
+				s.logger.Printf("Error applying filters to entry '%s': %v", e.Title, err)
+				// Continue processing on filter error
+			} else if decision == feed.FilterDiscard {
+				// Skip this entry if it should be discarded
+				continue
+			}
 		}
 
 		// Parse the full timestamp for PublishedAtTime

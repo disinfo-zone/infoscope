@@ -26,7 +26,9 @@
     <meta property="twitter:description" content="{{ index .Data.Settings "meta_description" }}">
     {{ if index .Data.Settings "meta_image_url" }}
     <meta name="twitter:image" content="{{ .Data.SiteURL }}/static/images/{{ index .Data.Settings "meta_image_url" }}">
-    {{ end }}    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ index .Data.Settings "favicon_url" }}">
+    {{ end }}
+
+    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ index .Data.Settings "favicon_url" }}">
     
     <!-- Preload critical favicons for faster loading -->
     {{ range $index, $entry := .Data.Entries }}
@@ -72,16 +74,16 @@
            display: grid;
             grid-template-columns: auto auto 1fr auto;
             gap: 10px;
-            align-items: flex-start;
+            align-items: baseline;
             margin-bottom: 0.5rem;
             padding: 0.5rem;
             border-radius: 4px;
             transition: background-color 0.2s;
         }
-    
+
         .entry:hover {
             background-color: #1a2438;
-        }        .favicon {
+        }.favicon {
             width: 16px;
             height: 16px;
             margin-right: 4px;
@@ -99,6 +101,8 @@
     
         .link-container {
             overflow: hidden;
+            min-width: 0;
+            max-width: calc(100vw - 200px);
         }
     
         .link-container a {
@@ -106,11 +110,8 @@
         text-decoration: none;
         transition: color 0.2s;
         font-weight: bold;
-        /* Add these new properties for desktop */
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
         display: block;
+        line-height: 1;
         }
     
         .link-container a:hover {
@@ -126,11 +127,16 @@
             word-wrap: break-word;
             overflow-wrap: break-word;
         }
-    
+
         .dots {
             color: #2a3450;
             margin: 0 8px;
             overflow: hidden;
+            white-space: nowrap;
+            flex-shrink: 0;
+            min-width: 20px;
+            line-height: 1;
+            align-self: baseline;
         }
     
         .date {
@@ -164,12 +170,12 @@
                 grid-template-rows: auto auto auto;
                 gap: 5px;
             }
-    
+
             .favicon {
                 grid-row: 1;
                 grid-column: 1;
             }
-    
+
             .link-container {
                 grid-row: 1;
                 grid-column: 2;
@@ -181,16 +187,17 @@
                 margin-top: 0.2rem;
                 font-size: 0.8em;
             }
-    
+
             .dots {
                 display: none;
             }
-    
+
             .date {
                 grid-row: 3;
                 grid-column: 2;
                 justify-self: start;
-            }        }
+            }
+        }
         @media screen and (max-width: 768px) {
             .link-container a {
                 white-space: normal;
@@ -233,9 +240,9 @@
             <img class="favicon" src="{{ .FaviconURL }}" loading="lazy" onerror="this.src='/static/favicons/default.ico'; this.onerror=null;" alt="">
             <div class="link-container">
                 <a href="{{ .URL }}" onclick="return trackClick({{ .ID }}, '{{ .URL }}')" target="_blank">
-                    {{ if .FeedTitle }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
+                    {{ if and .FeedTitle (eq (index $.Data.Settings "show_blog_name") "true") }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
                 </a>
-                {{ if .BodyText }}
+                {{ if and .BodyText (eq (index $.Data.Settings "show_body_text") "true") }}
                 <div class="body-text">{{ .BodyText | html }}</div>
                 {{ end }}
             </div>

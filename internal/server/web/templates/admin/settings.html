@@ -1641,16 +1641,45 @@ function initializeSettingsForm() {
             const formData = new FormData(document.getElementById('settingsForm'));
             const settings = {};
             
+            // Map form field names to JSON field names expected by Go backend
+            const fieldMapping = {
+                'show_blog_name': 'showBlogName',
+                'show_body_text': 'showBodyText',
+                'body_text_length': 'bodyTextLength'
+            };
+            
             for (let [key, value] of formData.entries()) {
-                if (key !== 'image' && key !== 'favicon') {
-                    settings[key] = value;
+                if (key !== 'image' && key !== 'favicon' && key !== 'footerImage' && key !== 'metaImage') {
+                    // Map field name if needed
+                    const jsonKey = fieldMapping[key] || key;
+                    
+                    // Handle checkbox values (convert to boolean)
+                    if (key === 'show_blog_name' || key === 'show_body_text') {
+                        settings[jsonKey] = true; // Checkbox is checked if present in formData
+                    }
+                    // Handle numeric values
+                    else if (key === 'maxPosts' || key === 'updateInterval' || key === 'body_text_length') {
+                        settings[jsonKey] = parseInt(value, 10) || 0;
+                    }
+                    // Handle string values
+                    else {
+                        settings[jsonKey] = value;
+                    }
                 }
             }
             
+            // Handle unchecked checkboxes (they won't be in formData)
+            if (!formData.has('show_blog_name')) {
+                settings['showBlogName'] = false;
+            }
+            if (!formData.has('show_body_text')) {
+                settings['showBodyText'] = false;
+            }
+            
             // Override with uploaded filenames
-            settings.footer_image_url = imageFilename;
-            settings.favicon_url = faviconFilename;
-            settings.meta_image_url = metaImageFilename;
+            settings.footerImageURL = imageFilename;
+            settings.faviconURL = faviconFilename;
+            settings.metaImageURL = metaImageFilename;
             
             // Save settings
             const response = await fetch('/admin/settings', {

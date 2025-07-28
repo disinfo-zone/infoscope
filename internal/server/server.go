@@ -257,6 +257,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/click", s.handleClick)
 	mux.HandleFunc("/click/", s.handleClick)
+	mux.HandleFunc("/admin/upload-image", s.requireAuth(s.imageHandler.HandleUpload))
 	mux.HandleFunc("/admin/upload-favicon", s.requireAuth(s.imageHandler.HandleFaviconUpload))
 	mux.HandleFunc("/admin/upload-meta-image", s.requireAuth(s.imageHandler.HandleMetaImageUpload))
 
