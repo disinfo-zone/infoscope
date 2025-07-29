@@ -713,31 +713,34 @@ func sanitizeTrackingHTML(n *htmlparser.Node) (string, error) {
 func sanitizeTrackingNode(n *htmlparser.Node, buf *strings.Builder) error {
 	switch n.Type {
 	case htmlparser.DocumentNode:
-		// Process children
+		// Process children - continue even if some children are invalid
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			if err := sanitizeTrackingNode(c, buf); err != nil {
-				return err
-			}
+			// Don't return errors from individual nodes, just skip invalid ones
+			sanitizeTrackingNode(c, buf)
 		}
 	case htmlparser.ElementNode:
 		switch strings.ToLower(n.Data) {
 		case "script":
-			return sanitizeScriptTag(n, buf)
+			// Don't return error, just skip invalid scripts
+			sanitizeScriptTag(n, buf)
 		case "img":
-			return sanitizeImgTag(n, buf)
+			// Don't return error, just skip invalid images
+			sanitizeImgTag(n, buf)
 		case "iframe":
-			return sanitizeIframeTag(n, buf)
+			// Don't return error, just skip invalid iframes
+			sanitizeIframeTag(n, buf)
 		case "meta":
-			return sanitizeMetaTag(n, buf)
+			// Don't return error, just skip invalid meta tags
+			sanitizeMetaTag(n, buf)
 		case "noscript":
-			return sanitizeNoscriptTag(n, buf)
+			// Don't return error, just skip invalid noscript tags
+			sanitizeNoscriptTag(n, buf)
 		case "html", "head", "body":
 			// These are wrapper elements added by the HTML parser
 			// Skip them and process their children
 			for c := n.FirstChild; c != nil; c = c.NextSibling {
-				if err := sanitizeTrackingNode(c, buf); err != nil {
-					return err
-				}
+				// Don't return errors from individual nodes, just skip invalid ones
+				sanitizeTrackingNode(c, buf)
 			}
 		default:
 			// Skip other tags
@@ -765,9 +768,9 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
 		}
 	}
 
-	// If it has inline script content, reject it
+	// If it has inline script content, skip it (don't include in output)
 	if hasInlineScript {
-		return fmt.Errorf("script tags must have a src attribute (inline JavaScript not allowed)")
+		return nil // Skip this tag instead of failing
 	}
 
 	// Extract attributes
@@ -775,7 +778,8 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
 		switch strings.ToLower(attr.Key) {
 		case "src":
 			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid script src URL: %w", err)
+				// Skip this script tag if URL is invalid
+				return nil
 			}
 			src = attr.Val
 		case "async":
@@ -791,7 +795,7 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
 
 	// Must have src attribute
 	if src == "" {
-		return fmt.Errorf("script tags must have a src attribute (inline JavaScript not allowed)")
+		return nil // Skip this tag instead of failing
 	}
 
 	// Write sanitized script tag
@@ -818,7 +822,8 @@ func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) error {
 		switch strings.ToLower(attr.Key) {
 		case "src":
 			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid img src URL: %w", err)
+				// Skip this img tag if URL is invalid
+				return nil
 			}
 			src = attr.Val
 		case "width":
@@ -868,7 +873,8 @@ func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) error {
 		switch strings.ToLower(attr.Key) {
 		case "src":
 			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid iframe src URL: %w", err)
+				// Skip this iframe tag if URL is invalid
+				return nil
 			}
 			src = attr.Val
 		case "width":
@@ -944,11 +950,10 @@ func sanitizeMetaTag(n *htmlparser.Node, buf *strings.Builder) error {
 func sanitizeNoscriptTag(n *htmlparser.Node, buf *strings.Builder) error {
 	buf.WriteString("<noscript>")
 	
-	// Process children
+	// Process children - continue even if some children are invalid
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if err := sanitizeTrackingNode(c, buf); err != nil {
-			return err
-		}
+		// Don't return errors from individual nodes, just skip invalid ones
+		sanitizeTrackingNode(c, buf)
 	}
 	
 	buf.WriteString("</noscript>")

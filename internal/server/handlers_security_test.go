@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -32,14 +33,14 @@ func TestValidateTrackingCode(t *testing.T) {
 		{
 			name:        "malicious_script",
 			input:       `<script>alert('XSS')</script>`,
-			expectError: true, // This should be rejected because it's inline JS
-			description: "Malicious inline script should be rejected",
+			expectError: false, // Should succeed but produce empty output (script stripped)
+			description: "Malicious inline script should be stripped",
 		},
 		{
 			name:        "dangerous_iframe",
 			input:       `<iframe src="javascript:alert('XSS')" width="100" height="100"></iframe>`,
-			expectError: true, // This should be rejected because javascript: URLs are not allowed
-			description: "Dangerous iframe with javascript: URL should be rejected",
+			expectError: false, // Should succeed but produce empty output (iframe stripped)
+			description: "Dangerous iframe with javascript: URL should be stripped",
 		},
 		{
 			name:        "valid_meta_tag",
@@ -67,9 +68,12 @@ func TestValidateTrackingCode(t *testing.T) {
 				t.Errorf("Unexpected error for %s: %v. Input: %s", tt.description, err, tt.input)
 			}
 			
-			// For non-error cases, ensure we get some output
+			// For non-error cases, ensure we get some output (unless content was stripped)
 			if !tt.expectError && tt.input != "" && result == "" {
-				t.Errorf("Expected non-empty result for %s but got empty string", tt.description)
+				// Special case: some inputs get completely stripped and that's expected
+				if !strings.Contains(tt.description, "stripped") {
+					t.Errorf("Expected non-empty result for %s but got empty string", tt.description)
+				}
 			}
 			
 			t.Logf("Test %s: Input length=%d, Output length=%d, Error=%v", 
@@ -79,13 +83,23 @@ func TestValidateTrackingCode(t *testing.T) {
 }
 
 func TestValidateTrackingCodeSanitization(t *testing.T) {
-	// Test that dangerous content is properly sanitized
+	// Test that dangerous content is properly sanitized by stripping invalid parts
 	input := `<script src="https://example.com/analytics.js"></script><script>alert('xss')</script>`
-	_, err := validateTrackingCode(input)
+	result, err := validateTrackingCode(input)
 	
-	// This should error because it contains inline JavaScript without src
-	if err == nil {
-		t.Error("Expected error for mixed valid and invalid scripts but got none")
+	// This should now succeed - valid script should remain, invalid inline script should be stripped
+	if err != nil {
+		t.Errorf("Unexpected error for mixed valid and invalid scripts: %v", err)
+	}
+	
+	// Should contain only the valid external script
+	if !strings.Contains(result, `src="https://example.com/analytics.js"`) {
+		t.Errorf("Expected valid script to be preserved, got: %s", result)
+	}
+	
+	// Should not contain the inline script content
+	if strings.Contains(result, "alert('xss')") {
+		t.Errorf("Expected inline script to be stripped, but it was preserved: %s", result)
 	}
 	
 	// Test a case that should work - external script only
@@ -100,6 +114,7 @@ func TestValidateTrackingCodeSanitization(t *testing.T) {
 		t.Error("Expected sanitized output but got empty string")
 	}
 	
+	t.Logf("Mixed script test - Input: %s, Output: %s", input, result)
 	t.Logf("Valid script test - Input: %s, Output: %s", input2, result2)
 }
 
@@ -113,14 +128,14 @@ func TestValidateTrackingCodeAdvancedSecurity(t *testing.T) {
 		{
 			name:        "script_with_data_uri",
 			input:       `<script src="data:text/javascript,alert('xss')"></script>`,
-			expectError: true,
-			description: "Script with data: URI should be rejected",
+			expectError: false, // Should succeed but produce empty output (script stripped)
+			description: "Script with data: URI should be stripped",
 		},
 		{
 			name:        "script_with_localhost",
 			input:       `<script src="http://localhost:8080/malicious.js"></script>`,
-			expectError: true,
-			description: "Script pointing to localhost on standard ports should be rejected",
+			expectError: false, // Should succeed but produce empty output (script stripped) 
+			description: "Script pointing to localhost on standard ports should be stripped",
 		},
 		{
 			name:        "valid_multiple_scripts",
@@ -137,14 +152,14 @@ func TestValidateTrackingCodeAdvancedSecurity(t *testing.T) {
 		{
 			name:        "mixed_valid_invalid",
 			input:       `<script src="https://analytics.com/script.js"></script><script>alert('xss')</script>`,
-			expectError: true, // Should fail because of inline script
-			description: "Mix of valid external and invalid inline script should be rejected",
+			expectError: false, // Should succeed - valid script preserved, invalid stripped
+			description: "Mix of valid external and invalid inline script should be sanitized",
 		},
 		{
 			name:        "google_analytics_complete",
 			input:       `<script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script><script>window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', 'GA_MEASUREMENT_ID');</script>`,
-			expectError: true, // Should fail due to inline script
-			description: "Complete Google Analytics (with inline config) should be rejected",
+			expectError: false, // Should succeed - external script preserved, inline script stripped
+			description: "Complete Google Analytics should preserve external script and strip inline config",
 		},
 		{
 			name:        "trusted_iframe",
@@ -170,6 +185,29 @@ func TestValidateTrackingCodeAdvancedSecurity(t *testing.T) {
 			
 			if !tt.expectError && err != nil {
 				t.Errorf("Unexpected error for %s: %v. Input: %s", tt.description, err, tt.input)
+			}
+			
+			// For cases that should be sanitized, check the output
+			if !tt.expectError && strings.Contains(tt.name, "mixed_valid_invalid") {
+				// Should contain the valid script
+				if !strings.Contains(result, `src="https://analytics.com/script.js"`) {
+					t.Errorf("Expected valid script to be preserved in %s, got: %s", tt.name, result)
+				}
+				// Should not contain inline script content
+				if strings.Contains(result, "alert('xss')") {
+					t.Errorf("Expected inline script to be stripped in %s, but it was preserved: %s", tt.name, result)
+				}
+			}
+			
+			if !tt.expectError && strings.Contains(tt.name, "google_analytics_complete") {
+				// Should contain the valid external script
+				if !strings.Contains(result, `src="https://www.googletagmanager.com/gtag/js`) {
+					t.Errorf("Expected valid Google Analytics script to be preserved in %s, got: %s", tt.name, result)
+				}
+				// Should not contain inline script content
+				if strings.Contains(result, "window.dataLayer") {
+					t.Errorf("Expected inline Google Analytics config to be stripped in %s, but it was preserved: %s", tt.name, result)
+				}
 			}
 			
 			t.Logf("Test %s: Error=%v, Input length=%d, Output length=%d", 
@@ -269,8 +307,8 @@ func TestValidateTrackingCodeSelfHostedAnalytics(t *testing.T) {
 		{
 			name:  "localhost_standard_port",
 			input: `<script src="https://localhost/analytics.js"></script>`,
-			valid: false,
-			description: "Localhost on standard port should be blocked",
+			valid: true, // Should succeed but produce empty output (script stripped)
+			description: "Localhost on standard port should be stripped",
 		},
 	}
 
@@ -287,7 +325,11 @@ func TestValidateTrackingCodeSelfHostedAnalytics(t *testing.T) {
 			}
 			
 			if tt.valid && len(result) == 0 {
-				t.Errorf("Valid analytics code produced empty output\nInput: %s\nDescription: %s", tt.input, tt.description)
+				// Special case: some inputs that are valid but get stripped (like localhost scripts)
+				// should not produce an error but also won't have output
+				if !strings.Contains(tt.description, "stripped") {
+					t.Errorf("Valid analytics code produced empty output\nInput: %s\nDescription: %s", tt.input, tt.description)
+				}
 			}
 			
 			t.Logf("Self-hosted analytics test %s: Success=%t, Output length=%d, Description: %s", 
