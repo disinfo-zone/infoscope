@@ -179,7 +179,7 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 		if _, err := os.Stat(templatesDir); err == nil {
 			// Directory exists, not the first run, skip extraction
 			shouldExtract = false
-			s.logger.Printf("Skipping web content extraction due to -no-template-updates flag.")
+			s.logger.Printf("Skipping web content extraction because DisableTemplateUpdates is set to true.")
 		}
 	}
 
