@@ -29,6 +29,7 @@
     {{ end }}
 
     <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ index .Data.Settings "favicon_url" }}">
+	<link rel="alternate" type="application/rss+xml" title="{{ .Data.Title }} Feed" href="/rss.xml" />
     
     <!-- Preload critical favicons for faster loading -->
     {{ range $index, $entry := .Data.Entries }}
