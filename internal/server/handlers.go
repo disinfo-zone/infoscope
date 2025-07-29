@@ -702,46 +702,45 @@ func validateTrackingCode(code string) (string, error) {
 // sanitizeTrackingHTML sanitizes HTML for tracking code
 func sanitizeTrackingHTML(n *htmlparser.Node) (string, error) {
 	var buf strings.Builder
-	err := sanitizeTrackingNode(n, &buf)
-	if err != nil {
-		return "", err
-	}
+	sanitizeTrackingNode(n, &buf)
 	return buf.String(), nil
 }
 
 // sanitizeTrackingNode recursively sanitizes HTML nodes
-func sanitizeTrackingNode(n *htmlparser.Node, buf *strings.Builder) error {
+func sanitizeTrackingNode(n *htmlparser.Node, buf *strings.Builder) {
 	switch n.Type {
 	case htmlparser.DocumentNode:
-		// Process children
+		// Process children - continue even if some children are invalid
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			if err := sanitizeTrackingNode(c, buf); err != nil {
-				return err
-			}
+			// Process all children, no errors expected
+			sanitizeTrackingNode(c, buf)
 		}
 	case htmlparser.ElementNode:
 		switch strings.ToLower(n.Data) {
 		case "script":
-			return sanitizeScriptTag(n, buf)
+			// Skip invalid scripts silently
+			sanitizeScriptTag(n, buf)
 		case "img":
-			return sanitizeImgTag(n, buf)
+			// Skip invalid images silently
+			sanitizeImgTag(n, buf)
 		case "iframe":
-			return sanitizeIframeTag(n, buf)
+			// Skip invalid iframes silently
+			sanitizeIframeTag(n, buf)
 		case "meta":
-			return sanitizeMetaTag(n, buf)
+			// Skip invalid meta tags silently
+			sanitizeMetaTag(n, buf)
 		case "noscript":
-			return sanitizeNoscriptTag(n, buf)
+			// Skip invalid noscript tags silently
+			sanitizeNoscriptTag(n, buf)
 		case "html", "head", "body":
 			// These are wrapper elements added by the HTML parser
 			// Skip them and process their children
 			for c := n.FirstChild; c != nil; c = c.NextSibling {
-				if err := sanitizeTrackingNode(c, buf); err != nil {
-					return err
-				}
+				// Process all children, no errors expected
+				sanitizeTrackingNode(c, buf)
 			}
 		default:
 			// Skip other tags
-			return nil
 		}
 	case htmlparser.TextNode:
 		// Only include text nodes that are children of allowed elements
@@ -749,11 +748,10 @@ func sanitizeTrackingNode(n *htmlparser.Node, buf *strings.Builder) error {
 			buf.WriteString(html.EscapeString(n.Data))
 		}
 	}
-	return nil
 }
 
 // sanitizeScriptTag sanitizes script tags
-func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
+func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 	var src, async, defer_ string
 	var hasInlineScript bool
 
@@ -765,9 +763,9 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
 		}
 	}
 
-	// If it has inline script content, reject it
+	// If it has inline script content, skip it (don't include in output)
 	if hasInlineScript {
-		return fmt.Errorf("script tags must have a src attribute (inline JavaScript not allowed)")
+		return // Skip this tag
 	}
 
 	// Extract attributes
@@ -775,7 +773,8 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
 		switch strings.ToLower(attr.Key) {
 		case "src":
 			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid script src URL: %w", err)
+				// Skip this script tag if URL is invalid
+				return
 			}
 			src = attr.Val
 		case "async":
@@ -791,7 +790,7 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
 
 	// Must have src attribute
 	if src == "" {
-		return fmt.Errorf("script tags must have a src attribute (inline JavaScript not allowed)")
+		return // Skip this tag
 	}
 
 	// Write sanitized script tag
@@ -807,18 +806,18 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) error {
 	}
 	
 	buf.WriteString("></script>")
-	return nil
 }
 
 // sanitizeImgTag sanitizes img tags
-func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) error {
+func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) {
 	var src, width, height, alt string
 
 	for _, attr := range n.Attr {
 		switch strings.ToLower(attr.Key) {
 		case "src":
 			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid img src URL: %w", err)
+				// Skip this img tag if URL is invalid
+				return
 			}
 			src = attr.Val
 		case "width":
@@ -833,7 +832,7 @@ func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) error {
 	}
 
 	if src == "" {
-		return nil // Skip img without src
+		return // Skip img without src
 	}
 
 	buf.WriteString("<img src=\"")
@@ -857,18 +856,18 @@ func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) error {
 	}
 	
 	buf.WriteString(">")
-	return nil
 }
 
 // sanitizeIframeTag sanitizes iframe tags
-func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) error {
+func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) {
 	var src, width, height string
 
 	for _, attr := range n.Attr {
 		switch strings.ToLower(attr.Key) {
 		case "src":
 			if err := validateURL(attr.Val); err != nil {
-				return fmt.Errorf("invalid iframe src URL: %w", err)
+				// Skip this iframe tag if URL is invalid
+				return
 			}
 			src = attr.Val
 		case "width":
@@ -881,7 +880,7 @@ func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) error {
 	}
 
 	if src == "" {
-		return nil // Skip iframe without src
+		return // Skip iframe without src
 	}
 
 	buf.WriteString("<iframe src=\"")
@@ -900,11 +899,10 @@ func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) error {
 	}
 	
 	buf.WriteString("></iframe>")
-	return nil
 }
 
 // sanitizeMetaTag sanitizes meta tags
-func sanitizeMetaTag(n *htmlparser.Node, buf *strings.Builder) error {
+func sanitizeMetaTag(n *htmlparser.Node, buf *strings.Builder) {
 	var name, content, property string
 
 	for _, attr := range n.Attr {
@@ -937,22 +935,19 @@ func sanitizeMetaTag(n *htmlparser.Node, buf *strings.Builder) error {
 		}
 		buf.WriteString(">")
 	}
-	return nil
 }
 
 // sanitizeNoscriptTag sanitizes noscript tags
-func sanitizeNoscriptTag(n *htmlparser.Node, buf *strings.Builder) error {
+func sanitizeNoscriptTag(n *htmlparser.Node, buf *strings.Builder) {
 	buf.WriteString("<noscript>")
 	
-	// Process children
+	// Process children - continue even if some children are invalid
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if err := sanitizeTrackingNode(c, buf); err != nil {
-			return err
-		}
+		// Process all children, no errors expected
+		sanitizeTrackingNode(c, buf)
 	}
 	
 	buf.WriteString("</noscript>")
-	return nil
 }
 
 // validateURL validates URLs for tracking code
