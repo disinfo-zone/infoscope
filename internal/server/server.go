@@ -171,19 +171,19 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 		config:       config,
 	}
 
-	// Check if we should skip web content extraction entirely
-	shouldSkipExtraction := false
+	// Check if we should extract web content
+	shouldExtract := true
 	if s.config.DisableTemplateUpdates {
 		// Check if web/templates directory exists to determine if it's the first run
 		templatesDir := filepath.Join(s.config.WebPath, "templates")
 		if _, err := os.Stat(templatesDir); err == nil {
 			// Directory exists, not the first run, skip extraction
-			shouldSkipExtraction = true
+			shouldExtract = false
 			s.logger.Printf("Skipping web content extraction due to -no-template-updates flag.")
 		}
 	}
 
-	if !shouldSkipExtraction {
+	if shouldExtract {
 		if err := s.extractWebContent(!s.config.DisableTemplateUpdates); err != nil {
 			return nil, fmt.Errorf("failed to extract web content: %w", err)
 		}
