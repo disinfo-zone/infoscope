@@ -25,6 +25,7 @@ func TestFilterEngine_KeywordFilter(t *testing.T) {
 	filter := &database.EntryFilter{
 		Pattern:       "Go",
 		PatternType:   "keyword",
+		TargetType:    "title",
 		CaseSensitive: true,
 	}
 
@@ -73,6 +74,7 @@ func TestFilterEngine_RegexFilter(t *testing.T) {
 	filter := &database.EntryFilter{
 		Pattern:       `^Go\s+\d+\.\d+`,
 		PatternType:   "regex",
+		TargetType:    "title",
 		CaseSensitive: true,
 	}
 
@@ -111,6 +113,7 @@ func TestFilterEngine_InvalidRegex(t *testing.T) {
 	filter := &database.EntryFilter{
 		Pattern:       `[invalid regex`,
 		PatternType:   "regex",
+		TargetType:    "title",
 		CaseSensitive: true,
 	}
 
@@ -137,6 +140,7 @@ func TestFilterEngine_FilterGroup(t *testing.T) {
 		ID:            1,
 		Pattern:       "Go",
 		PatternType:   "keyword",
+		TargetType:    "title",
 		CaseSensitive: false,
 	}
 
@@ -144,6 +148,7 @@ func TestFilterEngine_FilterGroup(t *testing.T) {
 		ID:            2,
 		Pattern:       "Rust",
 		PatternType:   "keyword",
+		TargetType:    "title",
 		CaseSensitive: false,
 	}
 
@@ -215,6 +220,7 @@ func TestFilterEngine_FilterGroupAND(t *testing.T) {
 		ID:            1,
 		Pattern:       "Go",
 		PatternType:   "keyword",
+		TargetType:    "title",
 		CaseSensitive: false,
 	}
 
@@ -222,6 +228,7 @@ func TestFilterEngine_FilterGroupAND(t *testing.T) {
 		ID:            2,
 		Pattern:       "tutorial",
 		PatternType:   "keyword",
+		TargetType:    "title",
 		CaseSensitive: false,
 	}
 
@@ -311,6 +318,7 @@ func TestFilterEngine_CacheClearing(t *testing.T) {
 	filter := &database.EntryFilter{
 		Pattern:       `test`,
 		PatternType:   "regex",
+		TargetType:    "title",
 		CaseSensitive: true,
 	}
 
@@ -365,6 +373,7 @@ func TestFilterEngine_KeepFilterBehavior(t *testing.T) {
 						ID:            1,
 						Pattern:       "Go",
 						PatternType:   "keyword",
+						TargetType:    "title",
 						CaseSensitive: false,
 					},
 				},
@@ -375,7 +384,14 @@ func TestFilterEngine_KeepFilterBehavior(t *testing.T) {
 	fe.cacheMutex.Unlock()
 
 	// Test that entries matching the "keep" filter are kept
-	decision, err := fe.FilterEntry(context.Background(), "Learning Go Programming")
+	testEntry := &database.Entry{
+		ID: 1,
+		FeedID: 1,
+		Title: "Learning Go Programming",
+		URL: "http://example.com/go",
+		Content: "",
+	}
+	decision, err := fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering entry: %v", err)
 	}
@@ -384,7 +400,8 @@ func TestFilterEngine_KeepFilterBehavior(t *testing.T) {
 	}
 
 	// Test that entries NOT matching the "keep" filter are discarded (whitelist behavior)
-	decision, err = fe.FilterEntry(context.Background(), "Python Tutorial")
+	testEntry.Title = "Python Tutorial"
+	decision, err = fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering entry: %v", err)
 	}
@@ -425,6 +442,7 @@ func TestFilterEngine_DiscardFilterBehavior(t *testing.T) {
 						ID:            1,
 						Pattern:       "spam",
 						PatternType:   "keyword",
+						TargetType:    "title",
 						CaseSensitive: false,
 					},
 				},
@@ -434,8 +452,15 @@ func TestFilterEngine_DiscardFilterBehavior(t *testing.T) {
 	fe.lastUpdated = time.Now()
 	fe.cacheMutex.Unlock()
 
-	// Test that entries matching the "discard" filter are discarded
-	decision, err := fe.FilterEntry(context.Background(), "This is spam content")
+	// Test that entries matching the "discard" filter are discarded  
+	testEntry := &database.Entry{
+		ID: 1,
+		FeedID: 1,
+		Title: "This is spam content",
+		URL: "http://example.com/spam",
+		Content: "",
+	}
+	decision, err := fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering entry: %v", err)
 	}
@@ -444,7 +469,8 @@ func TestFilterEngine_DiscardFilterBehavior(t *testing.T) {
 	}
 
 	// Test that entries NOT matching the "discard" filter are kept (blacklist behavior)
-	decision, err = fe.FilterEntry(context.Background(), "Legitimate news article")
+	testEntry.Title = "Legitimate news article"
+	decision, err = fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering entry: %v", err)
 	}
@@ -485,6 +511,7 @@ func TestFilterEngine_MixedKeepDiscardFilters(t *testing.T) {
 						ID:            1,
 						Pattern:       "Go",
 						PatternType:   "keyword",
+						TargetType:    "title",
 						CaseSensitive: false,
 					},
 				},
@@ -506,6 +533,7 @@ func TestFilterEngine_MixedKeepDiscardFilters(t *testing.T) {
 						ID:            2,
 						Pattern:       "spam",
 						PatternType:   "keyword",
+						TargetType:    "title",
 						CaseSensitive: false,
 					},
 				},
@@ -517,7 +545,14 @@ func TestFilterEngine_MixedKeepDiscardFilters(t *testing.T) {
 
 	// When keep filters are present, only keep filters should matter
 	// Test: Entry matches keep filter → should be kept
-	decision, err := fe.FilterEntry(context.Background(), "Learning Go Programming")
+	testEntry := &database.Entry{
+		ID: 1,
+		FeedID: 1,
+		Title: "Learning Go Programming",
+		URL: "http://example.com/go",
+		Content: "",
+	}
+	decision, err := fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering entry: %v", err)
 	}
@@ -526,7 +561,8 @@ func TestFilterEngine_MixedKeepDiscardFilters(t *testing.T) {
 	}
 
 	// Test: Entry matches discard filter but no keep filter → should be discarded (because keep filters are present)
-	decision, err = fe.FilterEntry(context.Background(), "This is spam content")
+	testEntry.Title = "This is spam content"
+	decision, err = fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering entry: %v", err)
 	}
@@ -535,7 +571,8 @@ func TestFilterEngine_MixedKeepDiscardFilters(t *testing.T) {
 	}
 
 	// Test: Entry matches neither keep nor discard filter → should be discarded (whitelist behavior)
-	decision, err = fe.FilterEntry(context.Background(), "Python Tutorial")
+	testEntry.Title = "Python Tutorial"
+	decision, err = fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering entry: %v", err)
 	}
@@ -559,13 +596,13 @@ func TestFilterEngine_RealDatabaseKeepFilters(t *testing.T) {
 	fe := NewFilterEngine(env.db)
 
 	// Create a keep filter in the database
-	filter, err := db.CreateEntryFilter(context.Background(), "Keep Go Articles", "Go", "keyword", false)
+	filter, err := db.CreateEntryFilter(context.Background(), "Keep Go Articles", "Go", "keyword", "title", false)
 	if err != nil {
 		t.Fatalf("Failed to create filter: %v", err)
 	}
 
 	// Create a keep filter group
-	group, err := db.CreateFilterGroup(context.Background(), "Keep Technical", "keep", 1)
+	group, err := db.CreateFilterGroup(context.Background(), "Keep Technical", "keep", 1, "")
 	if err != nil {
 		t.Fatalf("Failed to create filter group: %v", err)
 	}
@@ -580,7 +617,14 @@ func TestFilterEngine_RealDatabaseKeepFilters(t *testing.T) {
 	fe.InvalidateCache()
 
 	// Test with an entry that matches the keep filter
-	decision, err := fe.FilterEntry(context.Background(), "Learning Go Programming")
+	testEntry := &database.Entry{
+		ID: 1,
+		FeedID: 1,
+		Title: "Learning Go Programming",
+		URL: "http://example.com/go",
+		Content: "",
+	}
+	decision, err := fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering matching entry: %v", err)
 	}
@@ -589,7 +633,8 @@ func TestFilterEngine_RealDatabaseKeepFilters(t *testing.T) {
 	}
 
 	// Test with an entry that does NOT match the keep filter
-	decision, err = fe.FilterEntry(context.Background(), "Python Tutorial")
+	testEntry.Title = "Python Tutorial"
+	decision, err = fe.FilterEntry(context.Background(), testEntry, "", []string{})
 	if err != nil {
 		t.Fatalf("Error filtering non-matching entry: %v", err)
 	}

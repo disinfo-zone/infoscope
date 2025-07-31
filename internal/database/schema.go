@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS entry_filters (
     name TEXT NOT NULL,
     pattern TEXT NOT NULL,
     pattern_type TEXT NOT NULL CHECK(pattern_type IN ('keyword', 'regex')),
+    target_type TEXT NOT NULL DEFAULT 'title' CHECK(target_type IN ('title', 'content', 'feed_tags', 'feed_category')),
     case_sensitive BOOLEAN NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -110,6 +111,7 @@ CREATE TABLE IF NOT EXISTS filter_groups (
     action TEXT NOT NULL CHECK(action IN ('keep', 'discard')),
     is_active BOOLEAN NOT NULL DEFAULT 1,
     priority INTEGER NOT NULL DEFAULT 0,
+    apply_to_category TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -123,6 +125,24 @@ CREATE TABLE IF NOT EXISTS filter_group_rules (
     position INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (group_id) REFERENCES filter_groups(id) ON DELETE CASCADE,
     FOREIGN KEY (filter_id) REFERENCES entry_filters(id) ON DELETE CASCADE
+);
+
+-- Tags table for feed taxonomy
+CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL COLLATE NOCASE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Feed tags junction table for many-to-many relationship
+CREATE TABLE IF NOT EXISTS feed_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feed_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (feed_id) REFERENCES feeds(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+    UNIQUE(feed_id, tag_id)
 );`
 
 const Indexes = `
@@ -144,7 +164,12 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
 -- Filter indexes
 CREATE INDEX IF NOT EXISTS idx_entry_filters_type ON entry_filters(pattern_type);
 CREATE INDEX IF NOT EXISTS idx_filter_groups_active_priority ON filter_groups(is_active, priority);
-CREATE INDEX IF NOT EXISTS idx_filter_group_rules_group_position ON filter_group_rules(group_id, position);`
+CREATE INDEX IF NOT EXISTS idx_filter_group_rules_group_position ON filter_group_rules(group_id, position);
+
+-- Tag indexes
+CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_feed_tags_feed ON feed_tags(feed_id);
+CREATE INDEX IF NOT EXISTS idx_feed_tags_tag ON feed_tags(tag_id);`
 
 // DB represents our database connection and operations
 type DB struct {
@@ -270,6 +295,11 @@ func createSchema(db *sql.DB) error {
 		return fmt.Errorf("error migrating filter tables: %w", err)
 	}
 
+	// Migrate taxonomy tables (categories and tags)
+	if err := migrateTaxonomyTables(db); err != nil {
+		return fmt.Errorf("error migrating taxonomy tables: %w", err)
+	}
+
 	// Create indexes after tables are committed
 	if _, err := db.Exec(Indexes); err != nil {
 		return fmt.Errorf("error creating indexes: %w", err)
@@ -309,6 +339,7 @@ func migrateFeedsTable(db *sql.DB) error {
 		{"last_error", "TEXT", "NULL", true},
 		{"last_fetched", "TIMESTAMP", "NULL", true},
 		{"updated_at", "TIMESTAMP", "", false}, // No default value for 'updated_at'
+		{"title_manually_edited", "BOOLEAN", "0", true}, // Track if title was manually edited
 	}
 
 	for _, col := range expectedColumns {
@@ -513,6 +544,30 @@ func migrateSettingsTable(db *sql.DB) error {
 
 // migrateFilterTables ensures all filter-related tables exist with proper triggers
 func migrateFilterTables(db *sql.DB) error {
+	// Add new columns to entry_filters if they don't exist
+	targetTypeExists, err := columnExists(db, "entry_filters", "target_type")
+	if err != nil {
+		return fmt.Errorf("error checking target_type column: %w", err)
+	}
+	if !targetTypeExists {
+		_, err := db.Exec("ALTER TABLE entry_filters ADD COLUMN target_type TEXT NOT NULL DEFAULT 'title' CHECK(target_type IN ('title', 'content', 'feed_tags', 'feed_category'))")
+		if err != nil {
+			return fmt.Errorf("error adding target_type column: %w", err)
+		}
+	}
+
+	// Add new columns to filter_groups if they don't exist
+	categoryExists, err := columnExists(db, "filter_groups", "apply_to_category")
+	if err != nil {
+		return fmt.Errorf("error checking apply_to_category column: %w", err)
+	}
+	if !categoryExists {
+		_, err := db.Exec("ALTER TABLE filter_groups ADD COLUMN apply_to_category TEXT")
+		if err != nil {
+			return fmt.Errorf("error adding apply_to_category column: %w", err)
+		}
+	}
+
 	// Create triggers for updated_at columns on filter tables
 	triggers := []string{
 		`CREATE TRIGGER IF NOT EXISTS entry_filters_updated_at_trigger
@@ -533,6 +588,24 @@ func migrateFilterTables(db *sql.DB) error {
 	for _, trigger := range triggers {
 		if _, err := db.Exec(trigger); err != nil {
 			return fmt.Errorf("error creating filter trigger: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// migrateTaxonomyTables adds category column to feeds table and ensures tag tables exist
+func migrateTaxonomyTables(db *sql.DB) error {
+	// Add category column to feeds table if it doesn't exist
+	exists, err := columnExists(db, "feeds", "category")
+	if err != nil {
+		return fmt.Errorf("error checking category column: %w", err)
+	}
+	
+	if !exists {
+		_, err := db.Exec("ALTER TABLE feeds ADD COLUMN category TEXT")
+		if err != nil {
+			return fmt.Errorf("error adding category column: %w", err)
 		}
 	}
 

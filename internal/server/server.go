@@ -253,6 +253,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/feeds/", s.requireAuth(s.handleFeeds))
 	mux.HandleFunc("/admin/feeds/validate", s.requireAuth(s.handleFeedValidation))
 	mux.HandleFunc("/admin/feeds/validate/", s.requireAuth(s.handleFeedValidation))
+	mux.HandleFunc("/admin/api/feeds/", s.requireAuth(s.handleFeedAPI))
+	mux.HandleFunc("/admin/api/tags", s.requireAuth(s.handleTagsAPI))
+	mux.HandleFunc("/admin/api/tags/", s.requireAuth(s.handleTagsAPI))
+	mux.HandleFunc("/admin/api/categories", s.requireAuth(s.handleCategoriesAPI))
+	mux.HandleFunc("/admin/api/categories/", s.requireAuth(s.handleCategoriesAPI))
 	mux.HandleFunc("/admin/backup", s.requireAuth(s.handleBackup))
 	mux.HandleFunc("/admin/backup/", s.requireAuth(s.handleBackup))
 	mux.HandleFunc("/admin/metrics", s.requireAuth(s.handleMetrics))
@@ -260,7 +265,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/change-password", s.requireAuth(s.handleChangePassword))
 	mux.HandleFunc("/admin/change-password/", s.requireAuth(s.handleChangePassword))
 	
-	// Filter management routes
+	// Filter management page
+	mux.HandleFunc("/admin/filters-page", s.requireAuth(s.handleFiltersPage))
+	mux.HandleFunc("/admin/filters-page/", s.requireAuth(s.handleFiltersPage))
+	
+	// Filter management API routes
 	mux.HandleFunc("/admin/filters", s.requireAuth(s.handleFilterRoutes))
 	mux.HandleFunc("/admin/filters/", s.requireAuth(s.handleFilterRoutes))
 	mux.HandleFunc("/admin/filter-groups", s.requireAuth(s.handleFilterGroupRoutes))

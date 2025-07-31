@@ -10,6 +10,8 @@ type Feed struct {
 	URL         string    `json:"url"`
 	Title       string    `json:"title"`
 	LastFetched time.Time `json:"lastFetched"`
+	Category    string    `json:"category,omitempty"`
+	Tags        []string  `json:"tags,omitempty"`
 }
 
 type Entry struct {

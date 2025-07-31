@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -29,17 +30,20 @@ type Entry struct {
 
 // Feed represents a feed subscription
 type Feed struct {
-	ID           int64
-	URL          string
-	Title        string
-	LastFetched  time.Time
-	LastModified string
-	ETag         string
-	Status       string
-	ErrorCount   int
-	LastError    string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                  int64
+	URL                 string
+	Title               string
+	LastFetched         time.Time
+	LastModified        string
+	ETag                string
+	Status              string
+	ErrorCount          int
+	LastError           string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	Category            string
+	Tags                []string
+	TitleManuallyEdited bool
 }
 
 // ClickStats represents click tracking statistics
@@ -63,6 +67,7 @@ type EntryFilter struct {
 	Name          string    `json:"name"`
 	Pattern       string    `json:"pattern"`
 	PatternType   string    `json:"pattern_type"` // 'keyword' or 'regex'
+	TargetType    string    `json:"target_type"`  // 'title', 'content', 'feed_tags', 'feed_category'
 	CaseSensitive bool      `json:"case_sensitive"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -70,14 +75,15 @@ type EntryFilter struct {
 
 // FilterGroup represents a group of filters with boolean logic
 type FilterGroup struct {
-	ID        int64             `json:"id"`
-	Name      string            `json:"name"`
-	Action    string            `json:"action"` // 'keep' or 'discard'
-	IsActive  bool              `json:"is_active"`
-	Priority  int               `json:"priority"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
-	Rules     []FilterGroupRule `json:"rules,omitempty"`
+	ID               int64             `json:"id"`
+	Name             string            `json:"name"`
+	Action           string            `json:"action"` // 'keep' or 'discard'
+	IsActive         bool              `json:"is_active"`
+	Priority         int               `json:"priority"`
+	ApplyToCategory  string            `json:"apply_to_category,omitempty"` // Optional category filter
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
+	Rules            []FilterGroupRule `json:"rules,omitempty"`
 }
 
 // FilterGroupRule represents the relationship between filters in a group
@@ -88,6 +94,13 @@ type FilterGroupRule struct {
 	Operator string       `json:"operator"` // 'AND' or 'OR'
 	Position int          `json:"position"`
 	Filter   *EntryFilter `json:"filter"` // Joined filter data
+}
+
+// Tag represents a tag for feed categorization
+type Tag struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // GetSetting retrieves a setting value with type checking
@@ -186,7 +199,7 @@ func (db *DB) GetRecentEntries(ctx context.Context, limit int) ([]Entry, error) 
 func (db *DB) GetActiveFeeds(ctx context.Context) ([]Feed, error) {
 	rows, err := db.QueryContext(ctx,
 		`SELECT id, url, title, last_fetched, last_modified, etag, 
-		        status, error_count, last_error, created_at, updated_at
+		        status, error_count, last_error, created_at, updated_at, category
 		FROM feeds
 		WHERE status = 'active'
 		ORDER BY title`,
@@ -199,13 +212,13 @@ func (db *DB) GetActiveFeeds(ctx context.Context) ([]Feed, error) {
 	var feeds []Feed
 	for rows.Next() {
 		var f Feed
-		var lastModified, etag, lastError sql.NullString
+		var lastModified, etag, lastError, category sql.NullString
 		var lastFetched sql.NullTime
 		
 		err := rows.Scan(
 			&f.ID, &f.URL, &f.Title, &lastFetched, &lastModified,
 			&etag, &f.Status, &f.ErrorCount, &lastError,
-			&f.CreatedAt, &f.UpdatedAt,
+			&f.CreatedAt, &f.UpdatedAt, &category,
 		)
 		if err != nil {
 			return nil, err
@@ -224,6 +237,16 @@ func (db *DB) GetActiveFeeds(ctx context.Context) ([]Feed, error) {
 		if lastError.Valid {
 			f.LastError = lastError.String
 		}
+		if category.Valid {
+			f.Category = category.String
+		}
+		
+		// Load tags for this feed
+		tags, err := db.GetFeedTags(ctx, f.ID)
+		if err != nil {
+			return nil, fmt.Errorf("error loading tags for feed %d: %w", f.ID, err)
+		}
+		f.Tags = tags
 		
 		feeds = append(feeds, f)
 	}
@@ -383,15 +406,15 @@ func (db *DB) CleanupOldEntries(ctx context.Context, maxPosts int) error {
 // Filter-related queries
 
 // CreateEntryFilter creates a new entry filter
-func (db *DB) CreateEntryFilter(ctx context.Context, name, pattern, patternType string, caseSensitive bool) (*EntryFilter, error) {
+func (db *DB) CreateEntryFilter(ctx context.Context, name, pattern, patternType, targetType string, caseSensitive bool) (*EntryFilter, error) {
 	query := `
-        INSERT INTO entry_filters (name, pattern, pattern_type, case_sensitive)
-        VALUES (?, ?, ?, ?)
-        RETURNING id, name, pattern, pattern_type, case_sensitive, created_at, updated_at`
+        INSERT INTO entry_filters (name, pattern, pattern_type, target_type, case_sensitive)
+        VALUES (?, ?, ?, ?, ?)
+        RETURNING id, name, pattern, pattern_type, target_type, case_sensitive, created_at, updated_at`
 	
 	var filter EntryFilter
-	err := db.QueryRowContext(ctx, query, name, pattern, patternType, caseSensitive).Scan(
-		&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType,
+	err := db.QueryRowContext(ctx, query, name, pattern, patternType, targetType, caseSensitive).Scan(
+		&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType, &filter.TargetType,
 		&filter.CaseSensitive, &filter.CreatedAt, &filter.UpdatedAt,
 	)
 	if err != nil {
@@ -404,13 +427,13 @@ func (db *DB) CreateEntryFilter(ctx context.Context, name, pattern, patternType 
 // GetEntryFilter retrieves an entry filter by ID
 func (db *DB) GetEntryFilter(ctx context.Context, id int64) (*EntryFilter, error) {
 	query := `
-        SELECT id, name, pattern, pattern_type, case_sensitive, created_at, updated_at
+        SELECT id, name, pattern, pattern_type, target_type, case_sensitive, created_at, updated_at
         FROM entry_filters
         WHERE id = ?`
 	
 	var filter EntryFilter
 	err := db.QueryRowContext(ctx, query, id).Scan(
-		&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType,
+		&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType, &filter.TargetType,
 		&filter.CaseSensitive, &filter.CreatedAt, &filter.UpdatedAt,
 	)
 	
@@ -427,7 +450,7 @@ func (db *DB) GetEntryFilter(ctx context.Context, id int64) (*EntryFilter, error
 // GetAllEntryFilters retrieves all entry filters
 func (db *DB) GetAllEntryFilters(ctx context.Context) ([]EntryFilter, error) {
 	query := `
-        SELECT id, name, pattern, pattern_type, case_sensitive, created_at, updated_at
+        SELECT id, name, pattern, pattern_type, target_type, case_sensitive, created_at, updated_at
         FROM entry_filters
         ORDER BY name`
 	
@@ -441,7 +464,7 @@ func (db *DB) GetAllEntryFilters(ctx context.Context) ([]EntryFilter, error) {
 	for rows.Next() {
 		var filter EntryFilter
 		err := rows.Scan(
-			&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType,
+			&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType, &filter.TargetType,
 			&filter.CaseSensitive, &filter.CreatedAt, &filter.UpdatedAt,
 		)
 		if err != nil {
@@ -454,13 +477,13 @@ func (db *DB) GetAllEntryFilters(ctx context.Context) ([]EntryFilter, error) {
 }
 
 // UpdateEntryFilter updates an existing entry filter
-func (db *DB) UpdateEntryFilter(ctx context.Context, id int64, name, pattern, patternType string, caseSensitive bool) error {
+func (db *DB) UpdateEntryFilter(ctx context.Context, id int64, name, pattern, patternType, targetType string, caseSensitive bool) error {
 	query := `
         UPDATE entry_filters
-        SET name = ?, pattern = ?, pattern_type = ?, case_sensitive = ?
+        SET name = ?, pattern = ?, pattern_type = ?, target_type = ?, case_sensitive = ?
         WHERE id = ?`
 	
-	result, err := db.ExecContext(ctx, query, name, pattern, patternType, caseSensitive, id)
+	result, err := db.ExecContext(ctx, query, name, pattern, patternType, targetType, caseSensitive, id)
 	if err != nil {
 		return fmt.Errorf("failed to update entry filter: %w", err)
 	}
@@ -499,19 +522,24 @@ func (db *DB) DeleteEntryFilter(ctx context.Context, id int64) error {
 }
 
 // CreateFilterGroup creates a new filter group
-func (db *DB) CreateFilterGroup(ctx context.Context, name, action string, priority int) (*FilterGroup, error) {
+func (db *DB) CreateFilterGroup(ctx context.Context, name, action string, priority int, applyToCategory string) (*FilterGroup, error) {
 	query := `
-        INSERT INTO filter_groups (name, action, priority)
-        VALUES (?, ?, ?)
-        RETURNING id, name, action, is_active, priority, created_at, updated_at`
+        INSERT INTO filter_groups (name, action, priority, apply_to_category)
+        VALUES (?, ?, ?, ?)
+        RETURNING id, name, action, is_active, priority, apply_to_category, created_at, updated_at`
 	
 	var group FilterGroup
-	err := db.QueryRowContext(ctx, query, name, action, priority).Scan(
+	var category sql.NullString
+	err := db.QueryRowContext(ctx, query, name, action, priority, applyToCategory).Scan(
 		&group.ID, &group.Name, &group.Action, &group.IsActive,
-		&group.Priority, &group.CreatedAt, &group.UpdatedAt,
+		&group.Priority, &category, &group.CreatedAt, &group.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create filter group: %w", err)
+	}
+	
+	if category.Valid {
+		group.ApplyToCategory = category.String
 	}
 	
 	return &group, nil
@@ -521,15 +549,20 @@ func (db *DB) CreateFilterGroup(ctx context.Context, name, action string, priori
 func (db *DB) GetFilterGroup(ctx context.Context, id int64) (*FilterGroup, error) {
 	// Get the filter group
 	groupQuery := `
-        SELECT id, name, action, is_active, priority, created_at, updated_at
+        SELECT id, name, action, is_active, priority, apply_to_category, created_at, updated_at
         FROM filter_groups
         WHERE id = ?`
 	
 	var group FilterGroup
+	var category sql.NullString
 	err := db.QueryRowContext(ctx, groupQuery, id).Scan(
 		&group.ID, &group.Name, &group.Action, &group.IsActive,
-		&group.Priority, &group.CreatedAt, &group.UpdatedAt,
+		&group.Priority, &category, &group.CreatedAt, &group.UpdatedAt,
 	)
+	
+	if category.Valid {
+		group.ApplyToCategory = category.String
+	}
 	
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -551,7 +584,7 @@ func (db *DB) GetFilterGroup(ctx context.Context, id int64) (*FilterGroup, error
 // GetAllFilterGroups retrieves all filter groups with their rules
 func (db *DB) GetAllFilterGroups(ctx context.Context) ([]FilterGroup, error) {
 	query := `
-        SELECT id, name, action, is_active, priority, created_at, updated_at
+        SELECT id, name, action, is_active, priority, apply_to_category, created_at, updated_at
         FROM filter_groups
         ORDER BY priority, name`
 	
@@ -564,10 +597,18 @@ func (db *DB) GetAllFilterGroups(ctx context.Context) ([]FilterGroup, error) {
 	var groups []FilterGroup
 	for rows.Next() {
 		var group FilterGroup
+		var category sql.NullString
 		err := rows.Scan(
 			&group.ID, &group.Name, &group.Action, &group.IsActive,
-			&group.Priority, &group.CreatedAt, &group.UpdatedAt,
+			&group.Priority, &category, &group.CreatedAt, &group.UpdatedAt,
 		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan filter group: %w", err)
+		}
+		
+		if category.Valid {
+			group.ApplyToCategory = category.String
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan filter group: %w", err)
 		}
@@ -588,7 +629,7 @@ func (db *DB) GetAllFilterGroups(ctx context.Context) ([]FilterGroup, error) {
 // GetActiveFilterGroups retrieves only active filter groups ordered by priority
 func (db *DB) GetActiveFilterGroups(ctx context.Context) ([]FilterGroup, error) {
 	query := `
-        SELECT id, name, action, is_active, priority, created_at, updated_at
+        SELECT id, name, action, is_active, priority, apply_to_category, created_at, updated_at
         FROM filter_groups
         WHERE is_active = 1
         ORDER BY priority, name`
@@ -602,10 +643,18 @@ func (db *DB) GetActiveFilterGroups(ctx context.Context) ([]FilterGroup, error) 
 	var groups []FilterGroup
 	for rows.Next() {
 		var group FilterGroup
+		var category sql.NullString
 		err := rows.Scan(
 			&group.ID, &group.Name, &group.Action, &group.IsActive,
-			&group.Priority, &group.CreatedAt, &group.UpdatedAt,
+			&group.Priority, &category, &group.CreatedAt, &group.UpdatedAt,
 		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan filter group: %w", err)
+		}
+		
+		if category.Valid {
+			group.ApplyToCategory = category.String
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan filter group: %w", err)
 		}
@@ -624,13 +673,13 @@ func (db *DB) GetActiveFilterGroups(ctx context.Context) ([]FilterGroup, error) 
 }
 
 // UpdateFilterGroup updates an existing filter group
-func (db *DB) UpdateFilterGroup(ctx context.Context, id int64, name, action string, isActive bool, priority int) error {
+func (db *DB) UpdateFilterGroup(ctx context.Context, id int64, name, action string, isActive bool, priority int, applyToCategory string) error {
 	query := `
         UPDATE filter_groups
-        SET name = ?, action = ?, is_active = ?, priority = ?
+        SET name = ?, action = ?, is_active = ?, priority = ?, apply_to_category = ?
         WHERE id = ?`
 	
-	result, err := db.ExecContext(ctx, query, name, action, isActive, priority, id)
+	result, err := db.ExecContext(ctx, query, name, action, isActive, priority, applyToCategory, id)
 	if err != nil {
 		return fmt.Errorf("failed to update filter group: %w", err)
 	}
@@ -672,7 +721,7 @@ func (db *DB) DeleteFilterGroup(ctx context.Context, id int64) error {
 func (db *DB) GetFilterGroupRules(ctx context.Context, groupID int64) ([]FilterGroupRule, error) {
 	query := `
         SELECT r.id, r.group_id, r.filter_id, r.operator, r.position,
-               f.id, f.name, f.pattern, f.pattern_type, f.case_sensitive, f.created_at, f.updated_at
+               f.id, f.name, f.pattern, f.pattern_type, f.target_type, f.case_sensitive, f.created_at, f.updated_at
         FROM filter_group_rules r
         JOIN entry_filters f ON r.filter_id = f.id
         WHERE r.group_id = ?
@@ -691,7 +740,7 @@ func (db *DB) GetFilterGroupRules(ctx context.Context, groupID int64) ([]FilterG
 		
 		err := rows.Scan(
 			&rule.ID, &rule.GroupID, &rule.FilterID, &rule.Operator, &rule.Position,
-			&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType,
+			&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType, &filter.TargetType,
 			&filter.CaseSensitive, &filter.CreatedAt, &filter.UpdatedAt,
 		)
 		if err != nil {
@@ -773,4 +822,232 @@ func (db *DB) UpdateFilterGroupRules(ctx context.Context, groupID int64, rules [
 	}
 	
 	return tx.Commit()
+}
+
+// Taxonomy-related queries
+
+// GetFeedTags retrieves all tag names for a specific feed
+func (db *DB) GetFeedTags(ctx context.Context, feedID int64) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT t.name
+		FROM tags t
+		JOIN feed_tags ft ON t.id = ft.tag_id
+		WHERE ft.feed_id = ?
+		ORDER BY t.name COLLATE NOCASE`, feedID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query feed tags: %w", err)
+	}
+	defer rows.Close()
+
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("failed to scan tag: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+
+	return tags, rows.Err()
+}
+
+// GetAllTags retrieves all unique tags
+func (db *DB) GetAllTags(ctx context.Context) ([]Tag, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, name, created_at
+		FROM tags
+		ORDER BY name COLLATE NOCASE`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tags: %w", err)
+	}
+	defer rows.Close()
+
+	var tags []Tag
+	for rows.Next() {
+		var tag Tag
+		if err := rows.Scan(&tag.ID, &tag.Name, &tag.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan tag: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+
+	return tags, rows.Err()
+}
+
+// GetAllTagNames retrieves all unique tag names (for autocomplete)
+func (db *DB) GetAllTagNames(ctx context.Context) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT name
+		FROM tags
+		ORDER BY name COLLATE NOCASE`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tag names: %w", err)
+	}
+	defer rows.Close()
+
+	var tagNames []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("failed to scan tag name: %w", err)
+		}
+		tagNames = append(tagNames, name)
+	}
+
+	return tagNames, rows.Err()
+}
+
+// GetAllCategories retrieves all unique categories from feeds
+func (db *DB) GetAllCategories(ctx context.Context) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT DISTINCT category
+		FROM feeds
+		WHERE category IS NOT NULL AND category != ''
+		ORDER BY category COLLATE NOCASE`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query categories: %w", err)
+	}
+	defer rows.Close()
+
+	var categories []string
+	for rows.Next() {
+		var category string
+		if err := rows.Scan(&category); err != nil {
+			return nil, fmt.Errorf("failed to scan category: %w", err)
+		}
+		categories = append(categories, category)
+	}
+
+	return categories, rows.Err()
+}
+
+// GetFeedByID retrieves a single feed by ID with category and tags
+func (db *DB) GetFeedByID(ctx context.Context, feedID int64) (*Feed, error) {
+	var f Feed
+	var lastModified, etag, lastError, category sql.NullString
+	var lastFetched sql.NullTime
+	var titleManuallyEdited sql.NullBool
+
+	err := db.QueryRowContext(ctx,
+		`SELECT id, url, title, last_fetched, last_modified, etag, 
+		        status, error_count, last_error, created_at, updated_at, category, title_manually_edited
+		FROM feeds
+		WHERE id = ?`, feedID).Scan(
+		&f.ID, &f.URL, &f.Title, &lastFetched, &lastModified,
+		&etag, &f.Status, &f.ErrorCount, &lastError,
+		&f.CreatedAt, &f.UpdatedAt, &category, &titleManuallyEdited,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get feed: %w", err)
+	}
+
+	// Handle nullable fields
+	if lastFetched.Valid {
+		f.LastFetched = lastFetched.Time
+	}
+	if lastModified.Valid {
+		f.LastModified = lastModified.String
+	}
+	if etag.Valid {
+		f.ETag = etag.String
+	}
+	if lastError.Valid {
+		f.LastError = lastError.String
+	}
+	if category.Valid {
+		f.Category = category.String
+	}
+	if titleManuallyEdited.Valid {
+		f.TitleManuallyEdited = titleManuallyEdited.Bool
+	}
+
+	// Load tags for this feed
+	tags, err := db.GetFeedTags(ctx, f.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error loading tags for feed %d: %w", f.ID, err)
+	}
+	f.Tags = tags
+
+	return &f, nil
+}
+
+// UpdateFeedWithTaxonomy updates a feed's basic information, category, and tags in a transaction
+func (db *DB) UpdateFeedWithTaxonomy(ctx context.Context, feedID int64, title, url, category string, tags []string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Update feed basic information and category, marking title as manually edited
+	_, err = tx.ExecContext(ctx,
+		`UPDATE feeds SET title = ?, url = ?, category = ?, title_manually_edited = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		title, url, category, feedID)
+	if err != nil {
+		return fmt.Errorf("failed to update feed: %w", err)
+	}
+
+	// Delete existing tag associations
+	_, err = tx.ExecContext(ctx, `DELETE FROM feed_tags WHERE feed_id = ?`, feedID)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing feed tags: %w", err)
+	}
+
+	// Add new tags
+	for _, tagName := range tags {
+		tagName = strings.TrimSpace(tagName)
+		if tagName == "" {
+			continue
+		}
+
+		// Get or create tag
+		tagID, err := db.getOrCreateTagTx(ctx, tx, tagName)
+		if err != nil {
+			return fmt.Errorf("failed to get or create tag '%s': %w", tagName, err)
+		}
+
+		// Associate tag with feed
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO feed_tags (feed_id, tag_id) VALUES (?, ?)`,
+			feedID, tagID)
+		if err != nil {
+			return fmt.Errorf("failed to associate tag '%s' with feed: %w", tagName, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// getOrCreateTagTx gets an existing tag or creates a new one within a transaction
+func (db *DB) getOrCreateTagTx(ctx context.Context, tx *sql.Tx, tagName string) (int64, error) {
+	// Try to get existing tag (case insensitive)
+	var tagID int64
+	err := tx.QueryRowContext(ctx,
+		`SELECT id FROM tags WHERE name = ? COLLATE NOCASE`, tagName).Scan(&tagID)
+	
+	if err == nil {
+		return tagID, nil
+	}
+	
+	if err != sql.ErrNoRows {
+		return 0, fmt.Errorf("failed to query existing tag: %w", err)
+	}
+
+	// Create new tag
+	result, err := tx.ExecContext(ctx,
+		`INSERT INTO tags (name) VALUES (?)`, tagName)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create tag: %w", err)
+	}
+
+	tagID, err = result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get new tag ID: %w", err)
+	}
+
+	return tagID, nil
 }

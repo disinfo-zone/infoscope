@@ -61,15 +61,21 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 	rows, err := s.db.QueryContext(ctx, `
         SELECT 
             e.id,
+            e.feed_id,
             e.title,
             e.url,
             e.favicon_url,
             datetime(e.published_at) as date,
             e.content,
-            f.title as feed_title
+            f.title as feed_title,
+            f.category,
+            GROUP_CONCAT(t.name) as tags
         FROM entries e
         JOIN feeds f ON e.feed_id = f.id
+        LEFT JOIN feed_tags ft ON f.id = ft.feed_id
+        LEFT JOIN tags t ON ft.tag_id = t.id
         WHERE f.status != 'deleted' 
+        GROUP BY e.id, e.feed_id, e.title, e.url, e.favicon_url, e.published_at, e.content, f.title, f.category
         ORDER BY e.published_at DESC
         LIMIT ?
     `, fetchLimit)
@@ -84,14 +90,35 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 	for rows.Next() {
 		var e EntryView
 		var publishedAtStr string // Will hold the "YYYY-MM-DD HH:MM:SS" string from DB
-		var content, feedTitle sql.NullString
-		if err := rows.Scan(&e.ID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr, &content, &feedTitle); err != nil {
+		var content, feedTitle, feedCategory, tagsStr sql.NullString
+		var feedID int64
+		if err := rows.Scan(&e.ID, &feedID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr, &content, &feedTitle, &feedCategory, &tagsStr); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
-		// Apply filters to the entry title
+		// Apply filters to the entry
 		if filterEngine != nil {
-			decision, err := filterEngine.FilterEntry(ctx, e.Title)
+			// Create database.Entry for filtering
+			dbEntry := &database.Entry{
+				ID:      e.ID,
+				FeedID:  feedID,
+				Title:   e.Title,
+				URL:     e.URL,
+				Content: content.String,
+			}
+			
+			// Parse feed category and tags
+			category := ""
+			if feedCategory.Valid {
+				category = feedCategory.String
+			}
+			
+			var tags []string
+			if tagsStr.Valid && tagsStr.String != "" {
+				tags = strings.Split(tagsStr.String, ",")
+			}
+			
+			decision, err := filterEngine.FilterEntry(ctx, dbEntry, category, tags)
 			if err != nil {
 				s.logger.Printf("Error applying filters to entry '%s': %v", e.Title, err)
 				// Continue processing on filter error
@@ -149,31 +176,26 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 }
 
 func (s *Server) getFeeds(ctx context.Context) ([]Feed, error) {
-	rows, err := s.db.QueryContext(ctx, `
-        SELECT id, url, title, datetime(last_fetched)
-        FROM feeds
-        ORDER BY title
-    `)
+	dbWrapper := &database.DB{DB: s.db}
+	dbFeeds, err := dbWrapper.GetActiveFeeds(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var feeds []Feed
-	for rows.Next() {
-		var f Feed
-		var lastFetchedStr sql.NullString
-		if err := rows.Scan(&f.ID, &f.URL, &f.Title, &lastFetchedStr); err != nil {
-			return nil, err
+	// Convert database.Feed to server.Feed
+	feeds := make([]Feed, len(dbFeeds))
+	for i, dbFeed := range dbFeeds {
+		feeds[i] = Feed{
+			ID:          dbFeed.ID,
+			URL:         dbFeed.URL,
+			Title:       dbFeed.Title,
+			LastFetched: dbFeed.LastFetched,
+			Category:    dbFeed.Category,
+			Tags:        dbFeed.Tags,
 		}
-		if lastFetchedStr.Valid {
-			if date, err := time.Parse("2006-01-02 15:04:05", lastFetchedStr.String); err == nil {
-				f.LastFetched = date
-			}
-		}
-		feeds = append(feeds, f)
 	}
-	return feeds, rows.Err()
+	
+	return feeds, nil
 }
 
 func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
@@ -984,5 +1006,19 @@ func isAllowedParent(tagName string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// handleFiltersPage renders the filters management page
+func (s *Server) handleFiltersPage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data := r.Context().Value(contextKeyTemplateData)
+	if err := s.renderTemplate(w, r, "admin/filters.html", data); err != nil {
+		s.logger.Printf("Error rendering filters page: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
