@@ -1,3 +1,4 @@
+
 {{ define "content" }}
 <div class="settings-container">
     <div class="panel">
@@ -33,7 +34,7 @@
                 <label>FAVICON</label>
                 {{ if index .Data.Settings "favicon_url" }}
                 <div class="current-image">
-                    <img src="/static/images/favicon/{{ index .Data.Settings "favicon_url" }}" alt="Favicon" style="max-height: 32px">
+                    <img src="/static/images/{{ index .Data.Settings "favicon_url" }}" alt="Favicon" style="max-height: 32px">
                 </div>
                 {{ end }}
                 <div class="upload-container">
