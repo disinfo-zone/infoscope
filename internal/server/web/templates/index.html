@@ -28,7 +28,7 @@
     <meta name="twitter:image" content="{{ .Data.SiteURL }}/static/images/{{ index .Data.Settings "meta_image_url" }}">
     {{ end }}
 
-    <link rel="icon" type="image/x-icon" href="/static/images/favicon/{{ index .Data.Settings "favicon_url" }}">
+    <link rel="icon" type="image/x-icon" href="/static/images/{{ index .Data.Settings "favicon_url" }}">
     <link rel="alternate" type="application/rss+xml" title="{{ .Data.Title }} Feed" href="/rss.xml" />
     
     <!-- Preload critical favicons for faster loading -->
