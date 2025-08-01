@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"infoscope/internal/database"
 	"infoscope/internal/favicon"
 
 	"github.com/mmcdole/gofeed"
@@ -231,7 +232,7 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 
 func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error {
 	// Apply filters to entries before saving
-	filteredEntries, filteredCount := f.applyFilters(ctx, result.Entries)
+	filteredEntries, filteredCount := f.applyFilters(ctx, result.Entries, result.Feed.Category, result.Feed.Tags)
 	
 	// Log filtering statistics
 	if filteredCount > 0 {
@@ -244,10 +245,10 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	
 	if len(result.Entries) == 0 {
 		// Update last_fetched time and title even if no entries remain after filtering
-		// Only update title if the new title is not empty
+		// Only update title if the new title is not empty and title hasn't been manually edited
 		if result.FeedTitle != "" {
 			_, err := f.db.ExecContext(ctx,
-				"UPDATE feeds SET last_fetched = DATETIME(?), title = ? WHERE id = ?",
+				"UPDATE feeds SET last_fetched = DATETIME(?), title = CASE WHEN title_manually_edited = 1 THEN title ELSE ? END WHERE id = ?",
 				f.formattedTimestamp(), result.FeedTitle, result.Feed.ID,
 			)
 			return err
@@ -267,10 +268,10 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	}
 	defer tx.Rollback()
 
-	// Update feed last_fetched time and title, but only if the new title is not empty
+	// Update feed last_fetched time and title, but only if the new title is not empty and title hasn't been manually edited
 	if result.FeedTitle != "" {
 		_, err = tx.ExecContext(ctx,
-			"UPDATE feeds SET last_fetched = DATETIME(?), title = ? WHERE id = ?",
+			"UPDATE feeds SET last_fetched = DATETIME(?), title = CASE WHEN title_manually_edited = 1 THEN title ELSE ? END WHERE id = ?",
 			f.formattedTimestamp(), result.FeedTitle, result.Feed.ID,
 		)
 	} else {
@@ -346,7 +347,7 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 }
 
 // applyFilters applies the filtering system to a list of entries
-func (f *Fetcher) applyFilters(ctx context.Context, entries []Entry) ([]Entry, int) {
+func (f *Fetcher) applyFilters(ctx context.Context, entries []Entry, feedCategory string, feedTags []string) ([]Entry, int) {
 	if len(entries) == 0 {
 		return entries, 0
 	}
@@ -355,7 +356,18 @@ func (f *Fetcher) applyFilters(ctx context.Context, entries []Entry) ([]Entry, i
 	var filteredCount int
 
 	for _, entry := range entries {
-		decision, err := f.filterEngine.FilterEntry(ctx, entry.Title)
+		// Convert feed Entry to database Entry for filtering
+		dbEntry := &database.Entry{
+			ID:          entry.ID,
+			FeedID:      entry.FeedID,
+			Title:       entry.Title,
+			URL:         entry.URL,
+			Content:     entry.Content,
+			PublishedAt: entry.PublishedAt,
+			FaviconURL:  entry.FaviconURL,
+		}
+
+		decision, err := f.filterEngine.FilterEntry(ctx, dbEntry, feedCategory, feedTags)
 		if err != nil {
 			// Log error but don't fail the entire process
 			f.logger.Printf("Error applying filters to entry '%s': %v", entry.Title, err)

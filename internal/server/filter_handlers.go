@@ -39,6 +39,7 @@ type CreateFilterRequest struct {
 	Name          string `json:"name"`
 	Pattern       string `json:"pattern"`
 	PatternType   string `json:"pattern_type"`
+	TargetType    string `json:"target_type"`
 	CaseSensitive bool   `json:"case_sensitive"`
 }
 
@@ -47,22 +48,25 @@ type UpdateFilterRequest struct {
 	Name          string `json:"name"`
 	Pattern       string `json:"pattern"`
 	PatternType   string `json:"pattern_type"`
+	TargetType    string `json:"target_type"`
 	CaseSensitive bool   `json:"case_sensitive"`
 }
 
 // CreateFilterGroupRequest represents the request to create a new filter group
 type CreateFilterGroupRequest struct {
-	Name     string `json:"name"`
-	Action   string `json:"action"`
-	Priority int    `json:"priority"`
+	Name            string `json:"name"`
+	Action          string `json:"action"`
+	Priority        int    `json:"priority"`
+	ApplyToCategory string `json:"apply_to_category,omitempty"`
 }
 
 // UpdateFilterGroupRequest represents the request to update a filter group
 type UpdateFilterGroupRequest struct {
-	Name     string `json:"name"`
-	Action   string `json:"action"`
-	IsActive bool   `json:"is_active"`
-	Priority int    `json:"priority"`
+	Name            string `json:"name"`
+	Action          string `json:"action"`
+	IsActive        bool   `json:"is_active"`
+	Priority        int    `json:"priority"`
+	ApplyToCategory string `json:"apply_to_category,omitempty"`
 }
 
 // FilterGroupRulesRequest represents the request to update filter group rules
@@ -81,6 +85,7 @@ type FilterGroupRuleRequest struct {
 type TestFilterRequest struct {
 	Pattern       string `json:"pattern"`
 	PatternType   string `json:"pattern_type"`
+	TargetType    string `json:"target_type"`
 	CaseSensitive bool   `json:"case_sensitive"`
 	TestText      string `json:"test_text"`
 }
@@ -148,6 +153,16 @@ func (s *Server) CreateFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set default target type if not provided
+	if req.TargetType == "" {
+		req.TargetType = "title"
+	}
+
+	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
+		s.jsonError(w, "Target type must be 'title', 'content', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
+		return
+	}
+
 	// Validate regex patterns
 	if req.PatternType == "regex" {
 		if err := feed.ValidateRegexPattern(req.Pattern, req.CaseSensitive); err != nil {
@@ -157,7 +172,7 @@ func (s *Server) CreateFilter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := &database.DB{DB: s.db}
-	filter, err := db.CreateEntryFilter(r.Context(), req.Name, req.Pattern, req.PatternType, req.CaseSensitive)
+	filter, err := db.CreateEntryFilter(r.Context(), req.Name, req.Pattern, req.PatternType, req.TargetType, req.CaseSensitive)
 	if err != nil {
 		s.logger.Printf("Error creating filter: %v", err)
 		s.jsonError(w, "Failed to create filter", http.StatusInternalServerError)
@@ -199,6 +214,16 @@ func (s *Server) UpdateFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set default target type if not provided
+	if req.TargetType == "" {
+		req.TargetType = "title"
+	}
+
+	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
+		s.jsonError(w, "Target type must be 'title', 'content', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
+		return
+	}
+
 	// Validate regex patterns
 	if req.PatternType == "regex" {
 		if err := feed.ValidateRegexPattern(req.Pattern, req.CaseSensitive); err != nil {
@@ -208,7 +233,7 @@ func (s *Server) UpdateFilter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := &database.DB{DB: s.db}
-	err = db.UpdateEntryFilter(r.Context(), id, req.Name, req.Pattern, req.PatternType, req.CaseSensitive)
+	err = db.UpdateEntryFilter(r.Context(), id, req.Name, req.Pattern, req.PatternType, req.TargetType, req.CaseSensitive)
 	if err == database.ErrNotFound {
 		s.jsonError(w, "Filter not found", http.StatusNotFound)
 		return
@@ -321,7 +346,7 @@ func (s *Server) CreateFilterGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := &database.DB{DB: s.db}
-	group, err := db.CreateFilterGroup(r.Context(), req.Name, req.Action, req.Priority)
+	group, err := db.CreateFilterGroup(r.Context(), req.Name, req.Action, req.Priority, req.ApplyToCategory)
 	if err != nil {
 		s.logger.Printf("Error creating filter group: %v", err)
 		s.jsonError(w, "Failed to create filter group", http.StatusInternalServerError)
@@ -364,7 +389,7 @@ func (s *Server) UpdateFilterGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := &database.DB{DB: s.db}
-	err = db.UpdateFilterGroup(r.Context(), id, req.Name, req.Action, req.IsActive, req.Priority)
+	err = db.UpdateFilterGroup(r.Context(), id, req.Name, req.Action, req.IsActive, req.Priority, req.ApplyToCategory)
 	if err == database.ErrNotFound {
 		s.jsonError(w, "Filter group not found", http.StatusNotFound)
 		return
@@ -513,10 +538,21 @@ func (s *Server) TestFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set default target type if not provided
+	if req.TargetType == "" {
+		req.TargetType = "title"
+	}
+
+	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
+		s.jsonError(w, "Target type must be 'title', 'content', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
+		return
+	}
+
 	// Create a temporary filter for testing
 	filter := &database.EntryFilter{
 		Pattern:       req.Pattern,
 		PatternType:   req.PatternType,
+		TargetType:    req.TargetType,
 		CaseSensitive: req.CaseSensitive,
 	}
 

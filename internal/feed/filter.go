@@ -39,8 +39,8 @@ func NewFilterEngine(db *sql.DB) *FilterEngine {
 	}
 }
 
-// FilterEntry evaluates an entry title against all active filter groups
-func (fe *FilterEngine) FilterEntry(ctx context.Context, title string) (FilterDecision, error) {
+// FilterEntry evaluates an entry against all active filter groups  
+func (fe *FilterEngine) FilterEntry(ctx context.Context, entry *database.Entry, feedCategory string, feedTags []string) (FilterDecision, error) {
 	groups, err := fe.getActiveFilterGroups(ctx)
 	if err != nil {
 		return FilterKeep, fmt.Errorf("failed to get active filter groups: %w", err)
@@ -51,9 +51,19 @@ func (fe *FilterEngine) FilterEntry(ctx context.Context, title string) (FilterDe
 		return FilterKeep, nil
 	}
 
-	// Check if there are any "keep" filters among the groups
-	hasKeepFilters := false
+	// Filter groups by category if specified
+	var relevantGroups []database.FilterGroup
 	for _, group := range groups {
+		// If group has no category filter, it applies to all entries
+		// If group has category filter, it only applies to entries from feeds in that category
+		if group.ApplyToCategory == "" || group.ApplyToCategory == feedCategory {
+			relevantGroups = append(relevantGroups, group)
+		}
+	}
+
+	// Check if there are any "keep" filters among the relevant groups
+	hasKeepFilters := false
+	for _, group := range relevantGroups {
 		if group.Action == "keep" {
 			hasKeepFilters = true
 			break
@@ -63,9 +73,9 @@ func (fe *FilterEngine) FilterEntry(ctx context.Context, title string) (FilterDe
 	// Handle "keep" filters (whitelist mode) - must be processed separately
 	if hasKeepFilters {
 		// For keep filters, we only care about keep filters, ignore discard filters
-		for _, group := range groups {
+		for _, group := range relevantGroups {
 			if group.Action == "keep" {
-				matches, err := fe.evaluateFilterGroup(group, title)
+				matches, err := fe.evaluateFilterGroup(group, entry, feedCategory, feedTags)
 				if err != nil {
 					// Log error but continue with other groups
 					continue
@@ -81,9 +91,9 @@ func (fe *FilterEngine) FilterEntry(ctx context.Context, title string) (FilterDe
 	}
 
 	// Handle "discard" filters (blacklist mode)
-	for _, group := range groups {
+	for _, group := range relevantGroups {
 		if group.Action == "discard" {
-			matches, err := fe.evaluateFilterGroup(group, title)
+			matches, err := fe.evaluateFilterGroup(group, entry, feedCategory, feedTags)
 			if err != nil {
 				// Log error but continue with other groups
 				continue
@@ -135,22 +145,22 @@ func (fe *FilterEngine) getActiveFilterGroups(ctx context.Context) ([]database.F
 	return groups, nil
 }
 
-// evaluateFilterGroup evaluates a single filter group against a title
-func (fe *FilterEngine) evaluateFilterGroup(group database.FilterGroup, title string) (bool, error) {
+// evaluateFilterGroup evaluates a single filter group against an entry
+func (fe *FilterEngine) evaluateFilterGroup(group database.FilterGroup, entry *database.Entry, feedCategory string, feedTags []string) (bool, error) {
 	if len(group.Rules) == 0 {
 		return false, nil
 	}
 
 	// Handle single rule case (most common scenario)
 	if len(group.Rules) == 1 {
-		return fe.evaluateFilter(group.Rules[0].Filter, title)
+		return fe.evaluateFilter(group.Rules[0].Filter, entry, feedCategory, feedTags)
 	}
 
 	// Handle multiple rules with boolean logic
 	result := false
 
 	for i, rule := range group.Rules {
-		filterMatches, err := fe.evaluateFilter(rule.Filter, title)
+		filterMatches, err := fe.evaluateFilter(rule.Filter, entry, feedCategory, feedTags)
 		if err != nil {
 			return false, fmt.Errorf("filter evaluation failed for rule %d (%s): %w", i, rule.Filter.Name, err)
 		}
@@ -186,17 +196,47 @@ func (fe *FilterEngine) evaluateFilterGroup(group database.FilterGroup, title st
 	return result, nil
 }
 
-// evaluateFilter evaluates a single filter against a title
-func (fe *FilterEngine) evaluateFilter(filter *database.EntryFilter, title string) (bool, error) {
+// evaluateFilter evaluates a single filter against an entry
+func (fe *FilterEngine) evaluateFilter(filter *database.EntryFilter, entry *database.Entry, feedCategory string, feedTags []string) (bool, error) {
 	if filter == nil {
 		return false, nil
 	}
 
+	// Get the target text based on filter target type
+	var targetText string
+	switch filter.TargetType {
+	case "title":
+		targetText = entry.Title
+	case "content":
+		targetText = entry.Content
+	case "feed_category":
+		targetText = feedCategory
+	case "feed_tags":
+		// For tags, we check if the pattern matches any of the feed's tags
+		for _, tag := range feedTags {
+			matches, err := fe.evaluateFilterPattern(filter, tag)
+			if err != nil {
+				return false, err
+			}
+			if matches {
+				return true, nil
+			}
+		}
+		return false, nil
+	default:
+		return false, fmt.Errorf("unknown filter target type: %s", filter.TargetType)
+	}
+
+	return fe.evaluateFilterPattern(filter, targetText)
+}
+
+// evaluateFilterPattern evaluates a filter pattern against target text
+func (fe *FilterEngine) evaluateFilterPattern(filter *database.EntryFilter, targetText string) (bool, error) {
 	switch filter.PatternType {
 	case "keyword":
-		return fe.evaluateKeywordFilter(filter, title), nil
+		return fe.evaluateKeywordFilter(filter, targetText), nil
 	case "regex":
-		return fe.evaluateRegexFilter(filter, title)
+		return fe.evaluateRegexFilter(filter, targetText)
 	default:
 		return false, fmt.Errorf("unknown filter pattern type: %s", filter.PatternType)
 	}
@@ -291,12 +331,35 @@ func ValidateRegexPattern(pattern string, caseSensitive bool) error {
 
 // TestFilter tests a filter against sample text
 func (fe *FilterEngine) TestFilter(filter *database.EntryFilter, testText string) (bool, error) {
-	return fe.evaluateFilter(filter, testText)
+	// Create a mock entry for testing
+	mockEntry := &database.Entry{
+		Title:   testText,
+		Content: testText,
+	}
+	
+	// For testing, we assume the test text represents the target content
+	var feedCategory string
+	var feedTags []string
+	
+	// If testing feed_category or feed_tags, use test text as those values
+	if filter.TargetType == "feed_category" {
+		feedCategory = testText
+	} else if filter.TargetType == "feed_tags" {
+		feedTags = []string{testText}
+	}
+	
+	return fe.evaluateFilter(filter, mockEntry, feedCategory, feedTags)
 }
 
 // TestFilterGroup tests a filter group against sample text
 func (fe *FilterEngine) TestFilterGroup(group database.FilterGroup, testText string) (bool, error) {
-	return fe.evaluateFilterGroup(group, testText)
+	// Create a mock entry for testing
+	mockEntry := &database.Entry{
+		Title:   testText,
+		Content: testText,
+	}
+	
+	return fe.evaluateFilterGroup(group, mockEntry, testText, []string{testText})
 }
 
 // InvalidateCache forces the filter engine to refresh its cache on next request

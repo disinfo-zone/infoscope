@@ -1852,6 +1852,9 @@ function initializeFilterSystem() {
     
     // Load filters data
     loadFiltersData();
+    
+    // Load categories for filter group options
+    loadCategories();
 }
 
 function setupModalHandlers() {
@@ -1936,6 +1939,38 @@ async function loadFiltersData() {
     }
 }
 
+async function loadCategories() {
+    try {
+        const response = await fetch('/admin/api/categories');
+        if (response.ok) {
+            const data = await response.json();
+            const categories = data.categories || [];
+            
+            // Populate create group dropdown
+            const createSelect = document.getElementById('modalGroupCategory');
+            createSelect.innerHTML = '<option value="">All categories</option>';
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                createSelect.appendChild(option);
+            });
+            
+            // Populate edit group dropdown
+            const editSelect = document.getElementById('editGroupCategory');
+            editSelect.innerHTML = '<option value="">All categories</option>';
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                editSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading categories:', error);
+    }
+}
+
 // Modal Functions
 function showCreateGroupModal() {
     document.getElementById('createGroupModal').style.display = 'block';
@@ -1983,6 +2018,7 @@ async function saveGroup() {
     const name = document.getElementById('modalGroupName').value.trim();
     const action = document.getElementById('modalGroupAction').value;
     const priority = parseInt(document.getElementById('modalGroupPriority').value) || 0;
+    const category = document.getElementById('modalGroupCategory').value.trim();
     const isActive = document.getElementById('modalGroupActive').checked;
     
     if (!name) {
@@ -2001,6 +2037,7 @@ async function saveGroup() {
                 name: name,
                 action: action,
                 priority: priority,
+                apply_to_category: category,
                 is_active: isActive
             })
         });
@@ -2034,6 +2071,7 @@ async function editGroup(groupId) {
         document.getElementById('editGroupName').value = group.name;
         document.getElementById('editGroupAction').value = group.action;
         document.getElementById('editGroupPriority').value = group.priority;
+        document.getElementById('editGroupCategory').value = group.apply_to_category || '';
         document.getElementById('editGroupActive').checked = group.is_active;
         
         // Update modal title
@@ -2056,6 +2094,7 @@ async function updateGroup() {
     const name = document.getElementById('editGroupName').value.trim();
     const action = document.getElementById('editGroupAction').value;
     const priority = parseInt(document.getElementById('editGroupPriority').value) || 0;
+    const category = document.getElementById('editGroupCategory').value.trim();
     const isActive = document.getElementById('editGroupActive').checked;
     
     if (!name) {
@@ -2074,6 +2113,7 @@ async function updateGroup() {
                 name: name,
                 action: action,
                 priority: priority,
+                apply_to_category: category,
                 is_active: isActive
             })
         });
@@ -2193,6 +2233,7 @@ async function saveFilter() {
     const name = document.getElementById('modalFilterName').value.trim();
     const pattern = document.getElementById('modalFilterPattern').value.trim();
     const type = document.getElementById('modalFilterType').value;
+    const targetType = document.getElementById('modalFilterTargetType').value;
     const caseSensitive = document.getElementById('modalFilterCaseSensitive').checked;
     
     if (!name || !pattern) {
@@ -2211,6 +2252,7 @@ async function saveFilter() {
                 name: name,
                 pattern: pattern,
                 pattern_type: type,
+                target_type: targetType,
                 case_sensitive: caseSensitive
             })
         });
@@ -2243,6 +2285,7 @@ async function editFilter(filterId) {
         document.getElementById('editFilterName').value = filter.name;
         document.getElementById('editFilterPattern').value = filter.pattern;
         document.getElementById('editFilterType').value = filter.pattern_type;
+        document.getElementById('editFilterTargetType').value = filter.target_type || 'title';
         document.getElementById('editFilterCaseSensitive').checked = filter.case_sensitive;
         
         // Store the filter ID for the update function
@@ -2261,6 +2304,7 @@ async function updateFilter() {
     const name = document.getElementById('editFilterName').value.trim();
     const pattern = document.getElementById('editFilterPattern').value.trim();
     const type = document.getElementById('editFilterType').value;
+    const targetType = document.getElementById('editFilterTargetType').value;
     const caseSensitive = document.getElementById('editFilterCaseSensitive').checked;
     
     if (!name || !pattern) {
@@ -2284,6 +2328,7 @@ async function updateFilter() {
                 name: name,
                 pattern: pattern,
                 pattern_type: type,
+                target_type: targetType,
                 case_sensitive: caseSensitive
             })
         });
@@ -3095,6 +3140,14 @@ document.head.appendChild(style);
             </div>
             
             <div class="modal-form-group">
+                <label for="modalGroupCategory">Apply to Category (optional):</label>
+                <select id="modalGroupCategory">
+                    <option value="">All categories</option>
+                </select>
+                <div class="form-help">Leave empty to apply to all categories</div>
+            </div>
+            
+            <div class="modal-form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="modalGroupActive" checked>
                     Active
@@ -3131,6 +3184,16 @@ document.head.appendChild(style);
                 <select id="modalFilterType">
                     <option value="keyword">Keyword</option>
                     <option value="regex">Regular Expression</option>
+                </select>
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="modalFilterTargetType">Target:</label>
+                <select id="modalFilterTargetType">
+                    <option value="title">Entry Title</option>
+                    <option value="content">Entry Content/Preview</option>
+                    <option value="feed_tags">Feed Tags</option>
+                    <option value="feed_category">Feed Category</option>
                 </select>
             </div>
             
@@ -3175,6 +3238,16 @@ document.head.appendChild(style);
             </div>
             
             <div class="modal-form-group">
+                <label for="editFilterTargetType">Target:</label>
+                <select id="editFilterTargetType">
+                    <option value="title">Entry Title</option>
+                    <option value="content">Entry Content/Preview</option>
+                    <option value="feed_tags">Feed Tags</option>
+                    <option value="feed_category">Feed Category</option>
+                </select>
+            </div>
+            
+            <div class="modal-form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="editFilterCaseSensitive">
                     Case Sensitive
@@ -3213,6 +3286,14 @@ document.head.appendChild(style);
                 <label for="editGroupPriority">Priority:</label>
                 <input type="number" id="editGroupPriority" value="0" min="0">
                 <div class="form-help">Higher priority groups are processed first</div>
+            </div>
+            
+            <div class="modal-form-group">
+                <label for="editGroupCategory">Apply to Category (optional):</label>
+                <select id="editGroupCategory">
+                    <option value="">All categories</option>
+                </select>
+                <div class="form-help">Leave empty to apply to all categories</div>
             </div>
             
             <div class="modal-form-group">

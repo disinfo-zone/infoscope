@@ -15,6 +15,7 @@ infoscope
 *.test
 *.out
 *.bak
+CLAUDE.md
 
 # User-uploaded content
 web/static/favicons/*

@@ -29,6 +29,8 @@
                     <tr>
                         <th>Title</th>
                         <th>URL</th>
+                        <th>Category</th>
+                        <th>Tags</th>
                         <th>Last Fetched</th>
                         <th class="action-column">Actions</th>
                     </tr>
@@ -40,11 +42,29 @@
                         <td class="url-column" data-label="URL">
                             <a href="{{ .URL }}" class="feed-url" target="_blank" rel="noopener noreferrer">{{ .URL }}</a>
                         </td>
+                        <td class="category-column" data-label="Category">
+                            {{ if .Category }}
+                                <span class="category-tag">{{ .Category }}</span>
+                            {{ else }}
+                                <span class="empty-value">—</span>
+                            {{ end }}
+                        </td>
+                        <td class="tags-column" data-label="Tags">
+                            {{ if .Tags }}
+                                <div class="tag-list">
+                                    {{ range .Tags }}
+                                        <span class="tag">{{ . }}</span>
+                                    {{ end }}
+                                </div>
+                            {{ else }}
+                                <span class="empty-value">—</span>
+                            {{ end }}
+                        </td>
                         <td class="date-column" data-label="Fetched">
                             {{ formatTimeInZone (index $.Data.Settings "timezone") .LastFetched }}
                         </td>
                         <td class="action-column" data-label="Actions">
-                            <button onclick="showDeleteModal({{ .ID }}, '{{ .Title }}')" class="delete-button">Delete</button>
+                            <button onclick="showEditModal({{ .ID }})" class="edit-button">Edit</button>
                         </td>
                     </tr>
                     {{ end }}
@@ -53,7 +73,62 @@
         </div>
     </div>
 </div>
-<!-- Delete Modal -->
+<!-- Edit Feed Modal -->
+<div id="editModal" class="modal">
+    <div class="modal-content edit-modal-content">
+        <h3>Edit Feed</h3>
+        <form id="editFeedForm" class="edit-form">
+            <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+            <input type="hidden" id="editFeedId" name="feedId" value="">
+            
+            <div class="form-group">
+                <label for="editTitle">Title</label>
+                <input type="text" id="editTitle" name="title" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="editUrl">URL</label>
+                <input type="url" id="editUrl" name="url" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="editCategory">Category</label>
+                <div class="category-input-wrapper">
+                    <input type="text" id="editCategory" name="category" autocomplete="off" placeholder="Enter category or select from existing ones">
+                    <div id="categorySuggestions" class="category-suggestions"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="editTags">Tags</label>
+                <div class="tag-input-container">
+                    <div id="tagTokens" class="tag-tokens"></div>
+                    
+                    <div class="available-tags">
+                        <div class="available-tags-label">Available tags (click to add):</div>
+                        <div id="availableTagsList" class="available-tags-list"></div>
+                    </div>
+                    
+                    <div class="new-tag-input">
+                        <label class="new-tag-label">Add new tag:</label>
+                        <input type="text" id="editTags" name="tags" autocomplete="off" placeholder="Type new tag name and press Enter">
+                    </div>
+                </div>
+                <div class="tag-help">Click existing tags above to add them, or type new ones below</div>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="submit" class="save-button">Save Changes</button>
+                <button type="button" class="cancel-button" onclick="hideEditModal()">Cancel</button>
+                <button type="button" class="delete-button modal-delete-button" id="deleteFromEdit">Delete Feed</button>
+            </div>
+            
+            <div id="editError" class="error-message"></div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
 <div id="deleteModal" class="modal">
     <div class="modal-content">
         <h3>Delete Feed</h3>
@@ -67,6 +142,9 @@
 <script>
     let currentFeedId = null;
     let validateTimeout = null;
+    let currentTags = [];
+    let availableTags = [];
+    let availableCategories = [];
     
 // Add Feed Form Submission
 document.getElementById('addFeedForm').addEventListener('submit', async (e) => {
@@ -83,10 +161,6 @@ document.getElementById('addFeedForm').addEventListener('submit', async (e) => {
     previewElement.classList.remove('show');
     inputWrapper.classList.add('loading');
     submitButton.disabled = true;
-
-    // Add this right before the fetch call
-console.log('Submitting with URL:', url);
-console.log('CSRF Token:', token);
 
     try {
         const response = await fetch('/admin/feeds', {
@@ -125,8 +199,289 @@ console.log('CSRF Token:', token);
     }
 });
 
-    // Feed validation
-    async function validateFeed(url) {
+// Load available tags and categories on page load
+async function loadAutocompleteData() {
+    try {
+        const [tagsResponse, categoriesResponse] = await Promise.all([
+            fetch('/admin/api/tags'),
+            fetch('/admin/api/categories')
+        ]);
+        
+        if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json();
+            availableTags = tagsData.tags || [];
+            updateAvailableTags();
+        }
+        
+        if (categoriesResponse.ok) {
+            const categoriesData = await categoriesResponse.json();
+            availableCategories = categoriesData.categories || [];
+        }
+    } catch (err) {
+        console.error('Error loading autocomplete data:', err);
+    }
+}
+
+function updateCategorySuggestions(filterText = '') {
+    const container = document.getElementById('categorySuggestions');
+    container.innerHTML = '';
+    
+    const filteredCategories = availableCategories
+        .filter(category => filterText === '' || category.toLowerCase().includes(filterText.toLowerCase()))
+        .slice(0, 8);
+    
+    if (filteredCategories.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    filteredCategories.forEach(category => {
+        const suggestion = document.createElement('div');
+        suggestion.className = 'category-suggestion';
+        suggestion.textContent = category;
+        suggestion.onclick = () => {
+            document.getElementById('editCategory').value = category;
+            container.style.display = 'none';
+        };
+        container.appendChild(suggestion);
+    });
+    
+    container.style.display = 'block';
+}
+
+function updateAvailableTags() {
+    const container = document.getElementById('availableTagsList');
+    container.innerHTML = '';
+    
+    if (availableTags.length === 0) {
+        container.innerHTML = '<span style="color: #5d7988; font-style: italic;">No existing tags</span>';
+        return;
+    }
+    
+    availableTags.forEach(tag => {
+        const tagElement = document.createElement('span');
+        tagElement.className = 'available-tag';
+        tagElement.textContent = tag;
+        
+        if (currentTags.includes(tag)) {
+            tagElement.classList.add('used');
+            tagElement.title = 'Already added';
+        } else {
+            tagElement.onclick = () => addTag(tag);
+            tagElement.title = 'Click to add';
+        }
+        
+        container.appendChild(tagElement);
+    });
+}
+
+// Category datalist removed - using dropdown suggestions instead
+
+// Tag management functions
+function addTag(tagName) {
+    tagName = tagName.trim();
+    if (!tagName || currentTags.includes(tagName)) return;
+    
+    currentTags.push(tagName);
+    renderTagTokens();
+    updateAvailableTags();
+    
+    // Clear input
+    const tagInput = document.getElementById('editTags');
+    tagInput.value = '';
+    tagInput.focus();
+}
+
+function removeTag(tagName) {
+    currentTags = currentTags.filter(tag => tag !== tagName);
+    renderTagTokens();
+    updateAvailableTags();
+}
+
+function renderTagTokens() {
+    const container = document.getElementById('tagTokens');
+    container.innerHTML = '';
+    
+    currentTags.forEach(tag => {
+        const token = document.createElement('span');
+        token.className = 'tag-token';
+        token.innerHTML = `
+            ${tag}
+            <button type="button" class="tag-remove" onclick="removeTag('${tag.replace(/'/g, "\\'")}')">×</button>
+        `;
+        container.appendChild(token);
+    });
+}
+
+// Show edit modal
+async function showEditModal(feedId) {
+    currentFeedId = feedId;
+    
+    try {
+        // Load feed data
+        const response = await fetch(`/admin/api/feeds/${feedId}`);
+        if (!response.ok) {
+            throw new Error('Failed to load feed data');
+        }
+        
+        const feed = await response.json();
+        
+        // Populate form
+        document.getElementById('editFeedId').value = feed.id;
+        document.getElementById('editTitle').value = feed.title;
+        document.getElementById('editUrl').value = feed.url;
+        document.getElementById('editCategory').value = feed.category || '';
+        
+        // Set tags
+        currentTags = feed.tags || [];
+        renderTagTokens();
+        updateAvailableTags();
+        
+        // Clear error
+        document.getElementById('editError').textContent = '';
+        
+        // Show modal
+        document.getElementById('editModal').classList.add('active');
+        
+    } catch (err) {
+        console.error('Error loading feed:', err);
+        alert('Error loading feed data: ' + err.message);
+    }
+}
+
+function hideEditModal() {
+    document.getElementById('editModal').classList.remove('active');
+    currentFeedId = null;
+    currentTags = [];
+}
+
+// Edit form submission
+document.getElementById('editFeedForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const feedData = {
+        title: formData.get('title'),
+        url: formData.get('url'),
+        category: formData.get('category'),
+        tags: currentTags
+    };
+    
+    const errorElement = document.getElementById('editError');
+    errorElement.textContent = '';
+    
+    try {
+        const token = document.querySelector('input[name="csrf_token"]').value;
+        const response = await fetch(`/admin/api/feeds/${currentFeedId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token
+            },
+            body: JSON.stringify(feedData)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update feed');
+        }
+        
+        // Success - reload page
+        location.reload();
+        
+    } catch (err) {
+        console.error('Error updating feed:', err);
+        errorElement.textContent = err.message;
+    }
+});
+
+// Category input handling
+document.getElementById('editCategory').addEventListener('input', (e) => {
+    const filterText = e.target.value.trim();
+    updateCategorySuggestions(filterText);
+});
+
+document.getElementById('editCategory').addEventListener('focus', (e) => {
+    const filterText = e.target.value.trim();
+    updateCategorySuggestions(filterText);
+});
+
+document.getElementById('editCategory').addEventListener('blur', (e) => {
+    // Delay hiding to allow clicks on suggestions
+    setTimeout(() => {
+        document.getElementById('categorySuggestions').style.display = 'none';
+    }, 200);
+});
+
+// Tag input handling
+document.getElementById('editTags').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const input = e.target;
+        addTag(input.value);
+    }
+});
+
+// Delete from edit modal
+document.getElementById('deleteFromEdit').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!currentFeedId) return;
+    
+    // Get feed title for confirmation
+    const title = document.getElementById('editTitle').value;
+    hideEditModal();
+    showDeleteModal(currentFeedId, title);
+});
+
+// Delete modal functions
+function showDeleteModal(feedId, feedTitle) {
+    currentFeedId = feedId;
+    const modal = document.getElementById('deleteModal');
+    const message = document.getElementById('deleteMessage');
+    message.textContent = `Are you sure you want to delete "${feedTitle || 'this feed'}"?`;
+    modal.classList.add('active');
+}
+
+function hideDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    modal.classList.remove('active');
+    if (!document.getElementById('editModal').classList.contains('active')) {
+        currentFeedId = null;
+    }
+}
+
+// Delete feed function
+async function deleteFeed(feedId) {
+    try {
+        const token = document.querySelector('input[name="csrf_token"]').value;
+        const response = await fetch(`/admin/api/feeds/${feedId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-Token': token
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to delete feed');
+        }
+        
+        location.reload();
+        
+    } catch (err) {
+        console.error('Error deleting feed:', err);
+        alert('Error deleting feed: ' + err.message);
+    }
+}
+
+document.getElementById('confirmDelete').addEventListener('click', async () => {
+    if (!currentFeedId) return;
+    await deleteFeed(currentFeedId);
+    hideDeleteModal();
+});
+
+// Feed validation (keep existing functionality)
+async function validateFeed(url) {
     const inputWrapper = document.querySelector('.input-wrapper');
     const submitButton = document.getElementById('submitButton');
     const errorElement = document.getElementById('feedError');
@@ -134,10 +489,12 @@ console.log('CSRF Token:', token);
     inputWrapper.classList.add('loading');
     submitButton.disabled = true;
     try {
-        const response = await csrf.fetch('/admin/feeds/validate', {
+        const token = document.querySelector('input[name="csrf_token"]').value;
+        const response = await fetch('/admin/feeds/validate', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token
             },
             body: JSON.stringify({ url })
         });
@@ -153,7 +510,6 @@ console.log('CSRF Token:', token);
             throw new Error(errorMsg);
         }
         const data = await response.json();
-        // Update preview
         previewElement.innerHTML = `
             <h4>${data.title || 'Untitled Feed'}</h4>
             <p>${data.description || 'No description available'}</p>
@@ -174,89 +530,35 @@ console.log('CSRF Token:', token);
     }
 }
 
-    // Delete Feed Function
-    async function deleteFeed(feedId) {
-        try {
-            const token = document.querySelector('input[name="csrf_token"]').value;
-            const response = await csrf.fetch('/admin/feeds', {
-                method: 'DELETE',
-                body: JSON.stringify({ id: feedId })
-            });
-            if (!response.ok) {
-                let errorMsg = 'Failed to delete feed';
-                try {
-                    const data = await response.json();
-                    errorMsg = data.message || errorMsg;
-                } catch {
-                    const text = await response.text();
-                    errorMsg = text || errorMsg;
-                }
-                throw new Error(errorMsg);
-            }
-            // Handle successful response
-            console.log('Feed deleted successfully');
-            location.reload();
-        } catch (err) {
-            console.error('Error deleting feed:', err);
-            // Display error message to the user
-            alert(err.message);
-        }
+// URL validation
+document.getElementById('feedUrl').addEventListener('input', (e) => {
+    clearTimeout(validateTimeout);
+    const url = e.target.value;
+    const submitButton = document.getElementById('submitButton');
+    const errorElement = document.getElementById('feedError');
+    const previewElement = document.getElementById('feedPreview');
+
+    errorElement.textContent = '';
+    previewElement.classList.remove('show');
+    submitButton.disabled = !url;
+
+    if (!url) return;
+
+    try {
+        new URL(url);
+    } catch {
+        errorElement.textContent = 'Please enter a valid URL';
+        submitButton.disabled = true;
+        return;
     }
 
-    function showDeleteModal(feedId, feedTitle) {
-    currentFeedId = feedId;
-    const modal = document.getElementById('deleteModal');
-    const message = document.getElementById('deleteMessage');
-    message.textContent = `Are you sure you want to delete "${feedTitle || 'this feed'}"?`;
-    modal.classList.add('active');
-}
+    validateTimeout = setTimeout(() => validateFeed(url), 500);
+});
 
-
-function hideDeleteModal() {
-    const modal = document.getElementById('deleteModal');
-    modal.classList.remove('active');
-    currentFeedId = null;
-}
-
-    document.getElementById('confirmDelete').addEventListener('click', async () => {
-        if (!currentFeedId) return;
-        await deleteFeed(currentFeedId);
-        hideDeleteModal();
-    });
-
-    // URL validation
-    document.getElementById('feedUrl').addEventListener('input', (e) => {
-        clearTimeout(validateTimeout);
-        const url = e.target.value;
-        const submitButton = document.getElementById('submitButton');
-        const errorElement = document.getElementById('feedError');
-        const previewElement = document.getElementById('feedPreview');
-
-        // Reset UI state
-        errorElement.textContent = '';
-        previewElement.classList.remove('show');
-        submitButton.disabled = !url;
-
-        if (!url) return;
-
-        // Basic URL validation
-        try {
-            new URL(url);
-        } catch {
-            errorElement.textContent = 'Please enter a valid URL';
-            submitButton.disabled = true;
-            return;
-        }
-
-        // Delay validation to prevent too many requests
-        validateTimeout = setTimeout(() => validateFeed(url), 500);
-    });
-
-    // Add debugging for CSRF token availability
-    document.addEventListener('DOMContentLoaded', () => {
-        const token = document.querySelector('input[name="csrf_token"]').value;
-        console.log('CSRF token available:', !!token);
-    });
+// Initialize page
+document.addEventListener('DOMContentLoaded', () => {
+    loadAutocompleteData();
+});
 </script>
 {{end}}
 {{ define "styles" }}
@@ -392,18 +694,7 @@ function hideDeleteModal() {
     display: block;
 }
 
-/* Table styles */
-.table-container {
-    overflow-x: auto;
-    border-radius: 4px;
-    background: #0c1220;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-}
+/* Table styles moved up to column width section */
 
 th {
     color: #a5c5cf;
@@ -418,10 +709,6 @@ th {
     text-transform: uppercase;
 }
 
-td {
-    padding: 0.75rem;
-    border-bottom: 1px solid #2a3450;
-}
 
 tr:last-child td {
     border-bottom: none;
@@ -432,32 +719,40 @@ tr:hover td {
 }
 
 /* Column widths */
+th:nth-child(1) { width: 18%; min-width: 140px; } /* Title */
+th:nth-child(2) { width: 30%; min-width: 200px; } /* URL */
+th:nth-child(3) { width: 12%; min-width: 90px; } /* Category */
+th:nth-child(4) { width: 15%; min-width: 120px; } /* Tags */
+th:nth-child(5) { width: 15%; min-width: 110px; } /* Last Fetched */
+th:nth-child(6) { width: 10%; min-width: 100px; } /* Actions */
 
-th.title-column {
-    width: 25%;
+/* Table container with proper scrolling */
+.table-container {
+    overflow-x: auto;
+    border-radius: 4px;
+    background: #0c1220;
+    min-width: 100%;
 }
 
-th.url-column {
-    width: 55%;
+table {
+    width: 100%;
+    min-width: 800px; /* Ensure minimum table width */
+    border-collapse: collapse;
+    table-layout: fixed;
 }
 
-th.date-column {
-    width: 15%;
+td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #2a3450;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
-th.action-column {
-    width: 10%;
-}
-
-
-.date-column {
-    width: 15%;
+td.date-column {
     white-space: nowrap;
 }
 
-.action-column {
-    width: 10%;
-    min-width: 100px;
+td.action-column {
     text-align: center;
 }
 
@@ -489,6 +784,54 @@ th.action-column {
 
 .delete-button:hover {
     background: #ff6b6b;
+}
+
+.edit-button {
+    padding: 0.5rem 0.75rem;
+    background: #67bb79;
+    color: #121a2b;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    display: inline-block;
+    min-width: 60px;
+    text-align: center;
+}
+
+.edit-button:hover {
+    background: #39ff64;
+}
+
+/* Category and tag display */
+.category-tag {
+    background: #2a3450;
+    color: #a5c5cf;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+}
+
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.tag {
+    background: #354264;
+    color: #c9d1d9;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+.empty-value {
+    color: #5d7988;
+    font-style: italic;
 }
 
 /* Modal styles */
@@ -526,8 +869,11 @@ th.action-column {
 .modal-actions {
     display: flex;
     gap: 1rem;
-    justify-content: flex-end;
-    margin-top: 1rem;
+    justify-content: center;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #2a3450;
+    flex-wrap: wrap;
 }
 
 .modal-buttons {
@@ -537,7 +883,7 @@ th.action-column {
     justify-content: center;
 }
 
-.modal-button {
+.modal-button, .save-button, .cancel-button {
     padding: 0.75rem 1.5rem;
     border-radius: 4px;
     border: none;
@@ -545,6 +891,8 @@ th.action-column {
     font-size: 1rem;
     cursor: pointer;
     transition: all 0.2s;
+    min-width: 120px;
+    text-align: center;
 }
 
 .confirm-delete {
@@ -565,23 +913,340 @@ th.action-column {
     background: #354264;
 }
 
+/* Edit modal styles */
+.edit-modal-content {
+    width: 600px;
+    max-width: 90vw;
+    text-align: left;
+}
+
+.edit-modal-content h3 {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #c9d1d9;
+    font-size: 1.25rem;
+}
+
+.edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.form-group label {
+    color: #a5c5cf;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.2rem;
+}
+
+.form-group input {
+    padding: 0.75rem;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    color: #c9d1d9;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #67bb79;
+    box-shadow: 0 0 0 3px rgba(103, 187, 121, 0.1);
+}
+
+/* Tag input container */
+.tag-input-container {
+    position: relative;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    padding: 0.75rem;
+}
+
+.tag-tokens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    min-height: 2rem;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.tag-token {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: #354264;
+    color: #c9d1d9;
+    padding: 0.3rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+}
+
+.tag-remove {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    margin-left: 0.25rem;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.tag-remove:hover {
+    color: #ff5252;
+}
+
+.tag-help {
+    font-size: 0.8rem;
+    color: #5d7988;
+    margin-top: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Removed show-all-tags-btn styles - no longer needed */
+
+/* Category input styles */
+.category-input-wrapper {
+    position: relative;
+}
+
+.category-input-wrapper input {
+    width: 100%;
+    padding: 0.75rem;
+    background: #0c1220;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    color: #c9d1d9;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.category-input-wrapper input:focus {
+    outline: none;
+    border-color: #67bb79;
+    box-shadow: 0 0 0 3px rgba(103, 187, 121, 0.1);
+}
+
+.category-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #121a2b;
+    border: 2px solid #67bb79;
+    border-top: 1px solid #67bb79;
+    border-radius: 0 0 6px 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.category-suggestions::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #67bb79;
+}
+
+.category-suggestion {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    color: #c9d1d9;
+    border-bottom: 1px solid #2a3450;
+    transition: all 0.2s;
+    font-size: 0.95rem;
+    position: relative;
+}
+
+.category-suggestion:hover {
+    background: #67bb79;
+    color: #121a2b;
+    font-weight: 500;
+}
+
+.category-suggestion:last-child {
+    border-bottom: none;
+    border-radius: 0 0 4px 4px;
+}
+
+.category-suggestion:first-child {
+    font-weight: 500;
+}
+
+/* Tag input wrapper */
+.tag-input-wrapper {
+    position: relative;
+}
+
+/* Available tags display */
+.available-tags {
+    margin-top: 0;
+    padding: 0.75rem 0;
+    background: transparent;
+    border: none;
+}
+
+.available-tags-label {
+    color: #a5c5cf;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+
+.available-tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    min-height: 2.5rem;
+}
+
+.available-tag {
+    display: inline-block;
+    background: #2a3450;
+    color: #c9d1d9;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    border: 1px solid transparent;
+    font-weight: 500;
+}
+
+.available-tag:hover {
+    background: #67bb79;
+    color: #121a2b;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(103, 187, 121, 0.3);
+}
+
+.available-tag.used {
+    background: #1a2438;
+    color: #5d7988;
+    cursor: not-allowed;
+    opacity: 0.7;
+    border: 1px solid #2a3450;
+}
+
+.available-tag.used:hover {
+    background: #1a2438;
+    color: #5d7988;
+    transform: none;
+    box-shadow: none;
+}
+
+/* New tag input section */
+.new-tag-input {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #2a3450;
+}
+
+.new-tag-label {
+    display: block;
+    color: #a5c5cf;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+
+.new-tag-input input {
+    width: 100%;
+    padding: 0.75rem;
+    background: #121a2b;
+    border: 1px solid #2a3450;
+    border-radius: 4px;
+    color: #c9d1d9;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.new-tag-input input:focus {
+    outline: none;
+    border-color: #67bb79;
+    box-shadow: 0 0 0 3px rgba(103, 187, 121, 0.1);
+}
+
+/* Modal action buttons */
+.save-button {
+    background: #67bb79;
+    color: #121a2b;
+}
+
+.save-button:hover {
+    background: #39ff64;
+}
+
+.cancel-button {
+    background: #2a3450;
+    color: #7da9b7;
+}
+
+.cancel-button:hover {
+    background: #354264;
+}
+
+.modal-delete-button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    border: none;
+    font-family: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 120px;
+    text-align: center;
+    background: #bb6767;
+    color: #fff;
+}
+
+.modal-delete-button:hover {
+    background: #ff6b6b;
+}
+
 /* Responsive styles */
 @media (max-width: 1024px) {
-    .title-column {
-        width: 25%;
-    }
-    
-    .url-column {
-        width: 40%;
-    }
-    
-    .date-column {
-        width: 25%;
-    }
-    
-    .action-column {
-        width: 10%;
-    }
+    th:nth-child(1) { width: 20%; } /* Title */
+    th:nth-child(2) { width: 30%; } /* URL */
+    th:nth-child(3) { width: 15%; } /* Category */
+    th:nth-child(4) { width: 15%; } /* Tags */
+    th:nth-child(5) { width: 15%; } /* Last Fetched */
+    th:nth-child(6) { width: 5%; }  /* Actions */
 }
 
 @media (max-width: 768px) {
@@ -640,7 +1305,7 @@ th.action-column {
         padding-right: 0.5rem;
     }
 
-    .title-column, .url-column, .date-column {
+    .title-column, .url-column, .category-column, .tags-column, .date-column {
         width: 100%;
     }
 
@@ -702,6 +1367,53 @@ th.action-column {
     .modal-content {
         margin: 1rem;
         padding: 1.5rem;
+    }
+
+    .edit-modal-content {
+        width: 95vw;
+        margin: 0.5rem;
+        padding: 1rem;
+    }
+
+    .modal-actions {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .modal-actions button {
+        width: 100%;
+    }
+
+    .tag-help {
+        font-size: 0.75rem;
+        text-align: center;
+    }
+
+    .available-tags {
+        margin-top: 0.75rem;
+        padding: 0.5rem;
+    }
+
+    .available-tags-label {
+        font-size: 0.8rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .available-tags-list {
+        gap: 0.4rem;
+    }
+
+    .available-tag {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .category-suggestions {
+        position: fixed;
+        left: 0.5rem;
+        right: 0.5rem;
+        max-height: 150px;
+        z-index: 1001;
     }
 
     /* Make links more tappable on mobile */
