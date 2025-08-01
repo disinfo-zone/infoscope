@@ -15,7 +15,14 @@ infoscope
 *.test
 *.out
 *.bak
+# Claude Code files
 CLAUDE.md
+.claude/
+.claude_*
+claude_*
+.anthropic/
+.anthropic_*
+anthropic_*
 
 # User-uploaded content
 web/static/favicons/*
