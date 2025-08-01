@@ -609,9 +609,6 @@ func (db *DB) GetAllFilterGroups(ctx context.Context) ([]FilterGroup, error) {
 		if category.Valid {
 			group.ApplyToCategory = category.String
 		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan filter group: %w", err)
-		}
 		
 		// Get rules for this group
 		rules, err := db.GetFilterGroupRules(ctx, group.ID)
@@ -654,9 +651,6 @@ func (db *DB) GetActiveFilterGroups(ctx context.Context) ([]FilterGroup, error) 
 		
 		if category.Valid {
 			group.ApplyToCategory = category.String
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan filter group: %w", err)
 		}
 		
 		// Get rules for this group
