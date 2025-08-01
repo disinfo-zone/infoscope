@@ -2,8 +2,8 @@
 data/*.db
 data/*.db-*
 
-# Web Template
-web/
+# Unpacked Web Template
+/web/
 
 # Generated files
 infoscope
@@ -16,14 +16,6 @@ infoscope
 *.out
 *.bak
 CLAUDE.md
-
-# User-uploaded content
-web/static/favicons/*
-!web/static/favicons/default.ico
-web/static/images/*
-!web/static/images/infoscope.png
-web/static/images/favicon/*
-!web/static/images/favicon/favicon.ico
 
 # IDE specific files
 .idea/
