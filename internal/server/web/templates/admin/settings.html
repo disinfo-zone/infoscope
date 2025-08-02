@@ -645,7 +645,7 @@ textarea:focus {
     box-shadow: 0 0 0 1px #67bb79;
 }
 
-/* Checkbox styling */
+/* Custom Checkbox Styling */
 .checkbox-group {
     margin-bottom: 1rem;
 }
@@ -658,13 +658,56 @@ textarea:focus {
     margin-bottom: 0.5rem;
     color: #7da9b7;
     font-size: 0.9rem;
+    position: relative;
 }
 
+/* Style the actual checkbox */
 .checkbox-label input[type="checkbox"] {
-    width: auto !important;
+    width: 20px !important;
+    height: 20px;
     margin: 0;
     margin-top: 0.1rem;
-    transform: scale(1.2);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: #0c1220;
+    border: 2px solid #2a3450;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    position: relative;
+}
+
+/* Checkbox hover state */
+.checkbox-label input[type="checkbox"]:hover {
+    border-color: #3a4460;
+    background: #1a2438;
+}
+
+/* Checkbox checked state */
+.checkbox-label input[type="checkbox"]:checked {
+    background: #67bb79;
+    border-color: #67bb79;
+}
+
+/* Checkmark */
+.checkbox-label input[type="checkbox"]:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #0c1220;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+/* Focus state */
+.checkbox-label input[type="checkbox"]:focus {
+    box-shadow: 0 0 0 3px rgba(103, 187, 121, 0.2);
+    outline: none;
 }
 
 .form-row {
@@ -1216,6 +1259,18 @@ textarea:focus {
     backdrop-filter: blur(2px);
 }
 
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .modal-content {
     background: #1a2438;
     margin: 5% auto;
@@ -1460,6 +1515,57 @@ textarea:focus {
     border-radius: 4px;
     margin-bottom: 0.5rem;
     border: 1px solid #2a3450;
+    transition: all 0.2s ease;
+}
+
+.filter-assignment-item.draggable {
+    cursor: move;
+}
+
+.filter-assignment-item.draggable:hover {
+    background: #1e2a42;
+    border-color: #3a4460;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.filter-assignment-item.drag-over {
+    border-color: #67bb79;
+    background: rgba(103, 187, 121, 0.1);
+}
+
+.drag-handle {
+    color: #6b7280;
+    padding: 0.25rem;
+    margin-right: 0.5rem;
+    cursor: grab;
+    user-select: none;
+    transition: color 0.2s ease;
+}
+
+.drag-handle:hover {
+    color: #a5c5cf;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.drag-handle span {
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+/* Dragging states */
+.filter-assignment-item.dragging {
+    opacity: 0.5;
+    transform: rotate(5deg);
+    z-index: 1000;
+}
+
+.assigned-filters {
+    min-height: 150px;
+    position: relative;
 }
 
 .filter-assignment-item:last-child {
@@ -1869,7 +1975,7 @@ function setupModalHandlers() {
     // Close modals with Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            const openModal = document.querySelector('.modal[style*="block"]');
+            const openModal = document.querySelector('.modal.show');
             if (openModal) {
                 closeModal(openModal.id);
             }
@@ -1974,17 +2080,41 @@ async function loadCategories() {
 
 // Modal Functions
 function showCreateGroupModal() {
-    document.getElementById('createGroupModal').style.display = 'block';
-    document.getElementById('modalGroupName').focus();
+    console.log('showCreateGroupModal called');
+    const modal = document.getElementById('createGroupModal');
+    console.log('Modal element found:', !!modal);
+    if (modal) {
+        console.log('Adding show class to modal');
+        modal.classList.add('show');
+        console.log('Modal classes after adding show:', modal.className);
+        const nameInput = document.getElementById('modalGroupName');
+        if (nameInput) {
+            nameInput.focus();
+        }
+    } else {
+        console.error('createGroupModal element not found');
+    }
 }
 
 function showCreateFilterModal() {
-    document.getElementById('createFilterModal').style.display = 'block';
-    document.getElementById('modalFilterName').focus();
+    console.log('showCreateFilterModal called');
+    const modal = document.getElementById('createFilterModal');
+    console.log('Modal element found:', !!modal);
+    if (modal) {
+        console.log('Adding show class to modal');
+        modal.classList.add('show');
+        console.log('Modal classes after adding show:', modal.className);
+        const nameInput = document.getElementById('modalFilterName');
+        if (nameInput) {
+            nameInput.focus();
+        }
+    } else {
+        console.error('createFilterModal element not found');
+    }
 }
 
 function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
+    document.getElementById(modalId).classList.remove('show');
     
     // Reset form fields
     const modal = document.getElementById(modalId);
@@ -2081,8 +2211,11 @@ async function editGroup(groupId) {
         // Load filters for assignment
         await loadFiltersForAssignment(groupId);
         
+        // Setup drag and drop for assigned filters
+        setupAssignedFiltersDragAndDrop();
+        
         // Show modal
-        document.getElementById('editGroupModal').style.display = 'block';
+        document.getElementById('editGroupModal').classList.add('show');
         
     } catch (error) {
         showNotification(`Error loading group: ${error.message}`, 'error');
@@ -2103,8 +2236,29 @@ async function updateGroup() {
         return;
     }
     
+    // Collect the current filter arrangement and operators
+    const assignedContainer = document.getElementById('assignedFilters');
+    const filterItems = [...assignedContainer.querySelectorAll('.filter-assignment-item')];
+    const rules = [];
+    
+    filterItems.forEach((item, index) => {
+        const filterId = parseInt(item.dataset.filterId);
+        const operatorSelect = item.querySelector('.assignment-operator');
+        const operator = operatorSelect ? operatorSelect.value : 'AND';
+        
+        // First filter doesn't need an operator, subsequent ones do
+        rules.push({
+            filter_id: filterId,
+            operator: index === 0 ? 'AND' : operator, // First rule uses AND by default
+            position: index
+        });
+    });
+    
+    console.log('Saving group with rules:', rules);
+    
     try {
-        const response = await fetch(`/admin/filter-groups/${currentEditingGroupId}`, {
+        // First, update the group information
+        const groupResponse = await fetch(`/admin/filter-groups/${currentEditingGroupId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -2119,15 +2273,38 @@ async function updateGroup() {
             })
         });
         
-        if (response.ok) {
-            showNotification('Filter group updated successfully', 'success');
-            closeModal('editGroupModal');
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            const error = await response.text();
-            showNotification(`Error updating group: ${error}`, 'error');
+        console.log('Group update response status:', groupResponse.status);
+        
+        if (!groupResponse.ok) {
+            const error = await groupResponse.text();
+            throw new Error(`Failed to update group: ${error}`);
         }
+        
+        // Second, update the filter rules (order and operators)
+        const rulesResponse = await fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ .CSRFToken }}'
+            },
+            body: JSON.stringify({
+                rules: rules
+            })
+        });
+        
+        console.log('Rules update response status:', rulesResponse.status);
+        
+        if (!rulesResponse.ok) {
+            const error = await rulesResponse.text();
+            throw new Error(`Failed to update rules: ${error}`);
+        }
+        
+        showNotification('Filter group updated successfully', 'success');
+        closeModal('editGroupModal');
+        setTimeout(() => location.reload(), 1000);
+        
     } catch (error) {
+        console.error('Update failed:', error);
         showNotification(`Error updating group: ${error.message}`, 'error');
     }
 }
@@ -2194,7 +2371,7 @@ async function deleteGroup(groupId) {
         currentDeletingGroupId = groupId;
         
         // Show the modal
-        document.getElementById('deleteGroupModal').style.display = 'block';
+        document.getElementById('deleteGroupModal').classList.add('show');
         
     } catch (error) {
         showNotification(`Error loading group: ${error.message}`, 'error');
@@ -2272,31 +2449,50 @@ async function saveFilter() {
 }
 
 async function editFilter(filterId) {
+    console.log('editFilter called with filterId:', filterId);
     try {
         // Fetch the filter data
         const response = await fetch(`/admin/filters/${filterId}`);
+        console.log('Response status:', response.status);
         if (!response.ok) {
             throw new Error('Failed to fetch filter data');
         }
         
         const result = await response.json();
+        console.log('Filter data received:', result);
         const filter = result.data;
         
+        // Check if modal elements exist
+        const modal = document.getElementById('editFilterModal');
+        console.log('Modal element found:', modal);
+        const nameField = document.getElementById('editFilterName');
+        console.log('Name field found:', nameField);
+        
         // Populate the edit modal with current values
-        document.getElementById('editFilterName').value = filter.name;
-        document.getElementById('editFilterPattern').value = filter.pattern;
-        document.getElementById('editFilterType').value = filter.pattern_type;
-        document.getElementById('editFilterTargetType').value = filter.target_type || 'title';
-        document.getElementById('editFilterCaseSensitive').checked = filter.case_sensitive;
+        if (nameField) nameField.value = filter.name;
+        const patternField = document.getElementById('editFilterPattern');
+        if (patternField) patternField.value = filter.pattern;
+        const typeField = document.getElementById('editFilterType');
+        if (typeField) typeField.value = filter.pattern_type;
+        const targetField = document.getElementById('editFilterTargetType');
+        if (targetField) targetField.value = filter.target_type || 'title';
+        const caseSensitiveField = document.getElementById('editFilterCaseSensitive');
+        if (caseSensitiveField) caseSensitiveField.checked = filter.case_sensitive;
         
         // Store the filter ID for the update function
         currentEditingFilterId = filterId;
         
         // Show the modal
-        document.getElementById('editFilterModal').style.display = 'block';
-        document.getElementById('editFilterName').focus();
+        if (modal) {
+            modal.classList.add('show');
+            console.log('Modal show class added');
+            if (nameField) nameField.focus();
+        } else {
+            console.error('Modal element not found!');
+        }
         
     } catch (error) {
+        console.error('Error in editFilter:', error);
         showNotification(`Error loading filter: ${error.message}`, 'error');
     }
 }
@@ -2374,7 +2570,7 @@ async function deleteFilter(filterId) {
         currentDeletingFilterId = filterId;
         
         // Show the modal
-        document.getElementById('deleteFilterModal').style.display = 'block';
+        document.getElementById('deleteFilterModal').classList.add('show');
         
     } catch (error) {
         showNotification(`Error loading filter: ${error.message}`, 'error');
@@ -2474,6 +2670,15 @@ function renderFilterAssignment(assignedRules) {
 function createAssignmentItem(filter, isAssigned, operator = 'AND', position = 0) {
     const item = document.createElement('div');
     item.className = 'filter-assignment-item';
+    item.dataset.filterId = filter.id;
+    
+    // Make assigned filters draggable
+    if (isAssigned) {
+        item.draggable = true;
+        item.classList.add('draggable');
+        item.addEventListener('dragstart', handleFilterDragStart);
+        item.addEventListener('dragend', handleFilterDragEnd);
+    }
     
     // For assigned filters, show operator before the filter (except for the first one)
     const operatorHTML = isAssigned && position > 0 ? `
@@ -2485,7 +2690,15 @@ function createAssignmentItem(filter, isAssigned, operator = 'AND', position = 0
         </div>
     ` : '';
     
+    // Add drag handle for assigned filters
+    const dragHandleHTML = isAssigned ? `
+        <div class="drag-handle" title="Drag to reorder">
+            <span>⋮⋮</span>
+        </div>
+    ` : '';
+    
     item.innerHTML = `
+        ${dragHandleHTML}
         ${operatorHTML}
         <div class="assignment-info">
             <div class="assignment-name">${filter.name}</div>
@@ -2695,7 +2908,7 @@ async function addFiltersToGroup(groupId) {
         
         // Load filters for assignment
         await loadFiltersForAssignment(groupId);
-        document.getElementById('editGroupModal').style.display = 'block';
+        document.getElementById('editGroupModal').classList.add('show');
         
     } catch (error) {
         showNotification(`Error loading group: ${error.message}`, 'error');
@@ -3110,6 +3323,157 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Drag and Drop handlers for filter reordering
+let draggedFilterItem = null;
+
+function handleFilterDragStart(e) {
+    draggedFilterItem = e.target;
+    e.target.classList.add('dragging');
+    e.target.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', e.target.dataset.filterId);
+    
+    console.log('Drag started for filter:', e.target.dataset.filterId);
+}
+
+function handleFilterDragEnd(e) {
+    e.target.style.opacity = '1';
+    e.target.classList.remove('dragging');
+    draggedFilterItem = null;
+    
+    // Remove drag-over classes from all items
+    document.querySelectorAll('.filter-assignment-item').forEach(item => {
+        item.classList.remove('drag-over');
+    });
+    
+    console.log('Drag ended');
+}
+
+function setupAssignedFiltersDragAndDrop() {
+    const assignedContainer = document.getElementById('assignedFilters');
+    if (!assignedContainer) return;
+    
+    assignedContainer.addEventListener('dragover', handleAssignedDragOver);
+    assignedContainer.addEventListener('drop', handleAssignedDrop);
+}
+
+function handleAssignedDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    const container = e.currentTarget;
+    const afterElement = getDragAfterElement(container, e.clientY);
+    const draggingItem = container.querySelector('.dragging');
+    
+    if (draggingItem && afterElement !== draggingItem) {
+        if (afterElement == null) {
+            container.appendChild(draggingItem);
+        } else {
+            container.insertBefore(draggingItem, afterElement);
+        }
+    }
+}
+
+function handleAssignedDrop(e) {
+    e.preventDefault();
+    console.log('Drop event triggered');
+    
+    // The reordering already happened during dragover
+    // Now we just need to update the operators
+    setTimeout(() => {
+        reorderAssignedFilters();
+    }, 10);
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function reorderAssignedFilters() {
+    const assignedContainer = document.getElementById('assignedFilters');
+    const items = [...assignedContainer.querySelectorAll('.filter-assignment-item')];
+    
+    console.log('Reordering', items.length, 'filters');
+    
+    // Update operators: first item should not have an operator, others should have AND/OR
+    items.forEach((item, index) => {
+        const existingOperatorSection = item.querySelector('.logic-operator-section');
+        const dragHandle = item.querySelector('.drag-handle');
+        
+        if (index === 0) {
+            // First item (top-level filter) should not have an operator
+            if (existingOperatorSection) {
+                existingOperatorSection.remove();
+                console.log('Removed operator from first filter');
+            }
+        } else {
+            // Subsequent items need boolean operators (AND/OR)
+            if (!existingOperatorSection) {
+                const filterId = item.dataset.filterId;
+                const operatorHTML = `
+                    <div class="logic-operator-section">
+                        <select class="assignment-operator" data-filter-id="${filterId}">
+                            <option value="AND" selected>AND</option>
+                            <option value="OR">OR</option>
+                        </select>
+                    </div>
+                `;
+                
+                // Insert after drag handle if it exists, otherwise at the beginning
+                if (dragHandle) {
+                    dragHandle.insertAdjacentHTML('afterend', operatorHTML);
+                } else {
+                    item.insertAdjacentHTML('afterbegin', operatorHTML);
+                }
+                console.log('Added operator to filter', index);
+            }
+        }
+    });
+    
+    console.log('Filters reordered successfully. Order:');
+    items.forEach((item, i) => {
+        const name = item.querySelector('.assignment-name')?.textContent;
+        const hasOperator = !!item.querySelector('.logic-operator-section');
+        console.log(`${i + 1}. ${name} (has operator: ${hasOperator})`);
+    });
+}
+
+// Expose functions to global scope for onclick handlers
+window.editFilter = editFilter;
+window.deleteFilter = deleteFilter;
+window.showCreateFilterModal = showCreateFilterModal;
+window.showCreateGroupModal = showCreateGroupModal;
+window.closeModal = closeModal;
+window.editGroup = editGroup;
+window.deleteGroup = deleteGroup;
+window.toggleGroup = toggleGroup;
+window.addFiltersToGroup = addFiltersToGroup;
+window.exportBackup = exportBackup;
+window.saveFilter = saveFilter;
+window.updateFilter = updateFilter;
+window.confirmDeleteFilter = confirmDeleteFilter;
+window.saveGroup = saveGroup;
+window.updateGroup = updateGroup;
+window.confirmDeleteGroup = confirmDeleteGroup;
+
+// Debug logging
+console.log('Settings functions loaded:', {
+    editFilter: typeof window.editFilter,
+    deleteFilter: typeof window.deleteFilter,
+    showCreateFilterModal: typeof window.showCreateFilterModal
+});
 
 </script>
 
