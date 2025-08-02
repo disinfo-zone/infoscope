@@ -2950,12 +2950,101 @@ async function handleImport() {
     
     if (!file) return;
     
-    if (!confirm('This will replace all current data. Are you sure?')) {
-        fileInput.value = '';
-        return;
-    }
+    // Show styled confirmation modal instead of browser confirm
+    showImportConfirmation(file, fileInput);
+}
+
+function showImportConfirmation(file, fileInput) {
+    // Create modal container
+    const modal = document.createElement('div');
+    modal.className = 'import-confirm-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10001;
+        font-family: 'Courier New', Courier, monospace;
+    `;
     
+    // Create modal content
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: #121a2b;
+        border: 1px solid #bb6767;
+        border-radius: 8px;
+        padding: 2rem;
+        max-width: 450px;
+        color: #e8e8e8;
+        text-align: center;
+    `;
+    
+    content.innerHTML = `
+        <h3 style="color: #bb6767; margin-top: 0; margin-bottom: 1.5rem;">⚠ Confirm Import</h3>
+        
+        <p style="margin-bottom: 1.5rem; line-height: 1.5;">
+            This will <strong>replace all current data</strong> including feeds, settings, and filters.<br><br>
+            Are you sure you want to continue?
+        </p>
+        
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+            <button id="confirmImportCancel" style="
+                background: #2a3450;
+                color: #7da9b7;
+                border: 1px solid #7da9b7;
+                padding: 0.75rem 1.5rem;
+                border-radius: 4px;
+                cursor: pointer;
+                font-family: 'Courier New', Courier, monospace;
+                font-weight: bold;
+                letter-spacing: 0.1em;
+            ">CANCEL</button>
+            <button id="confirmImportProceed" style="
+                background: #bb6767;
+                color: #121a2b;
+                border: none;
+                padding: 0.75rem 1.5rem;
+                border-radius: 4px;
+                cursor: pointer;
+                font-family: 'Courier New', Courier, monospace;
+                font-weight: bold;
+                letter-spacing: 0.1em;
+            ">IMPORT</button>
+        </div>
+    `;
+    
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+    
+    // Add event handlers
+    document.getElementById('confirmImportCancel').onclick = () => {
+        document.body.removeChild(modal);
+        fileInput.value = ''; // Clear the file input
+    };
+    
+    document.getElementById('confirmImportProceed').onclick = () => {
+        document.body.removeChild(modal);
+        performImport(file, fileInput);
+    };
+    
+    // Close on background click
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+            fileInput.value = '';
+        }
+    };
+}
+
+async function performImport(file, fileInput) {
     try {
+        showNotification('Importing backup...', 'info');
+        
         const formData = new FormData();
         formData.append('backup', file);
         
@@ -2968,8 +3057,13 @@ async function handleImport() {
         });
         
         if (response.ok) {
-            showNotification('Backup imported successfully. Reloading...', 'success');
-            setTimeout(() => location.reload(), 2000);
+            const result = await response.json();
+            
+            // Show import results modal
+            showImportResults(result);
+            
+            // Reload after a delay
+            setTimeout(() => location.reload(), 3000);
         } else {
             const error = await response.text();
             showNotification(`Import failed: ${error}`, 'error');
@@ -2979,6 +3073,102 @@ async function handleImport() {
     } finally {
         fileInput.value = '';
     }
+}
+
+function showImportResults(result) {
+    // Create modal container
+    const modal = document.createElement('div');
+    modal.className = 'import-results-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10001;
+        font-family: 'Courier New', Courier, monospace;
+    `;
+    
+    // Create modal content
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: #121a2b;
+        border: 1px solid #7da9b7;
+        border-radius: 8px;
+        padding: 2rem;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow-y: auto;
+        color: #e8e8e8;
+    `;
+    
+    const stats = result.stats || {};
+    const warnings = result.warnings || [];
+    
+    content.innerHTML = `
+        <h3 style="color: #67bb79; margin-top: 0; margin-bottom: 1.5rem;">Import Successful!</h3>
+        
+        <div style="margin-bottom: 1.5rem;">
+            <h4 style="color: #7da9b7; margin-bottom: 1rem;">Import Statistics:</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
+                <span>Settings:</span><span style="color: #67bb79;">${stats.settings || 0}</span>
+                <span>Feeds:</span><span style="color: #67bb79;">${stats.feeds || 0}</span>
+                <span>Filters:</span><span style="color: #67bb79;">${stats.filters || 0}</span>
+                <span>Filter Groups:</span><span style="color: #67bb79;">${stats.filterGroups || 0}</span>
+                <span>Tags:</span><span style="color: #67bb79;">${stats.tags || 0}</span>
+                <span>Feed Tags:</span><span style="color: #67bb79;">${stats.feedTags || 0}</span>
+                <span>Click Stats:</span><span style="color: #67bb79;">${stats.clickStats || 0}</span>
+            </div>
+        </div>
+        
+        ${warnings.length > 0 ? `
+            <div style="margin-bottom: 1.5rem;">
+                <h4 style="color: #bb6767; margin-bottom: 1rem;">Warnings:</h4>
+                <div style="background: rgba(187, 103, 103, 0.1); border: 1px solid #bb6767; border-radius: 4px; padding: 1rem; font-size: 0.8rem;">
+                    ${warnings.map(warning => `<div style="margin-bottom: 0.5rem;">⚠ ${warning}</div>`).join('')}
+                </div>
+            </div>
+        ` : ''}
+        
+        <div style="text-align: center; margin-top: 1.5rem;">
+            <button id="importResultsClose" style="
+                background: #7da9b7;
+                color: #121a2b;
+                border: none;
+                padding: 0.75rem 1.5rem;
+                border-radius: 4px;
+                cursor: pointer;
+                font-family: 'Courier New', Courier, monospace;
+                font-weight: bold;
+                letter-spacing: 0.1em;
+            ">CLOSE</button>
+        </div>
+        
+        <div style="text-align: center; margin-top: 1rem; font-size: 0.8rem; color: #7da9b7;">
+            Page will reload automatically in 3 seconds...
+        </div>
+    `;
+    
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+    
+    // Add close event
+    document.getElementById('importResultsClose').onclick = () => {
+        document.body.removeChild(modal);
+        location.reload();
+    };
+    
+    // Close on background click
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+            location.reload();
+        }
+    };
 }
 
 // Notification system

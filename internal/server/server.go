@@ -260,6 +260,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/api/categories/", s.requireAuth(s.handleCategoriesAPI))
 	mux.HandleFunc("/admin/backup", s.requireAuth(s.handleBackup))
 	mux.HandleFunc("/admin/backup/", s.requireAuth(s.handleBackup))
+	mux.HandleFunc("/admin/backup/export", s.requireAuth(s.handleExport))
+	mux.HandleFunc("/admin/backup/import", s.requireAuth(s.handleImport))
 	mux.HandleFunc("/admin/metrics", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/metrics/", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/change-password", s.requireAuth(s.handleChangePassword))
@@ -296,7 +298,9 @@ func (s *Server) Routes() http.Handler {
 		s.handleIndex(w, r)
 	})
 
-	return mux
+	// Apply CSRF middleware to all routes except static files and safe paths
+	excludePaths := []string{"/healthz", "/healthz/"}
+	return s.csrf.MiddlewareExceptPaths(mux, excludePaths)
 }
 
 func (s *Server) handle404(w http.ResponseWriter, r *http.Request) {
