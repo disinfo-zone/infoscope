@@ -20,6 +20,15 @@ class FeedsManager {
     this.bindEvents();
     this.loadAvailableTags();
     this.loadAvailableCategories();
+
+    // Delegate cancel for edit modal
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="cancel-edit-feed"]');
+      if (btn) {
+        e.preventDefault();
+        this.hideEditModal();
+      }
+    });
   }
 
   bindEvents() {
@@ -125,9 +134,12 @@ class FeedsManager {
         throw new Error(`${errorMsg} (Status: ${response.status})`);
       }
 
-      showNotification('Feed added successfully!', 'success');
-      // Reload page to show new feed
-      setTimeout(() => location.reload(), 1000);
+      showNotification('Feed added successfully!', 'success', 6000);
+      // Soft-refresh table by reloading data instead of page reload
+      try { await this.loadAvailableCategories(); } catch(_) {}
+      try { await this.loadAvailableTags(); } catch(_) {}
+      // Simpler approach: just refresh the page content list
+      location.assign(window.location.pathname + window.location.search);
       
     } catch (error) {
       console.error('Error adding feed:', error);
@@ -163,10 +175,9 @@ class FeedsManager {
         throw new Error(errorData.message || 'Failed to update feed');
       }
 
-      showNotification('Feed updated successfully!', 'success');
+      showNotification('Feed updated successfully!', 'success', 6000);
       this.hideEditModal();
-      // Reload page to show updates
-      setTimeout(() => location.reload(), 1000);
+      location.assign(window.location.pathname + window.location.search);
       
     } catch (error) {
       console.error('Error updating feed:', error);

@@ -246,12 +246,16 @@ function addKeyboardShortcuts() {
 /**
  * Add notification system for better user feedback
  */
-export function showNotification(message, type = 'info', duration = 4000) {
+export function showNotification(message, type = 'info', duration = null) {
+  // Set longer, consistent defaults to ensure visibility
+  if (duration === null) {
+    duration = type === 'error' ? 10000 : 8000;
+  }
   const notification = document.createElement('div');
   notification.className = `notification notification-${type}`;
   notification.innerHTML = `
     <span class="notification-message">${message}</span>
-    <button class="notification-close" onclick="this.parentElement.remove()">×</button>
+    <button class="notification-close">×</button>
   `;
 
   // Add to container or create one
@@ -268,10 +272,17 @@ export function showNotification(message, type = 'info', duration = 4000) {
   setTimeout(() => notification.classList.add('visible'), 10);
 
   // Auto remove
-  setTimeout(() => {
+  const timer = setTimeout(() => {
     notification.classList.remove('visible');
     setTimeout(() => notification.remove(), 300);
   }, duration);
+
+  // Manual close
+  notification.querySelector('.notification-close')?.addEventListener('click', () => {
+    clearTimeout(timer);
+    notification.classList.remove('visible');
+    setTimeout(() => notification.remove(), 300);
+  });
 
   return notification;
 }

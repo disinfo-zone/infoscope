@@ -123,16 +123,9 @@ input.invalid, textarea.invalid, select.invalid {
 }
 
 /* Scroll Animations */
-.animate-on-scroll {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.6s ease-out;
-}
-
-.animate-on-scroll.animate-in {
-  opacity: 1;
-  transform: translateY(0);
-}
+/* Disable scroll animations for a calmer UI */
+.animate-on-scroll { opacity: 1; transform: none; transition: none; }
+.animate-on-scroll.animate-in { opacity: 1; transform: none; }
 
 /* Stagger animation delays for multiple elements */
 .animate-on-scroll:nth-child(1) { transition-delay: 0s; }
@@ -234,17 +227,16 @@ button:focus-visible, .btn:focus-visible {
 }
 
 /* Card Hover Effects */
-.panel, .filter-card, .group-card, .entry {
-  transition: all var(--transition-normal) ease;
-}
+/* Reduce hover animation transitions */
+.panel, .filter-card, .group-card, .entry { transition: box-shadow var(--transition-normal) ease; }
 
 .panel:hover, .filter-card:hover, .group-card:hover {
-  transform: translateY(-2px);
+  /* Remove vertical hover lift to prevent distracting motion */
   box-shadow: var(--shadow-lg);
 }
 
 .entry:hover {
-  transform: translateX(4px);
+  /* Remove lateral nudge */
 }
 
 /* Smooth Page Transitions */

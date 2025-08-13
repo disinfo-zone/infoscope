@@ -222,7 +222,6 @@ td {
 
 .edit-button:hover {
   background: var(--color-accent-hover);
-  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
@@ -393,7 +392,6 @@ td {
 .save-button:hover {
   background: var(--color-accent-hover);
   border-color: var(--color-accent-hover);
-  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
@@ -406,7 +404,6 @@ td {
 .cancel-button:hover {
   background: var(--color-bg-primary);
   border-color: var(--color-text-secondary);
-  transform: translateY(-1px);
 }
 
 .delete-button,
@@ -421,7 +418,6 @@ td {
   background: var(--color-error);
   color: var(--color-bg-primary);
   border-color: var(--color-error);
-  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
@@ -572,7 +568,6 @@ td {
   background: var(--color-accent-primary);
   color: var(--color-bg-primary);
   border-color: var(--color-accent-primary);
-  transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
 }
 

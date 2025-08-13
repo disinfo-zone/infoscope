@@ -1,5 +1,5 @@
 {{ define "styles" }}
-<link rel="stylesheet" href="/static/css/themes/terminal/feeds.css">
+<link rel="stylesheet" href="{{ themeCSS .Data.Settings "feeds.css" }}">
 {{ end }}
 
 {{ define "content" }}
@@ -29,14 +29,15 @@
         <h3>Current Feeds</h3>
         <div class="table-container">
             <table>
+                <caption class="sr-only">RSS feeds currently being monitored</caption>
                 <thead>
                     <tr>
-                        <th>Title</th>
-                        <th>URL</th>
-                        <th>Category</th>
-                        <th>Tags</th>
-                        <th>Last Fetched</th>
-                        <th class="action-column">Actions</th>
+                        <th scope="col">Title</th>
+                        <th scope="col">URL</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Tags</th>
+                        <th scope="col">Last Fetched</th>
+                        <th scope="col" class="action-column">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -123,7 +124,7 @@
             
             <div class="modal-actions">
                 <button type="submit" class="save-button">Save Changes</button>
-                <button type="button" class="cancel-button" onclick="hideEditModal()">Cancel</button>
+                <button type="button" class="cancel-button" data-action="cancel-edit-feed">Cancel</button>
                 <button type="button" class="delete-button modal-delete-button" id="deleteFromEdit">Delete Feed</button>
             </div>
             

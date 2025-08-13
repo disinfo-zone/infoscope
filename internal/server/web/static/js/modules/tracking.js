@@ -15,13 +15,13 @@ export function trackClick(entryId, url) {
   // Track the click asynchronously
   csrf.fetch('/click?id=' + entryId, {
     method: 'POST'
-  }).catch(err => {
-    console.error('Error tracking click:', err);
-  });
+  }).catch(() => {});
 
-  // Open link in new tab
-  window.open(url, '_blank');
-  return false; // Prevent default link behavior
+  // Allow navigation to proceed naturally; for target=_blank this still opens new tab
+  if (url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+  return false;
 }
 
 /**
@@ -35,6 +35,7 @@ export function initializeFaviconOptimization() {
   }
 
   const favicons = document.querySelectorAll('.favicon');
+  if (favicons.length === 0) return;
   
   // Use Intersection Observer for lazy loading beyond the fold
   if ('IntersectionObserver' in window) {
@@ -53,10 +54,11 @@ export function initializeFaviconOptimization() {
       rootMargin: '50px 0px'
     });
 
-    // Only lazy load favicons beyond the first 15 entries
+    // Eager-load first N icons, lazy-load the rest to improve performance
+    const eagerCount = 15;
     favicons.forEach((img, index) => {
-      if (index >= 15) {
-        img.dataset.src = img.src;
+      if (index >= eagerCount) {
+        img.dataset.src = img.getAttribute('data-src') || img.src;
         img.src = '/static/favicons/default.ico';
         observer.observe(img);
       }

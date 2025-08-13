@@ -29,11 +29,12 @@
             <h3>Top Links (All Time)</h3>
             <div class="table-wrapper">
                 <table>
+                    <caption class="sr-only">Top performing links of all time</caption>
                     <thead>
                         <tr>
-                            <th>Title</th>
-                            <th>Clicks</th>
-                            <th>Last Clicked</th>
+                            <th scope="col">Title</th>
+                            <th scope="col">Clicks</th>
+                            <th scope="col">Last Clicked</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -57,11 +58,12 @@
             <h3>Top Links (Past Week)</h3>
             <div class="table-wrapper">
                 <table>
+                    <caption class="sr-only">Top performing links from the past week</caption>
                     <thead>
                         <tr>
-                            <th>Title</th>
-                            <th>Clicks</th>
-                            <th>Last Clicked</th>
+                            <th scope="col">Title</th>
+                            <th scope="col">Clicks</th>
+                            <th scope="col">Last Clicked</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -84,197 +86,5 @@
 </div>
 {{ end }}
 {{ define "styles" }}
-<style>
-    /* Dashboard container */
-    .dashboard {
-      padding: 1rem;
-      color: #c9d1d9;
-    }
-  
-    .dashboard h2 {
-      font-size: 1.5rem;
-      margin-bottom: 1.5rem;
-      color: #c9d1d9;
-      text-transform: uppercase;
-    }
-  
-    /* Stats Grid */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-  
-    .stat-card {
-      background: #1a1f2e;
-      border-radius: 8px;
-      padding: 1.25rem;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-  
-    .stat-card.highlight {
-      border: 1px solid #4ade80;
-      background: #1a1f2e;
-    }
-  
-    .stat-card h3 {
-      color: #8b949e;
-      font-size: 0.875rem;
-      margin: 0 0 0.5rem 0;
-      font-weight: normal;
-      text-transform: uppercase;
-    }
-  
-    /* Stats value styling */
-    .stat-card > :last-child {
-      font-size: 1.5rem;
-      color: #67bb79;
-      margin: 0;
-    }
-  
-    /* Panels Layout */
-    .stats-panels {
-      display: grid;
-      gap: 1.5rem;
-      margin-top: 2rem;
-    }
-  
-    .panel {
-      background: #1a1f2e;
-      border-radius: 8px;
-      padding: 1.25rem;
-    }
-  
-    .panel h3 {
-      color: #c9d1d9;
-      margin: 0 0 1rem 0;
-      font-size: 1.1rem;
-      font-weight: normal;
-      text-transform: uppercase;
-    }
-  
-    /* Table Styling */
-    .table-wrapper {
-      width: 100%;
-      overflow-x: auto;
-    }
-  
-    .table-wrapper table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-    }
-  
-    .table-wrapper th {
-      text-align: left;
-      padding: 0.75rem 1rem;
-      color: #8b949e;
-      border-bottom: 1px solid #30363d;
-      font-weight: 500;
-    }
-  
-    .table-wrapper td {
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid #21262d;
-      vertical-align: middle;
-    }
-  
-    .table-wrapper tbody tr {
-      transition: background-color 0.2s ease;
-    }
-  
-    .table-wrapper tbody tr:hover {
-      background-color: rgba(49, 109, 179, 0.1);
-    }
-  
-    /* Column widths */
-    .table-wrapper th:nth-child(1),
-    .table-wrapper td:nth-child(1) {
-      width: 60%;
-    }
-  
-    .table-wrapper th:nth-child(2),
-    .table-wrapper td:nth-child(2) {
-      width: 15%;
-      text-align: center;
-    }
-  
-    .table-wrapper th:nth-child(3),
-    .table-wrapper td:nth-child(3) {
-      width: 25%;
-      text-align: right;
-    }
-  
-    /* Link Styling */
-    .feed-url {
-      color: #7da9b7;
-      text-decoration: none;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      line-height: 1.3;
-      transition: color 0.2s ease;
-    }
-  
-    .feed-url:hover {
-      color: #67bb79;
-    }
-  
-    /* Responsive Layout */
-    @media (min-width: 768px) {
-      .stats-panels {
-        grid-template-columns: repeat(2, 1fr);
-      }
-  
-      .dashboard {
-        padding: 1.5rem;
-      }
-    }
-  
-    @media (max-width: 767px) {
-      .dashboard {
-        padding: 1rem;
-      }
-  
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-  
-      .table-wrapper th:last-child,
-      .table-wrapper td:last-child {
-        display: none;
-      }
-  
-      .table-wrapper th:nth-child(1),
-      .table-wrapper td:nth-child(1) {
-        width: 75%;
-      }
-  
-      .table-wrapper th:nth-child(2),
-      .table-wrapper td:nth-child(2) {
-        width: 25%;
-      }
-  
-      .panel {
-        margin-bottom: 1rem;
-      }
-  
-      .stats-panels {
-        gap: 1rem;
-      }
-  
-      .feed-url {
-        min-height: 2.6em; /* Ensures space for two lines */
-      }
-    }
-  
-    /* Handle dark mode system preference */
-    @media (prefers-color-scheme: dark) {
-      .stat-card, .panel {
-        background: #1a1f2e;
-      }
-    }
-  </style>
+<link rel="stylesheet" href="{{ themeCSS .Data.Settings "dashboard.css" }}">
 {{ end }}

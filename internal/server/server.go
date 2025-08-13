@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"infoscope/internal/auth"
@@ -56,7 +58,62 @@ type Server struct {
 	templateCache map[string]*template.Template
 }
 
+// securityHeaders wraps a handler to add standard security headers and a CSP
+// Note: If you later add inline scripts/styles, ensure they use nonces and that templates include them
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !headerWritten(w) {
+			// Basic hardening headers
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Referrer-Policy", "no-referrer-when-downgrade")
+			w.Header().Set("X-XSS-Protection", "0") // modern browsers; rely on CSP
+			if s.config.UseHTTPS {
+				w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+			}
+
+			// Content Security Policy
+			// Allow same-origin assets, and explicitly permit our static path.
+			// Tracking code is sanitized to disallow inline scripts; CSP forbids 'unsafe-inline'.
+			csp := strings.Join([]string{
+				"default-src 'self'",
+				// TODO: remove 'unsafe-inline' after migrating all inline handlers to external modules
+				"script-src 'self' 'unsafe-inline'",
+				"style-src 'self' 'unsafe-inline'", // CSS may use inline vars or styles from templates
+				"img-src 'self' data: https:",
+				"font-src 'self' data:",
+				"connect-src 'self'",
+				"frame-ancestors 'none'",
+				"base-uri 'self'",
+				"form-action 'self'",
+			}, "; ")
+			w.Header().Set("Content-Security-Policy", csp)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) registerTemplateFuncs() template.FuncMap {
+	// Helper to sanitize and resolve theme name safely
+	sanitizeTheme := func(settings map[string]string) string {
+		name := strings.TrimSpace(settings["theme"])
+		if name == "" {
+			name = "terminal"
+		}
+		name = strings.ToLower(name)
+		// Allow only safe characters
+		allowed := regexp.MustCompile(`^[a-z0-9_-]+$`)
+		if !allowed.MatchString(name) {
+			name = "terminal"
+		}
+		// Verify directory exists; if not, fallback
+		themeDir := filepath.Join(s.config.WebPath, "static", "css", "themes", name)
+		if fi, err := os.Stat(themeDir); err != nil || !fi.IsDir() {
+			return "terminal"
+		}
+		return name
+	}
+
 	return template.FuncMap{
 		"formatTimeInZone": func(tz string, t time.Time) string {
 			loc, err := time.LoadLocation(tz)
@@ -75,6 +132,24 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 			return t.UTC()
 		},
 		"safeHTML": safeHTML,
+		// getSetting returns settings[key] or defaultValue if missing/empty
+		"getSetting": func(settings map[string]string, key string, defaultValue string) string {
+			if settings == nil {
+				return defaultValue
+			}
+			if v, ok := settings[key]; ok && strings.TrimSpace(v) != "" {
+				return v
+			}
+			return defaultValue
+		},
+		// themeName resolves a safe theme name with fallback
+		"themeName": func(settings map[string]string) string {
+			return sanitizeTheme(settings)
+		},
+		// themeCSS builds a theme-aware CSS path, e.g., /static/css/themes/<theme>/<file>
+		"themeCSS": func(settings map[string]string, file string) string {
+			return "/static/css/themes/" + sanitizeTheme(settings) + "/" + strings.TrimPrefix(file, "/")
+		},
 	}
 }
 
@@ -266,18 +341,18 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/metrics/", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/change-password", s.requireAuth(s.handleChangePassword))
 	mux.HandleFunc("/admin/change-password/", s.requireAuth(s.handleChangePassword))
-	
+
 	// Filter management page
 	mux.HandleFunc("/admin/filters-page", s.requireAuth(s.handleFiltersPage))
 	mux.HandleFunc("/admin/filters-page/", s.requireAuth(s.handleFiltersPage))
-	
+
 	// Filter management API routes
 	mux.HandleFunc("/admin/filters", s.requireAuth(s.handleFilterRoutes))
 	mux.HandleFunc("/admin/filters/", s.requireAuth(s.handleFilterRoutes))
 	mux.HandleFunc("/admin/filter-groups", s.requireAuth(s.handleFilterGroupRoutes))
 	mux.HandleFunc("/admin/filter-groups/", s.requireAuth(s.handleFilterGroupRoutes))
 	mux.HandleFunc("/admin/filter-test", s.requireAuth(s.TestFilter))
-	
+
 	mux.HandleFunc("/admin", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/admin/", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/click", s.handleClick)
@@ -300,7 +375,9 @@ func (s *Server) Routes() http.Handler {
 
 	// Apply CSRF middleware to all routes except static files and safe paths
 	excludePaths := []string{"/healthz", "/healthz/"}
-	return s.csrf.MiddlewareExceptPaths(mux, excludePaths)
+	csrfWrapped := s.csrf.MiddlewareExceptPaths(mux, excludePaths)
+	// Apply security headers last to cover all responses
+	return s.securityHeaders(csrfWrapped)
 }
 
 func (s *Server) handle404(w http.ResponseWriter, r *http.Request) {

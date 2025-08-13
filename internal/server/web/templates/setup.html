@@ -1,85 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
     <title>Infoscope Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ .CSRFToken }}">
     <link rel="icon" type="image/x-icon" href="/static/images/favicon/default.ico">
-    <style>
-        body {
-            font-family: 'Courier New', Courier, monospace;
-            background-color: #121a2b;
-            color: #7da9b7;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        .setup-container {
-            background: #1a2438;
-            padding: 2rem;
-            border-radius: 8px;
-            max-width: 400px;
-            width: 100%;
-        }
-
-        h1 {
-            color: #c4d3cb;
-            margin-top: 0;
-            text-align: center;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: #a5c5cf;
-        }
-
-        input {
-            width: 100%;
-            padding: 0.5rem;
-            background: #0c1220;
-            border: 1px solid #2a3450;
-            color: #7da9b7;
-            font-family: inherit;
-            box-sizing: border-box;
-        }
-
-        button {
-            width: 100%;
-            padding: 0.75rem;
-            background: #67bb79;
-            color: #121a2b;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: inherit;
-            font-size: 1rem;
-            margin-top: 1rem;
-        }
-
-        button:hover {
-            background: #39ff64;
-        }
-
-        .error {
-            color: #ff6b6b;
-            margin-top: 0.5rem;
-            font-size: 0.9rem;
-        }
-
-        .password-requirements {
-            font-size: 0.8rem;
-            color: #a5c5cf;
-            margin-top: 0.25rem;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ themeCSS (index .Data "Settings") "variables.css" }}">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="{{ themeCSS (index .Data "Settings") "login.css" }}">
 </head>
 <body>
     <div class="setup-container">
@@ -113,65 +42,6 @@
         </form>
     </div>
 
-    <script>
-        document.getElementById('setupForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const error = document.getElementById('error');
-            error.textContent = '';
-    
-            // Get CSRF token from meta tag
-            const token = document.querySelector('meta[name="csrf-token"]').content;
-            
-            const formData = {
-                siteTitle: document.getElementById('siteTitle').value,
-                username: document.getElementById('username').value,
-                password: document.getElementById('password').value,
-                confirmPassword: document.getElementById('confirmPassword').value
-            };
-
-            // Client-side validation
-            if (formData.password !== formData.confirmPassword) {
-                error.textContent = 'Passwords do not match';
-                return;
-            }
-
-            if (formData.password.length < 12) {
-                error.textContent = 'Password must be at least 12 characters long';
-                return;
-            }
-
-            // Check password complexity
-            const hasUpper = /[A-Z]/.test(formData.password);
-            const hasLower = /[a-z]/.test(formData.password);
-            const hasDigit = /\d/.test(formData.password);
-            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
-
-            if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
-                error.textContent = 'Password must include uppercase, lowercase, digit, and special character';
-                return;
-            }
-    
-            try {
-                const response = await fetch('/setup', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': token
-                    },
-                    credentials: 'same-origin',
-                    body: JSON.stringify(formData)
-                });
-    
-                if (!response.ok) {
-                    const data = await response.text();
-                    throw new Error(data);
-                }
-                
-                window.location.href = '/admin/login';
-            } catch (err) {
-                error.textContent = err.message;
-            }
-        });
-    </script>
+    <script type="module" src="/static/js/modules/setup.js"></script>
 </body>
 </html>

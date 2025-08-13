@@ -20,8 +20,8 @@ const (
 
 // EntryView represents a feed entry for display in templates
 type EntryView struct {
-	ID         int64  `json:"id"`
-	Title      string `json:"title"`
+	ID              int64     `json:"id"`
+	Title           string    `json:"title"`
 	URL             string    `json:"url"`
 	FaviconURL      string    `json:"faviconUrl"`
 	Date            string    `json:"date"` // Formatted date for display
@@ -90,6 +90,7 @@ type Settings struct {
 	ShowBlogName      bool   `json:"showBlogName"`
 	ShowBodyText      bool   `json:"showBodyText"`
 	BodyTextLength    int    `json:"bodyTextLength"`
+	Theme             string `json:"theme"`
 }
 
 type Feed struct {

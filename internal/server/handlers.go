@@ -9,15 +9,16 @@ import (
 	"expvar"
 	"fmt"
 	"html"
-	"net/url"
-	htmlparser "golang.org/x/net/html"
 	"infoscope/internal/database"
 	"infoscope/internal/feed"
 	"infoscope/internal/rss"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	htmlparser "golang.org/x/net/html"
 )
 
 // Metrics variables
@@ -86,7 +87,7 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 
 	var entries []EntryView
 	filterEngine := s.feedService.GetFilterEngine()
-	
+
 	for rows.Next() {
 		var e EntryView
 		var publishedAtStr string // Will hold the "YYYY-MM-DD HH:MM:SS" string from DB
@@ -106,18 +107,18 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 				URL:     e.URL,
 				Content: content.String,
 			}
-			
+
 			// Parse feed category and tags
 			category := ""
 			if feedCategory.Valid {
 				category = feedCategory.String
 			}
-			
+
 			var tags []string
 			if tagsStr.Valid && tagsStr.String != "" {
 				tags = strings.Split(tagsStr.String, ",")
 			}
-			
+
 			decision, err := filterEngine.FilterEntry(ctx, dbEntry, category, tags)
 			if err != nil {
 				s.logger.Printf("Error applying filters to entry '%s': %v", e.Title, err)
@@ -194,7 +195,7 @@ func (s *Server) getFeeds(ctx context.Context) ([]Feed, error) {
 			Tags:        dbFeed.Tags,
 		}
 	}
-	
+
 	return feeds, nil
 }
 
@@ -211,13 +212,13 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		return err
 	}
 	defer stmt.Close()
-	
+
 	// Validate tracking code before updating
 	validatedTrackingCode, err := validateTrackingCode(settings.TrackingCode)
 	if err != nil {
 		return fmt.Errorf("invalid tracking code: %w", err)
 	}
-	
+
 	updates := map[string]struct {
 		value string
 		type_ string
@@ -237,6 +238,7 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
 		"meta_image_url":      {settings.MetaImageURL, "string"},
+		"theme":               {settings.Theme, "string"},
 		"show_blog_name":      {strconv.FormatBool(settings.ShowBlogName), "bool"},
 		"show_body_text":      {strconv.FormatBool(settings.ShowBodyText), "bool"},
 		"body_text_length":    {strconv.Itoa(settings.BodyTextLength), "int"},
@@ -456,7 +458,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		
+
 		// Get filter data for the settings page
 		filters, err := s.getFiltersForTemplate(r.Context())
 		if err != nil {
@@ -464,14 +466,14 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		
+
 		filterGroups, err := s.getFilterGroupsForTemplate(r.Context())
 		if err != nil {
 			s.logger.Printf("Error getting filter groups: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		
+
 		data := SettingsTemplateData{
 			BaseTemplateData: BaseTemplateData{CSRFToken: csrfToken},
 			Title:            "Settings",
@@ -653,17 +655,17 @@ func (s *Server) getFiltersForTemplate(ctx context.Context) ([]map[string]interf
 	if err != nil {
 		return nil, err
 	}
-	
+
 	result := make([]map[string]interface{}, len(filters))
 	for i, filter := range filters {
 		result[i] = map[string]interface{}{
-			"id":            filter.ID,
-			"name":          filter.Name,
-			"pattern":       filter.Pattern,
-			"pattern_type":  filter.PatternType,
+			"id":             filter.ID,
+			"name":           filter.Name,
+			"pattern":        filter.Pattern,
+			"pattern_type":   filter.PatternType,
 			"case_sensitive": filter.CaseSensitive,
-			"created_at":    filter.CreatedAt,
-			"updated_at":    filter.UpdatedAt,
+			"created_at":     filter.CreatedAt,
+			"updated_at":     filter.UpdatedAt,
 		}
 	}
 	return result, nil
@@ -676,7 +678,7 @@ func (s *Server) getFilterGroupsForTemplate(ctx context.Context) ([]map[string]i
 	if err != nil {
 		return nil, err
 	}
-	
+
 	result := make([]map[string]interface{}, len(groups))
 	for i, group := range groups {
 		// Get rules for this group
@@ -684,7 +686,7 @@ func (s *Server) getFilterGroupsForTemplate(ctx context.Context) ([]map[string]i
 		if err != nil {
 			return nil, err
 		}
-		
+
 		result[i] = map[string]interface{}{
 			"id":         group.ID,
 			"name":       group.Name,
@@ -819,14 +821,14 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 	buf.WriteString("<script src=\"")
 	buf.WriteString(html.EscapeString(src))
 	buf.WriteString("\"")
-	
+
 	if async != "" {
 		buf.WriteString(" async=\"\"")
 	}
 	if defer_ != "" {
 		buf.WriteString(" defer=\"\"")
 	}
-	
+
 	buf.WriteString("></script>")
 }
 
@@ -860,7 +862,7 @@ func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) {
 	buf.WriteString("<img src=\"")
 	buf.WriteString(html.EscapeString(src))
 	buf.WriteString("\"")
-	
+
 	if width != "" {
 		buf.WriteString(" width=\"")
 		buf.WriteString(html.EscapeString(width))
@@ -876,7 +878,7 @@ func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) {
 		buf.WriteString(html.EscapeString(alt))
 		buf.WriteString("\"")
 	}
-	
+
 	buf.WriteString(">")
 }
 
@@ -908,7 +910,7 @@ func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) {
 	buf.WriteString("<iframe src=\"")
 	buf.WriteString(html.EscapeString(src))
 	buf.WriteString("\"")
-	
+
 	if width != "" {
 		buf.WriteString(" width=\"")
 		buf.WriteString(html.EscapeString(width))
@@ -919,7 +921,7 @@ func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) {
 		buf.WriteString(html.EscapeString(height))
 		buf.WriteString("\"")
 	}
-	
+
 	buf.WriteString("></iframe>")
 }
 
@@ -962,13 +964,13 @@ func sanitizeMetaTag(n *htmlparser.Node, buf *strings.Builder) {
 // sanitizeNoscriptTag sanitizes noscript tags
 func sanitizeNoscriptTag(n *htmlparser.Node, buf *strings.Builder) {
 	buf.WriteString("<noscript>")
-	
+
 	// Process children - continue even if some children are invalid
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		// Process all children, no errors expected
 		sanitizeTrackingNode(c, buf)
 	}
-	
+
 	buf.WriteString("</noscript>")
 }
 

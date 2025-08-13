@@ -114,6 +114,14 @@
                 </div>
             </div>
             <div class="setting-group">
+                <label for="theme">THEME</label>
+                <select id="theme" name="theme">
+                    {{ $currentTheme := getSetting .Data.Settings "theme" "terminal" }}
+                    <option value="terminal" {{ if eq $currentTheme "terminal" }}selected{{ end }}>Terminal</option>
+                </select>
+                <div class="help-text">Choose the visual theme for the UI.</div>
+            </div>
+            <div class="setting-group">
                 <label for="timezone">TIMEZONE</label>
                 <select id="timezone" name="timezone" class="timezone-select">
                     {{ $currentTZ := index .Data.Settings "timezone" }}
@@ -227,7 +235,7 @@
                 <div class="filter-groups-container">
                     <div class="filter-groups-header">
                         <h4>Filter Groups</h4>
-                        <button type="button" class="action-btn primary" onclick="showCreateGroupModal()">
+                        <button type="button" class="action-btn primary" data-action="open-create-group-modal">
                             <span>+</span> New Group
                         </button>
                     </div>
@@ -245,11 +253,11 @@
                                     </div>
                                 </div>
                                 <div class="group-controls">
-                                    <button type="button" class="control-btn" onclick="toggleGroup({{ .id }}, {{ .is_active }})">
+                                    <button type="button" class="control-btn" data-action="toggle-group" data-group-id="{{ .id }}" data-is-active="{{ .is_active }}">
                                         {{ if .is_active }}Disable{{ else }}Enable{{ end }}
                                     </button>
-                                    <button type="button" class="control-btn" onclick="editGroup({{ .id }})">Edit</button>
-                                    <button type="button" class="control-btn danger" onclick="deleteGroup({{ .id }})">Delete</button>
+                                    <button type="button" class="control-btn" data-action="edit-group" data-group-id="{{ .id }}">Edit</button>
+                                    <button type="button" class="control-btn danger" data-action="delete-group" data-group-id="{{ .id }}">Delete</button>
                                 </div>
                             </div>
                             
@@ -266,7 +274,7 @@
                                 {{ else }}
                                     <div class="empty-rules">
                                         <span>No filters assigned</span>
-                                        <button type="button" class="link-btn" onclick="addFiltersToGroup({{ .id }})">Add Filters</button>
+                                        <button type="button" class="link-btn" data-action="add-filters-to-group" data-group-id="{{ .id }}">Add Filters</button>
                                     </div>
                                 {{ end }}
                             </div>
@@ -278,7 +286,7 @@
                             <div class="empty-icon">📋</div>
                             <h5>No Filter Groups</h5>
                             <p>Create your first filter group to start organizing your RSS entries automatically.</p>
-                            <button type="button" class="action-btn primary" onclick="showCreateGroupModal()">Create First Group</button>
+                            <button type="button" class="action-btn primary" data-action="open-create-group-modal">Create First Group</button>
                         </div>
                         {{ end }}
                     </div>
@@ -288,7 +296,7 @@
                 <div class="filters-library">
                     <div class="filters-header">
                         <h4>Filter Library</h4>
-                        <button type="button" class="action-btn secondary" onclick="showCreateFilterModal()">
+                        <button type="button" class="action-btn secondary" data-action="open-create-filter-modal">
                             <span>+</span> New Filter
                         </button>
                     </div>
@@ -299,8 +307,8 @@
                             <div class="filter-header">
                                 <h6>{{ .name }}</h6>
                                 <div class="filter-actions">
-                                    <button type="button" class="icon-btn" onclick="editFilter({{ .id }})" title="Edit">✏️</button>
-                                    <button type="button" class="icon-btn danger" onclick="deleteFilter({{ .id }})" title="Delete">🗑️</button>
+                                    <button type="button" class="icon-btn" data-action="edit-filter" data-filter-id="{{ .id }}" title="Edit">✏️</button>
+                                    <button type="button" class="icon-btn danger" data-action="delete-filter" data-filter-id="{{ .id }}" title="Delete">🗑️</button>
                                 </div>
                             </div>
                             <div class="filter-details">
@@ -326,10 +334,10 @@
             <div class="setting-group backup-section">
                 <h3>BACKUP & RESTORE</h3>
                 <div class="backup-actions">
-                    <button type="button" onclick="exportBackup()" class="backup-button export">EXPORT BACKUP</button>
+                    <button type="button" data-action="export-backup" class="backup-button export">EXPORT BACKUP</button>
                     <div class="import-container">
-                        <input type="file" id="importFile" accept=".json" style="display: none" onchange="handleImport()">
-                        <button type="button" onclick="document.getElementById('importFile').click()" class="backup-button import">IMPORT BACKUP</button>
+                        <input type="file" id="importFile" accept=".json" style="display: none">
+                        <button type="button" data-action="trigger-import" class="backup-button import">IMPORT BACKUP</button>
                     </div>
                 </div>
                 <div id="backupStatus" class="backup-status"></div>
@@ -1652,15 +1660,7 @@ textarea:focus {
 </style>
 {{ end }}
 {{ define "scripts" }}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize all functionality
-    initializeSettingsForm();
-    initializeFilterSystem();
-    initializeBackupSystem();
-    initializePasswordForm();
-    initializeImageUploads();
-});
+<script type="module" src="/static/js/modules/settings.js"></script>
 
 // Settings Form Handler
 function initializeSettingsForm() {
@@ -2176,7 +2176,7 @@ async function saveGroup() {
         if (response.ok) {
             showNotification('Filter group created successfully', 'success');
             closeModal('createGroupModal');
-            setTimeout(() => location.reload(), 1000);
+            setTimeout(() => location.reload(), 3000);
         } else {
             const error = await response.text();
             showNotification(`Error creating group: ${error}`, 'error');
@@ -2396,7 +2396,7 @@ async function confirmDeleteGroup() {
             showNotification('Filter group deleted successfully', 'success');
             closeModal('deleteGroupModal');
             currentDeletingGroupId = null;
-            setTimeout(() => location.reload(), 1000);
+            setTimeout(() => location.reload(), 3000);
         } else {
             const error = await response.text();
             showNotification(`Error deleting group: ${error}`, 'error');
@@ -2438,7 +2438,7 @@ async function saveFilter() {
         if (response.ok) {
             showNotification('Filter created successfully', 'success');
             closeModal('createFilterModal');
-            setTimeout(() => location.reload(), 1000);
+            setTimeout(() => location.reload(), 3000);
         } else {
             const error = await response.text();
             showNotification(`Error creating filter: ${error}`, 'error');
@@ -2534,7 +2534,7 @@ async function updateFilter() {
             showNotification('Filter updated successfully', 'success');
             closeModal('editFilterModal');
             currentEditingFilterId = null;
-            setTimeout(() => location.reload(), 1000);
+            setTimeout(() => location.reload(), 3000);
         } else {
             const error = await response.text();
             showNotification(`Error updating filter: ${error}`, 'error');
@@ -2595,7 +2595,7 @@ async function confirmDeleteFilter() {
             showNotification('Filter deleted successfully', 'success');
             closeModal('deleteFilterModal');
             currentDeletingFilterId = null;
-            setTimeout(() => location.reload(), 1000);
+            setTimeout(() => location.reload(), 3000);
         } else {
             const error = await response.text();
             showNotification(`Error deleting filter: ${error}`, 'error');
@@ -2706,9 +2706,9 @@ function createAssignmentItem(filter, isAssigned, operator = 'AND', position = 0
         </div>
         <div class="assignment-actions">
             ${isAssigned ? `
-                <button class="assignment-btn" onclick="removeFilterFromGroup(${filter.id})">Remove</button>
+                <button class="assignment-btn" data-action="remove-filter-from-group" data-filter-id="${filter.id}">Remove</button>
             ` : `
-                <button class="assignment-btn primary" onclick="addFilterToGroup(${filter.id}, ${currentEditingGroupId})">Add</button>
+                <button class="assignment-btn primary" data-action="add-filter-to-group" data-filter-id="${filter.id}" data-group-id="${currentEditingGroupId}">Add</button>
             `}
         </div>
     `;
@@ -3178,7 +3178,7 @@ function showNotification(message, type) {
     notification.className = `notification ${type}`;
     notification.innerHTML = `
         <span>${message}</span>
-        <button onclick="this.parentElement.remove()">&times;</button>
+        <button class="notification-close" aria-label="Close notification">&times;</button>
     `;
     
     // Add styles
@@ -3218,11 +3218,24 @@ function showNotification(message, type) {
     // Add to page
     document.body.appendChild(notification);
     
-    // Auto remove after 5 seconds
+    // Auto remove with type-specific duration
+    let duration;
+    switch (type) {
+        case 'success':
+            duration = 7000; // 7 seconds for success messages
+            break;
+        case 'error':
+            duration = 9000; // 9 seconds for error messages
+            break;
+        default:
+            duration = 5000; // 5 seconds for other messages
+            break;
+    }
+    
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => notification.remove(), 300);
-    }, 5000);
+    }, duration);
 }
 
 // Add CSS for notification animations
@@ -3644,27 +3657,6 @@ function reorderAssignedFilters() {
 window.editFilter = editFilter;
 window.deleteFilter = deleteFilter;
 window.showCreateFilterModal = showCreateFilterModal;
-window.showCreateGroupModal = showCreateGroupModal;
-window.closeModal = closeModal;
-window.editGroup = editGroup;
-window.deleteGroup = deleteGroup;
-window.toggleGroup = toggleGroup;
-window.addFiltersToGroup = addFiltersToGroup;
-window.exportBackup = exportBackup;
-window.saveFilter = saveFilter;
-window.updateFilter = updateFilter;
-window.confirmDeleteFilter = confirmDeleteFilter;
-window.saveGroup = saveGroup;
-window.updateGroup = updateGroup;
-window.confirmDeleteGroup = confirmDeleteGroup;
-
-// Debug logging
-console.log('Settings functions loaded:', {
-    editFilter: typeof window.editFilter,
-    deleteFilter: typeof window.deleteFilter,
-    showCreateFilterModal: typeof window.showCreateFilterModal
-});
-
 </script>
 
 <!-- Create Filter Group Modal -->
@@ -3672,7 +3664,7 @@ console.log('Settings functions loaded:', {
     <div class="modal-content">
         <div class="modal-header">
             <h3>Create Filter Group</h3>
-            <button class="modal-close" onclick="closeModal('createGroupModal')">&times;</button>
+            <button class="modal-close" data-action="close-modal" data-modal-id="createGroupModal">&times;</button>
         </div>
         <div class="modal-body">
             <div class="modal-form-group">
@@ -3710,8 +3702,8 @@ console.log('Settings functions loaded:', {
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn secondary" onclick="closeModal('createGroupModal')">Cancel</button>
-            <button type="button" class="btn primary" onclick="saveGroup()">Create Group</button>
+            <button type="button" class="btn secondary" data-action="close-modal" data-modal-id="createGroupModal">Cancel</button>
+            <button type="button" class="btn primary" data-action="save-group">Create Group</button>
         </div>
     </div>
 </div>
@@ -3721,7 +3713,7 @@ console.log('Settings functions loaded:', {
     <div class="modal-content">
         <div class="modal-header">
             <h3>Create Filter</h3>
-            <button class="modal-close" onclick="closeModal('createFilterModal')">&times;</button>
+            <button class="modal-close" data-action="close-modal" data-modal-id="createFilterModal">&times;</button>
         </div>
         <div class="modal-body">
             <div class="modal-form-group">
@@ -3760,8 +3752,8 @@ console.log('Settings functions loaded:', {
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn secondary" onclick="closeModal('createFilterModal')">Cancel</button>
-            <button type="button" class="btn primary" onclick="saveFilter()">Create Filter</button>
+            <button type="button" class="btn secondary" data-action="close-modal" data-modal-id="createFilterModal">Cancel</button>
+            <button type="button" class="btn primary" data-action="save-filter">Create Filter</button>
         </div>
     </div>
 </div>
@@ -3771,7 +3763,7 @@ console.log('Settings functions loaded:', {
     <div class="modal-content">
         <div class="modal-header">
             <h3>Edit Filter</h3>
-            <button class="modal-close" onclick="closeModal('editFilterModal')">&times;</button>
+            <button class="modal-close" data-action="close-modal" data-modal-id="editFilterModal">&times;</button>
         </div>
         <div class="modal-body">
             <div class="modal-form-group">
@@ -3810,8 +3802,8 @@ console.log('Settings functions loaded:', {
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn secondary" onclick="closeModal('editFilterModal')">Cancel</button>
-            <button type="button" class="btn primary" onclick="updateFilter()">Update Filter</button>
+            <button type="button" class="btn secondary" data-action="close-modal" data-modal-id="editFilterModal">Cancel</button>
+            <button type="button" class="btn primary" data-action="update-filter">Update Filter</button>
         </div>
     </div>
 </div>
@@ -3821,7 +3813,7 @@ console.log('Settings functions loaded:', {
     <div class="modal-content modal-large">
         <div class="modal-header">
             <h3 id="editGroupModalTitle">Edit Filter Group</h3>
-            <button class="modal-close" onclick="closeModal('editGroupModal')">&times;</button>
+            <button class="modal-close" data-action="close-modal" data-modal-id="editGroupModal">&times;</button>
         </div>
         <div class="modal-body">
             <div class="modal-form-group">
@@ -3872,8 +3864,8 @@ console.log('Settings functions loaded:', {
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn secondary" onclick="closeModal('editGroupModal')">Cancel</button>
-            <button type="button" class="btn primary" onclick="updateGroup()">Save Changes</button>
+            <button type="button" class="btn secondary" data-action="close-modal" data-modal-id="editGroupModal">Cancel</button>
+            <button type="button" class="btn primary" data-action="update-group">Save Changes</button>
         </div>
     </div>
 </div>
@@ -3883,7 +3875,7 @@ console.log('Settings functions loaded:', {
     <div class="modal-content">
         <div class="modal-header">
             <h3>Delete Filter</h3>
-            <button class="modal-close" onclick="closeModal('deleteFilterModal')">&times;</button>
+            <button class="modal-close" data-action="close-modal" data-modal-id="deleteFilterModal">&times;</button>
         </div>
         <div class="modal-body">
             <p>Are you sure you want to delete this filter?</p>
@@ -3893,8 +3885,8 @@ console.log('Settings functions loaded:', {
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn secondary" onclick="closeModal('deleteFilterModal')">Cancel</button>
-            <button type="button" class="btn primary danger" onclick="confirmDeleteFilter()">Delete Filter</button>
+            <button type="button" class="btn secondary" data-action="close-modal" data-modal-id="deleteFilterModal">Cancel</button>
+            <button type="button" class="btn primary danger" data-action="confirm-delete-filter">Delete Filter</button>
         </div>
     </div>
 </div>
@@ -3904,7 +3896,7 @@ console.log('Settings functions loaded:', {
     <div class="modal-content">
         <div class="modal-header">
             <h3>Delete Group</h3>
-            <button class="modal-close" onclick="closeModal('deleteGroupModal')">&times;</button>
+            <button class="modal-close" data-action="close-modal" data-modal-id="deleteGroupModal">&times;</button>
         </div>
         <div class="modal-body">
             <p>Are you sure you want to delete this filter group?</p>
@@ -3914,8 +3906,8 @@ console.log('Settings functions loaded:', {
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn secondary" onclick="closeModal('deleteGroupModal')">Cancel</button>
-            <button type="button" class="btn primary danger" onclick="confirmDeleteGroup()">Delete Group</button>
+            <button type="button" class="btn secondary" data-action="close-modal" data-modal-id="deleteGroupModal">Cancel</button>
+            <button type="button" class="btn primary danger" data-action="confirm-delete-group">Delete Group</button>
         </div>
     </div>
 </div>
