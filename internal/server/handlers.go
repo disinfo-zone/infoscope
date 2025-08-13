@@ -783,6 +783,10 @@ func sanitizeTrackingNode(n *htmlparser.Node, buf *strings.Builder) {
 // sanitizeScriptTag sanitizes script tags
 func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 	var src, async, defer_ string
+	// Preserve a limited, safe set of attributes commonly used by analytics providers
+	// including data-* attributes (e.g., Umami), crossorigin/SRI, and referrerpolicy.
+	type kv struct{ key, val string }
+	var preserved []kv
 	var hasInlineScript bool
 
 	// Check if script has inline content
@@ -812,9 +816,16 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 		case "defer":
 			defer_ = "defer"
 		case "type":
-			// Allow type attribute but ignore for now
+			// Preserve type attribute
+			preserved = append(preserved, kv{key: attr.Key, val: attr.Val})
+		case "crossorigin", "integrity", "referrerpolicy":
+			// Preserve CORS/SRI/referrer policy attributes for external scripts
+			preserved = append(preserved, kv{key: attr.Key, val: attr.Val})
 		default:
-			// Remove other attributes like onclick, etc.
+			// Preserve data-* attributes commonly used for configuration (e.g., Umami)
+			if strings.HasPrefix(strings.ToLower(attr.Key), "data-") {
+				preserved = append(preserved, kv{key: attr.Key, val: attr.Val})
+			}
 		}
 	}
 
@@ -835,6 +846,15 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 	}
 	if defer_ != "" {
 		buf.WriteString(" defer=\"\"")
+	}
+
+	// Write preserved attributes
+	for _, a := range preserved {
+		buf.WriteString(" ")
+		buf.WriteString(html.EscapeString(a.key))
+		buf.WriteString("=\"")
+		buf.WriteString(html.EscapeString(a.val))
+		buf.WriteString("\")")
 	}
 
 	buf.WriteString("></script>")

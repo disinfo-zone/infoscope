@@ -77,11 +77,12 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			// No inline scripts; all JS must be in external modules. Inline styles allowed for legacy templates.
 			csp := strings.Join([]string{
 				"default-src 'self'",
-				"script-src 'self'",
+				"script-src 'self' https:",
 				"style-src 'self' 'unsafe-inline'",
 				"img-src 'self' data: https:",
 				"font-src 'self' data:",
-				"connect-src 'self'",
+				"connect-src 'self' https:",
+				"frame-src 'self' https:",
 				"frame-ancestors 'none'",
 				"base-uri 'self'",
 				"form-action 'self'",
