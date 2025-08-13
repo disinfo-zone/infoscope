@@ -6,12 +6,14 @@ import (
 )
 
 type Feed struct {
-	ID          int64     `json:"id"`
-	URL         string    `json:"url"`
-	Title       string    `json:"title"`
-	LastFetched time.Time `json:"lastFetched"`
-	Category    string    `json:"category,omitempty"`
-	Tags        []string  `json:"tags,omitempty"`
+	ID           int64     `json:"id"`
+	URL          string    `json:"url"`
+	Title        string    `json:"title"`
+	LastFetched  time.Time `json:"lastFetched"`
+	Category     string    `json:"category,omitempty"`
+	Tags         []string  `json:"tags,omitempty"`
+	LastModified string    `json:"lastModified,omitempty"`
+	ETag         string    `json:"etag,omitempty"`
 }
 
 type Entry struct {
@@ -27,8 +29,10 @@ type Entry struct {
 }
 
 type FetchResult struct {
-	Feed      Feed
-	Entries   []Entry
-	FeedTitle string
-	Error     error
+	Feed         Feed
+	Entries      []Entry
+	FeedTitle    string
+	Error        error
+	LastModified string
+	ETag         string
 }

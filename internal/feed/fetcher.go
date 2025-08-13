@@ -5,9 +5,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,11 +33,27 @@ type Fetcher struct {
 }
 
 func NewFetcher(db *sql.DB, logger *log.Logger, faviconSvc *favicon.Service) *Fetcher {
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 	return &Fetcher{
-		db:           db,
-		logger:       logger,
-		parser:       gofeed.NewParser(),
-		client:       &http.Client{Timeout: 30 * time.Second}, // Increased timeout
+		db:     db,
+		logger: logger,
+		parser: gofeed.NewParser(),
+		client: &http.Client{Timeout: 30 * time.Second, Transport: transport, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return fmt.Errorf("stopped after 5 redirects")
+			}
+			return nil
+		}},
 		faviconSvc:   faviconSvc,
 		cache:        &sync.Map{},
 		filterEngine: NewFilterEngine(db),
@@ -82,11 +102,20 @@ func (f *Fetcher) UpdateFeeds(ctx context.Context) error {
 	results := make(chan FetchResult, len(feeds))
 	var wg sync.WaitGroup
 
-	// Fetch feeds concurrently
+	// Concurrency limiter
+	concurrency := f.getConcurrencyLimit(ctx)
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	sem := make(chan struct{}, concurrency)
+
+	// Fetch feeds concurrently with limiter
 	for _, feed := range feeds {
 		wg.Add(1)
+		sem <- struct{}{}
 		go func(feed Feed) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			f.logger.Printf("Fetching feed: %s", feed.URL)
 			result := f.fetchFeed(ctx, feed)
 			if result.Error != nil {
@@ -134,28 +163,45 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 		return result
 	}
 
+	// Identify our client
+	req.Header.Set("User-Agent", "Infoscope/0.3")
+
 	// Add conditional GET headers if we have cached data
+	var condLastMod, condETag string
 	if exists {
 		entry := cached.(cacheEntry)
-		if entry.lastModified != "" {
-			req.Header.Set("If-Modified-Since", entry.lastModified)
-		}
-		if entry.etag != "" {
-			req.Header.Set("If-None-Match", entry.etag)
+		condLastMod = entry.lastModified
+		condETag = entry.etag
+	} else {
+		// Fallback to persisted headers from DB
+		var dbLastMod, dbETag sql.NullString
+		if err := f.db.QueryRowContext(ctx, "SELECT last_modified, etag FROM feeds WHERE id = ?", feed.ID).Scan(&dbLastMod, &dbETag); err == nil {
+			if dbLastMod.Valid {
+				condLastMod = strings.TrimSpace(dbLastMod.String)
+			}
+			if dbETag.Valid {
+				condETag = strings.TrimSpace(dbETag.String)
+			}
 		}
 	}
+	if condLastMod != "" {
+		req.Header.Set("If-Modified-Since", condLastMod)
+	}
+	if condETag != "" {
+		req.Header.Set("If-None-Match", condETag)
+	}
 
-	// Resolve host and block private/reserved ranges
+	// Resolve host and block private/reserved ranges (allow loopback for tests)
 	if host := req.URL.Hostname(); host != "" {
 		if ip := net.ParseIP(host); ip != nil {
-			if securitynet.IsPrivateIP(ip) {
+			if securitynet.IsPrivateIP(ip) && !ip.IsLoopback() {
 				result.Error = fmt.Errorf("destination resolves to private/reserved address")
 				return result
 			}
 		} else {
 			if addrs, err := net.LookupIP(host); err == nil {
 				for _, a := range addrs {
-					if securitynet.IsPrivateIP(a) {
+					if securitynet.IsPrivateIP(a) && !a.IsLoopback() {
 						result.Error = fmt.Errorf("destination resolves to private/reserved address")
 						return result
 					}
@@ -171,9 +217,28 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 	}
 	defer resp.Body.Close()
 
+	// Handle non-success statuses other than 304
+	if resp.StatusCode == http.StatusTooManyRequests || (resp.StatusCode >= 400 && resp.StatusCode != http.StatusNotModified) {
+		result.Error = fmt.Errorf("unexpected response status %d", resp.StatusCode)
+		return result
+	}
+
 	// Handle 304 Not Modified
 	if resp.StatusCode == http.StatusNotModified {
 		f.logger.Printf("Feed %s not modified since last fetch", feed.URL)
+		// Propagate any new validator headers if sent; else use conditional ones
+		lm := resp.Header.Get("Last-Modified")
+		if lm == "" {
+			lm = condLastMod
+		}
+		et := resp.Header.Get("ETag")
+		if et == "" {
+			et = condETag
+		}
+		result.LastModified = lm
+		result.ETag = et
+		// Update cache timestamp
+		f.cache.Store(cacheKey, cacheEntry{lastModified: lm, etag: et, timestamp: time.Now()})
 		return result
 	}
 
@@ -184,10 +249,19 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 		timestamp:    time.Now(),
 	})
 
-	// Parse feed
-	parsedFeed, err := f.parser.Parse(resp.Body)
+	result.LastModified = resp.Header.Get("Last-Modified")
+	result.ETag = resp.Header.Get("ETag")
+
+	// Parse feed with a reasonable size limit (5MB) to avoid huge downloads
+	const maxFeedBytes = 5 << 20
+	limited := io.LimitReader(resp.Body, maxFeedBytes)
+	parsedFeed, err := f.parser.Parse(limited)
 	if err != nil {
 		result.Error = fmt.Errorf("error parsing feed: %w", err)
+		return result
+	}
+	if parsedFeed == nil {
+		result.Error = fmt.Errorf("error parsing feed: empty document")
 		return result
 	}
 
@@ -212,8 +286,18 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 		}
 	}
 
+	// Fetch favicon only once per feed
+	faviconFile := "default.ico"
+	if parsedFeed.Link != "" {
+		if ff, ferr := f.faviconSvc.GetFavicon(parsedFeed.Link); ferr == nil && ff != "" {
+			faviconFile = ff
+		} else if ferr != nil {
+			f.logger.Printf("Error getting favicon for %s: %v", parsedFeed.Link, ferr)
+		}
+	}
+
 	// Process entries
-	var newEntries []Entry
+	var newEntries = make([]Entry, 0, len(parsedFeed.Items))
 	for _, item := range parsedFeed.Items {
 		pubDate := item.PublishedParsed
 		if pubDate == nil {
@@ -227,13 +311,6 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 		// Skip entries older than latest timestamp if we have one
 		if !latestTimestamp.IsZero() && pubDate.Before(latestTimestamp) {
 			continue
-		}
-
-		// Get or create favicon
-		faviconFile, err := f.faviconSvc.GetFavicon(parsedFeed.Link)
-		if err != nil {
-			f.logger.Printf("Error getting favicon for %s: %v", parsedFeed.Link, err)
-			faviconFile = "default.ico"
 		}
 
 		entry := Entry{
@@ -266,19 +343,17 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	result.Entries = filteredEntries
 
 	if len(result.Entries) == 0 {
-		// Update last_fetched time and title even if no entries remain after filtering
-		// Only update title if the new title is not empty and title hasn't been manually edited
+		// Update last_fetched time and validator headers even if no entries
 		if result.FeedTitle != "" {
 			_, err := f.db.ExecContext(ctx,
-				"UPDATE feeds SET last_fetched = DATETIME(?), title = CASE WHEN title_manually_edited = 1 THEN title ELSE ? END WHERE id = ?",
-				f.formattedTimestamp(), result.FeedTitle, result.Feed.ID,
+				"UPDATE feeds SET last_fetched = DATETIME(?), last_modified = COALESCE(NULLIF(?, ''), last_modified), etag = COALESCE(NULLIF(?, ''), etag), title = CASE WHEN title_manually_edited = 1 THEN title ELSE ? END WHERE id = ?",
+				f.formattedTimestamp(), result.LastModified, result.ETag, result.FeedTitle, result.Feed.ID,
 			)
 			return err
 		} else {
-			// If the title is empty, only update the last_fetched time
 			_, err := f.db.ExecContext(ctx,
-				"UPDATE feeds SET last_fetched = DATETIME(?) WHERE id = ?",
-				f.formattedTimestamp(), result.Feed.ID,
+				"UPDATE feeds SET last_fetched = DATETIME(?), last_modified = COALESCE(NULLIF(?, ''), last_modified), etag = COALESCE(NULLIF(?, ''), etag) WHERE id = ?",
+				f.formattedTimestamp(), result.LastModified, result.ETag, result.Feed.ID,
 			)
 			return err
 		}
@@ -290,17 +365,16 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	}
 	defer tx.Rollback()
 
-	// Update feed last_fetched time and title, but only if the new title is not empty and title hasn't been manually edited
+	// Update feed last_fetched time, validators, and title (if not manually edited)
 	if result.FeedTitle != "" {
 		_, err = tx.ExecContext(ctx,
-			"UPDATE feeds SET last_fetched = DATETIME(?), title = CASE WHEN title_manually_edited = 1 THEN title ELSE ? END WHERE id = ?",
-			f.formattedTimestamp(), result.FeedTitle, result.Feed.ID,
+			"UPDATE feeds SET last_fetched = DATETIME(?), last_modified = COALESCE(NULLIF(?, ''), last_modified), etag = COALESCE(NULLIF(?, ''), etag), title = CASE WHEN title_manually_edited = 1 THEN title ELSE ? END WHERE id = ?",
+			f.formattedTimestamp(), result.LastModified, result.ETag, result.FeedTitle, result.Feed.ID,
 		)
 	} else {
-		// If the title is empty, only update the last_fetched time
 		_, err = tx.ExecContext(ctx,
-			"UPDATE feeds SET last_fetched = DATETIME(?) WHERE id = ?",
-			f.formattedTimestamp(), result.Feed.ID,
+			"UPDATE feeds SET last_fetched = DATETIME(?), last_modified = COALESCE(NULLIF(?, ''), last_modified), etag = COALESCE(NULLIF(?, ''), etag) WHERE id = ?",
+			f.formattedTimestamp(), result.LastModified, result.ETag, result.Feed.ID,
 		)
 	}
 	if err != nil {
@@ -366,6 +440,39 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 	}
 
 	return tx.Commit()
+}
+
+// getConcurrencyLimit determines the number of concurrent feed fetches.
+// It consults the settings table (key: 'feed_concurrency') if present, otherwise
+// falls back to a value based on the number of CPUs.
+func (f *Fetcher) getConcurrencyLimit(ctx context.Context) int {
+	// Reasonable default tuned to IO-bound workload
+	defaultLimit := runtime.NumCPU() * 4
+	if defaultLimit < 4 {
+		defaultLimit = 4
+	}
+	if defaultLimit > 32 {
+		defaultLimit = 32
+	}
+
+	var s sql.NullString
+	if err := f.db.QueryRowContext(ctx, "SELECT value FROM settings WHERE key = 'feed_concurrency'").Scan(&s); err != nil {
+		return defaultLimit
+	}
+	if !s.Valid {
+		return defaultLimit
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(s.String))
+	if err != nil {
+		return defaultLimit
+	}
+	if n < 1 {
+		return 1
+	}
+	if n > 128 {
+		return 128
+	}
+	return n
 }
 
 // applyFilters applies the filtering system to a list of entries

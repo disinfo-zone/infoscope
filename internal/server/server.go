@@ -378,8 +378,10 @@ func (s *Server) Routes() http.Handler {
 	// Apply CSRF middleware to all routes except static files and safe paths
 	excludePaths := []string{"/healthz", "/healthz/"}
 	csrfWrapped := s.csrf.MiddlewareExceptPaths(mux, excludePaths)
+	// Apply gzip compression for text-based responses
+	gzWrapped := gzipMiddleware(csrfWrapped)
 	// Apply security headers last to cover all responses
-	return s.securityHeaders(csrfWrapped)
+	return s.securityHeaders(gzWrapped)
 }
 
 func (s *Server) handle404(w http.ResponseWriter, r *http.Request) {
@@ -429,5 +431,14 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) Start(addr string) error {
 	s.logger.Printf("Starting server on %s", addr)
-	return http.ListenAndServe(addr, s.Routes())
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           s.Routes(),
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1MB
+	}
+	return srv.ListenAndServe()
 }

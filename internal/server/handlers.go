@@ -823,6 +823,8 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 		return // Skip this tag
 	}
 
+	// Note: localhost on non-standard ports is allowed by validateURL and will be emitted.
+
 	// Write sanitized script tag
 	buf.WriteString("<script src=\"")
 	buf.WriteString(html.EscapeString(src))
@@ -996,12 +998,15 @@ func validateURL(urlStr string) error {
 		return fmt.Errorf("only HTTP/HTTPS URLs are allowed, got: %s", u.Scheme)
 	}
 
-	// Block localhost on standard web ports and common development ports for security
+	// Block localhost on standard web ports and common development ports for security,
+	// but allow localhost on non-standard ports (e.g., 3000) for development use.
 	if strings.ToLower(u.Hostname()) == "localhost" {
 		port := u.Port()
 		if port == "" || port == "80" || port == "443" || port == "8080" {
 			return fmt.Errorf("URLs pointing to localhost on standard web ports are not allowed")
 		}
+		// Allow non-standard ports on localhost: skip further SSRF private IP checks
+		return nil
 	}
 
 	// SSRF hardening: block private/reserved address ranges
