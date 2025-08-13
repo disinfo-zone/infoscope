@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	securitynet "infoscope/internal/security/netutil"
 
 	"golang.org/x/net/html"
 )
@@ -96,6 +99,26 @@ func (s *Service) GetFavicon(siteURL string) (string, error) {
 }
 
 func (s *Service) getFaviconFromHTML(siteURL string) ([]byte, error) {
+	// SSRF hardening for initial site HTML fetch
+	parsed, err := url.Parse(siteURL)
+	if err != nil {
+		return nil, err
+	}
+	host := parsed.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if securitynet.IsPrivateIP(ip) {
+			return nil, fmt.Errorf("blocked private/reserved address for favicon HTML fetch")
+		}
+	} else {
+		if addrs, err := net.LookupIP(host); err == nil {
+			for _, a := range addrs {
+				if securitynet.IsPrivateIP(a) {
+					return nil, fmt.Errorf("blocked private/reserved address for favicon HTML fetch")
+				}
+			}
+		}
+	}
+
 	resp, err := s.client.Get(siteURL)
 	if err != nil {
 		return nil, err
@@ -162,8 +185,28 @@ func (s *Service) getFaviconFromRoot(siteURL string) ([]byte, error) {
 	return s.downloadFavicon(faviconURL)
 }
 
-func (s *Service) downloadFavicon(url string) ([]byte, error) {
-	resp, err := s.client.Get(url)
+func (s *Service) downloadFavicon(urlStr string) ([]byte, error) {
+	// SSRF hardening for favicon downloads
+	parsed, err := url.Parse(urlStr)
+	if err != nil {
+		return nil, err
+	}
+	host := parsed.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if securitynet.IsPrivateIP(ip) {
+			return nil, fmt.Errorf("blocked private/reserved address for favicon")
+		}
+	} else {
+		if addrs, err := net.LookupIP(host); err == nil {
+			for _, a := range addrs {
+				if securitynet.IsPrivateIP(a) {
+					return nil, fmt.Errorf("blocked private/reserved address for favicon")
+				}
+			}
+		}
+	}
+
+	resp, err := s.client.Get(urlStr)
 	if err != nil {
 		return nil, err
 	}

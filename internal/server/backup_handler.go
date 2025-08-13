@@ -12,31 +12,31 @@ import (
 
 // BackupData represents the complete backup structure
 type BackupData struct {
-	Version      string                 `json:"version"`
-	ExportDate   time.Time              `json:"exportDate"`
-	Settings     map[string]string      `json:"settings"`
-	Feeds        json.RawMessage        `json:"feeds"` // Use RawMessage to handle both v1.0 and v2.0 formats
-	Filters      []BackupFilter         `json:"filters,omitempty"`
-	FilterGroups []BackupFilterGroup    `json:"filterGroups,omitempty"`
-	Tags         []BackupTag            `json:"tags,omitempty"`
-	FeedTags     []BackupFeedTag        `json:"feedTags,omitempty"`
-	ClickStats   map[string]int         `json:"clickStats,omitempty"`
+	Version      string              `json:"version"`
+	ExportDate   time.Time           `json:"exportDate"`
+	Settings     map[string]string   `json:"settings"`
+	Feeds        json.RawMessage     `json:"feeds"` // Use RawMessage to handle both v1.0 and v2.0 formats
+	Filters      []BackupFilter      `json:"filters,omitempty"`
+	FilterGroups []BackupFilterGroup `json:"filterGroups,omitempty"`
+	Tags         []BackupTag         `json:"tags,omitempty"`
+	FeedTags     []BackupFeedTag     `json:"feedTags,omitempty"`
+	ClickStats   map[string]int      `json:"clickStats,omitempty"`
 }
 
 // BackupFeed represents a feed with all its metadata
 type BackupFeed struct {
-	ID           int64     `json:"id"`
-	URL          string    `json:"url"`
-	Title        string    `json:"title"`
-	Category     string    `json:"category,omitempty"`
-	Status       string    `json:"status,omitempty"`
-	ErrorCount   int       `json:"errorCount,omitempty"`
-	LastError    string    `json:"lastError,omitempty"`
+	ID           int64      `json:"id"`
+	URL          string     `json:"url"`
+	Title        string     `json:"title"`
+	Category     string     `json:"category,omitempty"`
+	Status       string     `json:"status,omitempty"`
+	ErrorCount   int        `json:"errorCount,omitempty"`
+	LastError    string     `json:"lastError,omitempty"`
 	LastFetched  *time.Time `json:"lastFetched,omitempty"`
-	LastModified string    `json:"lastModified,omitempty"`
-	Etag         string    `json:"etag,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	LastModified string     `json:"lastModified,omitempty"`
+	Etag         string     `json:"etag,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
 // BackupFilter represents an entry filter
@@ -318,7 +318,7 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	s.logger.Printf("Import completed: %d settings, %d feeds, %d filters, %d filter groups, %d tags, %d feed tags, %d click stats",
 		importResults.Settings, importResults.Feeds, importResults.Filters,
 		importResults.FilterGroups, importResults.Tags, importResults.FeedTags, importResults.ClickStats)
-	
+
 	if len(importResults.Errors) > 0 {
 		s.logger.Printf("Import had %d errors: %v", len(importResults.Errors), importResults.Errors)
 	}
@@ -345,7 +345,7 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		},
 		"version": backupVersion,
 	}
-	
+
 	if len(importResults.Errors) > 0 {
 		response["warnings"] = importResults.Errors
 	}
@@ -375,14 +375,13 @@ func (s *Server) exportSettings(ctx context.Context, backup *BackupData) error {
 	return rows.Err()
 }
 
-
 func (s *Server) exportFeedsToSlice(ctx context.Context, feeds *[]BackupFeed) error {
 	query := `SELECT id, url, title, COALESCE(category, ''), COALESCE(status, ''), 
 	                 COALESCE(error_count, 0), COALESCE(last_error, ''), 
 	                 last_fetched, COALESCE(last_modified, ''), COALESCE(etag, ''),
 	                 created_at, updated_at
 	          FROM feeds ORDER BY id`
-	
+
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to query feeds: %w", err)
@@ -392,16 +391,16 @@ func (s *Server) exportFeedsToSlice(ctx context.Context, feeds *[]BackupFeed) er
 	for rows.Next() {
 		var feed BackupFeed
 		var lastFetched *time.Time
-		
-		err := rows.Scan(&feed.ID, &feed.URL, &feed.Title, &feed.Category, 
-		                &feed.Status, &feed.ErrorCount, &feed.LastError,
-		                &lastFetched, &feed.LastModified, &feed.Etag,
-		                &feed.CreatedAt, &feed.UpdatedAt)
+
+		err := rows.Scan(&feed.ID, &feed.URL, &feed.Title, &feed.Category,
+			&feed.Status, &feed.ErrorCount, &feed.LastError,
+			&lastFetched, &feed.LastModified, &feed.Etag,
+			&feed.CreatedAt, &feed.UpdatedAt)
 		if err != nil {
 			s.logger.Printf("Error scanning feed: %v", err)
 			continue
 		}
-		
+
 		feed.LastFetched = lastFetched
 		*feeds = append(*feeds, feed)
 	}
@@ -413,7 +412,7 @@ func (s *Server) exportFilters(ctx context.Context, backup *BackupData) error {
 	query := `SELECT id, name, pattern, pattern_type, COALESCE(target_type, 'title'), 
 	                 COALESCE(case_sensitive, 0), created_at, updated_at
 	          FROM entry_filters ORDER BY id`
-	
+
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to query filters: %w", err)
@@ -423,14 +422,14 @@ func (s *Server) exportFilters(ctx context.Context, backup *BackupData) error {
 	for rows.Next() {
 		var filter BackupFilter
 		var caseSensitiveInt int
-		
+
 		err := rows.Scan(&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType,
-		                &filter.TargetType, &caseSensitiveInt, &filter.CreatedAt, &filter.UpdatedAt)
+			&filter.TargetType, &caseSensitiveInt, &filter.CreatedAt, &filter.UpdatedAt)
 		if err != nil {
 			s.logger.Printf("Error scanning filter: %v", err)
 			continue
 		}
-		
+
 		filter.CaseSensitive = caseSensitiveInt == 1
 		backup.Filters = append(backup.Filters, filter)
 	}
@@ -442,7 +441,7 @@ func (s *Server) exportFilterGroups(ctx context.Context, backup *BackupData) err
 	query := `SELECT id, name, action, COALESCE(is_active, 1), COALESCE(priority, 0),
 	                 COALESCE(apply_to_category, ''), created_at, updated_at
 	          FROM filter_groups ORDER BY priority, id`
-	
+
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to query filter groups: %w", err)
@@ -452,21 +451,21 @@ func (s *Server) exportFilterGroups(ctx context.Context, backup *BackupData) err
 	for rows.Next() {
 		var group BackupFilterGroup
 		var isActiveInt int
-		
+
 		err := rows.Scan(&group.ID, &group.Name, &group.Action, &isActiveInt,
-		                &group.Priority, &group.ApplyToCategory, &group.CreatedAt, &group.UpdatedAt)
+			&group.Priority, &group.ApplyToCategory, &group.CreatedAt, &group.UpdatedAt)
 		if err != nil {
 			s.logger.Printf("Error scanning filter group: %v", err)
 			continue
 		}
-		
+
 		group.IsActive = isActiveInt == 1
 		group.Rules = make([]BackupFilterGroupRule, 0)
-		
+
 		// Get rules for this group
 		ruleQuery := `SELECT id, filter_id, COALESCE(operator, 'AND'), COALESCE(position, 0)
 		              FROM filter_group_rules WHERE group_id = ? ORDER BY position`
-		
+
 		ruleRows, err := s.db.QueryContext(ctx, ruleQuery, group.ID)
 		if err != nil {
 			s.logger.Printf("Error querying rules for group %d: %v", group.ID, err)
@@ -481,7 +480,7 @@ func (s *Server) exportFilterGroups(ctx context.Context, backup *BackupData) err
 			}
 			ruleRows.Close()
 		}
-		
+
 		backup.FilterGroups = append(backup.FilterGroups, group)
 	}
 
@@ -568,7 +567,33 @@ func (s *Server) importSettings(ctx context.Context, tx *sql.Tx, backup *BackupD
 	}
 	defer stmt.Close()
 
-	for key, value := range backup.Settings {
+	// Optional: whitelist allowed setting keys to avoid arbitrary keys being imported
+	allowed := map[string]bool{
+		"site_title": true, "site_url": true, "max_posts": true, "update_interval": true,
+		"header_link_text": true, "header_link_url": true, "footer_link_text": true, "footer_link_url": true,
+		"footer_image_height": true, "footer_image_url": true, "tracking_code": true, "favicon_url": true,
+		"timezone": true, "meta_description": true, "meta_image_url": true, "theme": true,
+		"show_blog_name": true, "show_body_text": true, "body_text_length": true,
+	}
+
+	for key, rawValue := range backup.Settings {
+		if !allowed[key] {
+			// Skip unknown keys but record as a warning
+			s.logger.Printf("Skipping unknown setting key during import: %s", key)
+			continue
+		}
+
+		value := rawValue
+		if key == "tracking_code" {
+			// Sanitize tracking code before saving
+			sanitized, err := validateTrackingCode(value)
+			if err != nil {
+				s.logger.Printf("Invalid tracking code in import, skipping: %v", err)
+				continue
+			}
+			value = sanitized
+		}
+
 		if _, err := stmt.ExecContext(ctx, key, value); err != nil {
 			s.logger.Printf("Error importing setting %s: %v", key, err)
 			continue
@@ -617,7 +642,7 @@ func (s *Server) importFeeds(ctx context.Context, tx *sql.Tx, backup *BackupData
 			if feed.URL == "" {
 				continue
 			}
-			
+
 			if _, err := stmt.ExecContext(ctx, feed.URL, feed.Title); err != nil {
 				s.logger.Printf("Error importing legacy feed %s: %v", feed.URL, err)
 				continue

@@ -87,10 +87,37 @@ class FeedsManager {
       });
     }
 
+    // Event delegation for adding/removing tags without inline handlers
+    document.addEventListener('click', (e) => {
+      const addEl = e.target.closest('.available-tags-list .available-tag');
+      if (addEl) {
+        const tag = addEl.getAttribute('data-tag');
+        this.addTag(tag);
+        return;
+      }
+      const removeEl = e.target.closest('#tagTokens .remove');
+      if (removeEl) {
+        const tag = removeEl.getAttribute('data-tag');
+        this.removeTag(tag);
+      }
+    });
+
     // Category autocomplete
     const categoryInput = document.getElementById('editCategory');
     if (categoryInput) {
       categoryInput.addEventListener('input', (e) => this.handleCategoryInput(e));
+    }
+
+    // Delegate suggestion clicks
+    const suggestions = document.getElementById('categorySuggestions');
+    if (suggestions) {
+      suggestions.addEventListener('click', (e) => {
+        const item = e.target.closest('.category-suggestion');
+        if (item) {
+          const value = item.getAttribute('data-category');
+          this.selectCategory(value);
+        }
+      });
     }
   }
 
@@ -216,7 +243,7 @@ class FeedsManager {
 
     container.innerHTML = this.availableTags
       .filter(tag => !this.currentTags.includes(tag))
-      .map(tag => `<span class="available-tag" onclick="feedsManager.addTag('${this.escapeHtml(tag)}')">${this.escapeHtml(tag)}</span>`)
+      .map(tag => `<span class="available-tag" data-tag="${this.escapeHtml(tag)}">${this.escapeHtml(tag)}</span>`)
       .join('');
   }
 
@@ -242,7 +269,7 @@ class FeedsManager {
       .map(tag => `
         <span class="tag-token">
           ${this.escapeHtml(tag)}
-          <span class="remove" onclick="feedsManager.removeTag('${this.escapeHtml(tag)}')">&times;</span>
+          <span class="remove" data-tag="${this.escapeHtml(tag)}">&times;</span>
         </span>
       `).join('');
   }
@@ -270,7 +297,7 @@ class FeedsManager {
 
     suggestions.innerHTML = matches
       .map(cat => `
-        <div class="category-suggestion" onclick="feedsManager.selectCategory('${this.escapeHtml(cat)}')">
+        <div class="category-suggestion" data-category="${this.escapeHtml(cat)}">
           ${this.escapeHtml(cat)}
         </div>
       `).join('');

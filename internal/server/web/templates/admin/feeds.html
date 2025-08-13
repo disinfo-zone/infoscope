@@ -148,27 +148,5 @@
 {{ end }}
 
 {{ define "scripts" }}
-<script type="module">
-  // Import and initialize feeds module
-  import FeedsManager from '/static/js/modules/feeds.js';
-  
-  // Initialize the feeds manager
-  window.feedsManager = new FeedsManager();
-  
-  // Use event delegation for edit buttons
-  document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('edit-button')) {
-      const feedId = e.target.getAttribute('data-feed-id');
-      if (feedId && window.showEditModal) {
-        window.showEditModal(feedId);
-      }
-    }
-    
-    if (e.target.id === 'cancelDelete') {
-      if (window.hideDeleteModal) {
-        window.hideDeleteModal();
-      }
-    }
-  });
-</script>
+<script type="module" src="/static/js/modules/feeds-page-init.js"></script>
 {{ end }}

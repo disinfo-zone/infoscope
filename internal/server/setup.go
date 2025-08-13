@@ -33,6 +33,18 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	if !s.config.ProductionMode {
 		s.logger.Printf("Setup handler called: %s %s", r.Method, r.URL.Path)
 	}
+
+	// Gate access to setup by first-run status
+	isFirst, err := IsFirstRun(s.db)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !isFirst {
+		// Hide setup endpoint once an admin user exists
+		http.NotFound(w, r)
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
 		// Get CSRF token

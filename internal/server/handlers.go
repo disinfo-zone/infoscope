@@ -12,6 +12,7 @@ import (
 	"infoscope/internal/database"
 	"infoscope/internal/feed"
 	"infoscope/internal/rss"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -522,6 +523,11 @@ func (s *Server) handleFeedValidation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
+	// Additional SSRF guard on input
+	if err := validateURL(req.URL); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid URL: %v", err), http.StatusBadRequest)
+		return
+	}
 	validationResult, err := feed.ValidateFeedURL(req.URL)
 	if err != nil {
 		s.logger.Printf("Feed validation failed for %s: %v", req.URL, err)
@@ -998,6 +1004,24 @@ func validateURL(urlStr string) error {
 		}
 	}
 
+	// SSRF hardening: block private/reserved address ranges
+	host := u.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("URLs pointing to private/reserved addresses are not allowed")
+		}
+	} else {
+		// Resolve DNS and ensure all answers are public
+		addrs, err := net.LookupIP(host)
+		if err == nil {
+			for _, a := range addrs {
+				if isPrivateIP(a) {
+					return fmt.Errorf("resolved address is private/reserved and not allowed")
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1009,6 +1033,30 @@ func isAllowedParent(tagName string) bool {
 	default:
 		return false
 	}
+}
+
+// isPrivateIP returns true if the IP is in a private, loopback, link-local or reserved range
+func isPrivateIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	privateCIDRs := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"::1/128",
+		"fc00::/7",
+		"fe80::/10",
+	}
+	for _, cidr := range privateCIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err == nil && network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // handleFiltersPage renders the filters management page

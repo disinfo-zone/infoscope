@@ -27,6 +27,20 @@ function initializeCommon() {
       try { trackClick(id, url); } catch (_) {}
     }
   });
+
+  // Favicon lazy-load with robust error fallback (no inline handlers needed)
+  const favicons = document.querySelectorAll('img.favicon[data-src]');
+  favicons.forEach((img) => {
+    const src = img.getAttribute('data-src');
+    if (!src) return;
+    img.addEventListener('error', () => {
+      if (img.src.indexOf('/static/favicons/default.ico') === -1) {
+        img.src = '/static/favicons/default.ico';
+      }
+    }, { once: true });
+    // Use requestAnimationFrame to avoid layout jank
+    requestAnimationFrame(() => { img.src = src; });
+  });
 }
 
 // Initialize when DOM is ready

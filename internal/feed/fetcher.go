@@ -6,12 +6,14 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	"infoscope/internal/database"
 	"infoscope/internal/favicon"
+	securitynet "infoscope/internal/security/netutil"
 
 	"github.com/mmcdole/gofeed"
 )
@@ -125,6 +127,7 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 	cacheKey := fmt.Sprintf("feed_%d", feed.ID)
 	cached, exists := f.cache.Load(cacheKey)
 
+	// SSRF hardening: pre-validate destination
 	req, err := http.NewRequestWithContext(ctx, "GET", feed.URL, nil)
 	if err != nil {
 		result.Error = fmt.Errorf("error creating request: %w", err)
@@ -139,6 +142,25 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 		}
 		if entry.etag != "" {
 			req.Header.Set("If-None-Match", entry.etag)
+		}
+	}
+
+	// Resolve host and block private/reserved ranges
+	if host := req.URL.Hostname(); host != "" {
+		if ip := net.ParseIP(host); ip != nil {
+			if securitynet.IsPrivateIP(ip) {
+				result.Error = fmt.Errorf("destination resolves to private/reserved address")
+				return result
+			}
+		} else {
+			if addrs, err := net.LookupIP(host); err == nil {
+				for _, a := range addrs {
+					if securitynet.IsPrivateIP(a) {
+						result.Error = fmt.Errorf("destination resolves to private/reserved address")
+						return result
+					}
+				}
+			}
 		}
 	}
 
@@ -168,7 +190,7 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 		result.Error = fmt.Errorf("error parsing feed: %w", err)
 		return result
 	}
-	
+
 	// Store the parsed feed title in the result for later use
 	result.FeedTitle = parsedFeed.Title
 
@@ -233,16 +255,16 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error {
 	// Apply filters to entries before saving
 	filteredEntries, filteredCount := f.applyFilters(ctx, result.Entries, result.Feed.Category, result.Feed.Tags)
-	
+
 	// Log filtering statistics
 	if filteredCount > 0 {
-		f.logger.Printf("Filtered %d out of %d entries from feed %s", 
+		f.logger.Printf("Filtered %d out of %d entries from feed %s",
 			filteredCount, len(result.Entries), result.Feed.URL)
 	}
-	
+
 	// Update result with filtered entries
 	result.Entries = filteredEntries
-	
+
 	if len(result.Entries) == 0 {
 		// Update last_fetched time and title even if no entries remain after filtering
 		// Only update title if the new title is not empty and title hasn't been manually edited

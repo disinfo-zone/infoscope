@@ -5,9 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
+
+	securitynet "infoscope/internal/security/netutil"
 
 	"github.com/mmcdole/gofeed"
 )
@@ -36,6 +39,23 @@ func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
 	// Check scheme
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return nil, fmt.Errorf("%w: must use HTTP or HTTPS", ErrInvalidURL)
+	}
+
+	// SSRF hardening: block private/reserved ranges
+	host := u.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if securitynet.IsPrivateIP(ip) {
+			return nil, fmt.Errorf("%w: URL resolves to private/reserved address", ErrInvalidURL)
+		}
+	} else {
+		addrs, err := net.LookupIP(host)
+		if err == nil {
+			for _, a := range addrs {
+				if securitynet.IsPrivateIP(a) {
+					return nil, fmt.Errorf("%w: URL resolves to private/reserved address", ErrInvalidURL)
+				}
+			}
+		}
 	}
 
 	// Create context with timeout

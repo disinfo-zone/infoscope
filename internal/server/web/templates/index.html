@@ -58,7 +58,7 @@
     <div class="feed">
         {{ range .Data.Entries }}        <div class="entry">
             
-            <img class="favicon" data-src="{{ .FaviconURL }}" onerror="this.src='/static/favicons/default.ico'; this.onerror=null;" alt="">
+            <img class="favicon" data-src="{{ .FaviconURL }}" alt="">
             <div class="link-container">
                 <a href="{{ .URL }}" data-entry-id="{{ .ID }}" target="_blank" rel="noopener noreferrer" class="tracked-link">
                     {{ if and .FeedTitle (eq (index $.Data.Settings "show_blog_name") "true") }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}

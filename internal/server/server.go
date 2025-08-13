@@ -66,20 +66,19 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			// Basic hardening headers
 			w.Header().Set("X-Content-Type-Options", "nosniff")
 			w.Header().Set("X-Frame-Options", "DENY")
+			// Set base Referrer-Policy below (overridden later to tightened policy)
 			w.Header().Set("Referrer-Policy", "no-referrer-when-downgrade")
 			w.Header().Set("X-XSS-Protection", "0") // modern browsers; rely on CSP
 			if s.config.UseHTTPS {
 				w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
 			}
 
-			// Content Security Policy
-			// Allow same-origin assets, and explicitly permit our static path.
-			// Tracking code is sanitized to disallow inline scripts; CSP forbids 'unsafe-inline'.
+			// Content Security Policy (hardened)
+			// No inline scripts; all JS must be in external modules. Inline styles allowed for legacy templates.
 			csp := strings.Join([]string{
 				"default-src 'self'",
-				// TODO: remove 'unsafe-inline' after migrating all inline handlers to external modules
-				"script-src 'self' 'unsafe-inline'",
-				"style-src 'self' 'unsafe-inline'", // CSS may use inline vars or styles from templates
+				"script-src 'self'",
+				"style-src 'self' 'unsafe-inline'",
 				"img-src 'self' data: https:",
 				"font-src 'self' data:",
 				"connect-src 'self'",
@@ -88,6 +87,9 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 				"form-action 'self'",
 			}, "; ")
 			w.Header().Set("Content-Security-Policy", csp)
+
+			// Tighter referrer policy
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		}
 		next.ServeHTTP(w, r)
 	})
