@@ -1,0 +1,167 @@
+{{ define "content" }}
+<div class="filters-dashboard">
+    <div class="filters-header">
+        <h2>Content Filters</h2>
+        <p class="filters-subtitle">Control what content appears in your feed with intelligent filtering</p>
+        <div class="filters-actions">
+            <button id="new-filter-btn" class="btn btn-primary">
+                <span class="icon">+</span> New Filter
+            </button>
+            <button id="new-group-btn" class="btn btn-secondary">
+                <span class="icon">+</span> New Group
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter Test Section -->
+    <div class="filter-test-section">
+        <h3>Test Filters</h3>
+        <div class="test-form">
+            <input type="text" id="test-pattern" placeholder="Enter pattern to test (e.g., 'zen', 'news.*covid')" />
+            <input type="text" id="test-text" placeholder="Enter text to test against pattern..." />
+            <select id="test-target">
+                <option value="title">Title</option>
+                <option value="content">Content</option>
+                <option value="feed_category">Feed Category</option>
+                <option value="feed_tags">Feed Tags</option>
+            </select>
+            <select id="test-pattern-type">
+                <option value="keyword">Keyword</option>
+                <option value="regex">Regex</option>
+            </select>
+            <button id="test-btn" class="btn btn-outline">Test</button>
+        </div>
+        <div id="test-results" class="test-results"></div>
+    </div>
+
+    <!-- Filter Groups Section -->
+    <div class="filter-groups-section">
+        <h3>Filter Groups</h3>
+        <div id="filter-groups" class="filter-groups-container">
+            <!-- Groups will be loaded dynamically -->
+        </div>
+    </div>
+
+    <!-- Individual Filters Section -->
+    <div class="filters-section">
+        <h3>Individual Filters</h3>
+        <div id="filters-list" class="filters-container">
+            <!-- Filters will be loaded dynamically -->
+        </div>
+    </div>
+</div>
+
+<!-- Filter Modal -->
+<div id="filter-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="filter-modal-title">Create New Filter</h3>
+            <button class="modal-close" id="filter-modal-close">&times;</button>
+        </div>
+        <form id="filter-form">
+            <div class="form-group">
+                <label for="filter-name">Filter Name</label>
+                <input type="text" id="filter-name" name="name" required />
+            </div>
+            
+            <div class="form-group">
+                <label for="filter-target">Target</label>
+                <select id="filter-target" name="target_type" required>
+                    <option value="title">Entry Title</option>
+                    <option value="content">Entry Content/Preview</option>
+                    <option value="feed_category">Feed Category</option>
+                    <option value="feed_tags">Feed Tags</option>
+                </select>
+                <small class="form-help">Choose what content to filter against</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="filter-pattern">Pattern</label>
+                <input type="text" id="filter-pattern" name="pattern" required />
+                <small class="form-help">Text or regex pattern to match</small>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="filter-type">Pattern Type</label>
+                    <select id="filter-type" name="pattern_type">
+                        <option value="keyword">Keyword</option>
+                        <option value="regex">Regular Expression</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filter-case-sensitive" name="case_sensitive" />
+                        Case Sensitive
+                    </label>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" id="filter-cancel" class="btn btn-outline">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Group Modal -->
+<div id="group-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="group-modal-title">Create New Filter Group</h3>
+            <button class="modal-close" id="group-modal-close">&times;</button>
+        </div>
+        <form id="group-form">
+            <div class="form-group">
+                <label for="group-name">Group Name</label>
+                <input type="text" id="group-name" name="name" required />
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="group-action">Action</label>
+                    <select id="group-action" name="action" required>
+                        <option value="keep">Keep (Whitelist)</option>
+                        <option value="discard">Discard (Blacklist)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="group-priority">Priority</label>
+                    <input type="number" id="group-priority" name="priority" value="0" min="0" />
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="group-category">Apply to Category (Optional)</label>
+                <input type="text" id="group-category" name="apply_to_category" 
+                       placeholder="Leave empty to apply to all feeds" />
+                <small class="form-help">Only apply this group to feeds in a specific category</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="group-active" name="is_active" checked />
+                    Active
+                </label>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" id="group-cancel" class="btn btn-outline">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Group</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{ end }}
+
+{{ define "styles" }}
+<link rel="stylesheet" href="{{ themeCSSAdmin .Data.Settings "filters.css" }}">
+{{ end }}
+
+{{ define "scripts" }}
+<script type="module" src="/static/js/modules/filters.js"></script>
+{{ end }}

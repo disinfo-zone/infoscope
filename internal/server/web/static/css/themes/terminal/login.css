@@ -1,0 +1,133 @@
+/* Login page styles */
+
+body {
+  margin: 0;
+  padding: var(--spacing-xl);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+/* Login container */
+.login-container {
+  background: var(--color-bg-secondary);
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  border-radius: var(--border-radius-lg);
+  width: min(90%, var(--max-width-form));
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(122, 169, 183, 0.1);
+}
+
+/* Login heading */
+h1 {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  text-shadow: 0 0 10px rgba(196, 211, 203, 0.3);
+}
+
+/* Form groups */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+/* Labels */
+label {
+  display: block;
+  margin-bottom: var(--spacing-sm);
+  color: #a5c5cf;
+  font-size: var(--font-size-small);
+  letter-spacing: 0.5px;
+}
+
+/* Input fields */
+input {
+  width: 100%;
+  padding: var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-base);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px rgba(103, 187, 121, 0.2);
+}
+
+/* Submit button */
+button {
+  width: 100%;
+  padding: 0.875rem;
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+  border: none;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  margin-top: var(--spacing-lg);
+  font-weight: var(--font-weight-bold);
+  transition: background-color var(--transition-normal), transform var(--transition-fast);
+  letter-spacing: 0.5px;
+}
+
+button:hover {
+  background: var(--color-accent-hover);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+/* Error messages */
+.error {
+  color: var(--color-error);
+  margin-top: var(--spacing-md);
+  font-size: var(--font-size-small);
+  text-align: center;
+  min-height: 1.2em;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  body {
+    padding: 15px;
+  }
+
+  .login-container {
+    padding: 1.25rem;
+  }
+
+  input {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 0.625rem;
+  }
+
+  button {
+    padding: var(--spacing-md);
+  }
+}
+
+/* Error animation */
+@keyframes shake {
+  0%, 100% { 
+    transform: translateX(0); 
+  }
+  25% { 
+    transform: translateX(-5px); 
+  }
+  75% { 
+    transform: translateX(5px); 
+  }
+}
+
+.error:not(:empty) {
+  animation: shake 0.4s ease-in-out;
+}

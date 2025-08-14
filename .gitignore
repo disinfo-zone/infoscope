@@ -2,8 +2,8 @@
 data/*.db
 data/*.db-*
 
-# Web Template
-web/
+# Web Template (root directory only)
+/web/
 
 # Generated files
 *.exe

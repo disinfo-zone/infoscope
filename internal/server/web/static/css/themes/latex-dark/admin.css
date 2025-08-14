@@ -1,0 +1,10 @@
+/* Admin layout styles (LaTeX-Dark theme) */
+
+@import url('../latex/admin.css');
+
+/* Minimal overrides to ensure dark contrasts where admin.css used fixed rgba */
+.logout-button:hover {
+  background: rgba(239, 107, 107, 0.08);
+}
+
+
