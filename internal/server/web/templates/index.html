@@ -45,10 +45,8 @@
     {{ end }}
     
     <style>
-        /* Template-specific footer image height (Go template variable) */
-        .footer-image img {
-            height: {{ .Data.FooterImageHeight }};
-        }
+        /* Set CSS variable for footer image height; theme CSS uses it */
+        :root { --footer-image-height: {{ .Data.FooterImageHeight }}; }
     </style>
 </head>
 <body>
@@ -60,15 +58,17 @@
             
             <img class="favicon" data-src="{{ .FaviconURL }}" alt="">
             <div class="link-container">
-                <a href="{{ .URL }}" data-entry-id="{{ .ID }}" target="_blank" rel="noopener noreferrer" class="tracked-link">
-                    {{ if and .FeedTitle (eq (index $.Data.Settings "show_blog_name") "true") }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
-                </a>
+                <div class="title-row">
+                    <a href="{{ .URL }}" data-entry-id="{{ .ID }}" target="_blank" rel="noopener noreferrer" class="tracked-link">
+                        {{ if and .FeedTitle (eq (index $.Data.Settings "show_blog_name") "true") }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
+                    </a>
+                    <span class="dots" aria-hidden="true"></span>
+                    <span class="date">{{ .Date }}</span>
+                </div>
                 {{ if and .BodyText (eq (index $.Data.Settings "show_body_text") "true") }}
                 <div class="body-text">{{ .BodyText | html }}</div>
                 {{ end }}
             </div>
-            <span class="dots">............................................................................................................................</span>
-            <span class="date">{{ .Date }}</span>
         </div>
         {{ else }}
         <!-- Show when no entries -->

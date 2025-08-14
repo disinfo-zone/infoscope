@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap');
+/* LaTeX Theme CSS Variables */
+:root {
+  /* Colors - light, paper-like */
+  --color-bg-primary: #fffdf7; /* warm paper */
+  --color-bg-secondary: #ffffff; /* panels */
+  --color-bg-tertiary: #f4f4ef; /* inputs */
+  --color-text-primary: #2b2b2b; /* primary text */
+  --color-text-secondary: #111111; /* headings */
+  --color-text-muted: #6b7280; /* muted */
+  --color-text-faded: #4b5563; /* preview text */
+  --color-text-dots: #6b7280;
+  /* Accents (subtle, scholarly) */
+  --color-accent-primary: #2f4858; /* muted blue-slate */
+  --color-accent-hover: #223647;
+  --color-border: #e5e7eb;
+  --color-border-focus: #1a73e8;
+  --color-error: #d32f2f;
+  --color-success: #2e7d32;
+
+  /* Useful RGB for rgba() usage */
+  --color-accent-primary-rgb: 26, 115, 232;
+
+  /* Typography - LaTeX-like serif defaults */
+  --font-family-primary: 'EB Garamond', Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-family-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* bump sizes slightly for readability with EB Garamond */
+  --font-size-base: 18px;
+  --font-size-large: 2.35rem;
+  --font-size-medium: 1.2rem;
+  --font-size-small: 1rem;
+  --font-size-tiny: 0.9em;
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
+  --line-height-base: 1.6;
+  --line-height-tight: 1.2;
+  /* Visual alignment for leader dots with serif baseline */
+  --dots-offset-y: calc(100% - 0.5px);
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 0.75rem;
+  --spacing-lg: 1rem;
+  --spacing-xl: 1.25rem;
+  --spacing-xxl: 1.75rem;
+
+  /* Layout */
+  --max-width-content: 960px;
+  --max-width-form: 480px;
+  --sidebar-width: 260px;
+  --border-radius-sm: 3px;
+  --border-radius-md: 6px;
+  --border-radius-lg: 10px;
+
+  /* Animation */
+  --transition-fast: 0.06s;
+  --transition-normal: 0.12s;
+  --transition-slow: 0.25s;
+  --transition-ease: ease;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
+
+  /* Z-index layers */
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-modal: 999;
+  --z-sidebar: 1000;
+  --z-menu-toggle: 1001;
+}
+
+/* Additional theme-specific variables */
+:root {
+  /* Opacity values */
+  --opacity-disabled: 0.6;
+  --opacity-hover: 0.9;
+  --opacity-focus: 0.06;
+
+  /* Grid and flex values */
+  --grid-gap-sm: 6px;
+  --grid-gap-md: 12px;
+  --flex-gap-sm: 0.5rem;
+  --flex-gap-md: 1rem;
+}
+
+

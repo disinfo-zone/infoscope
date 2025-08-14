@@ -1,0 +1,45 @@
+/* UX enhancements shared across pages - LaTeX theme */
+
+.notification {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius-md);
+  z-index: 10000;
+}
+
+.notification.success { border-color: var(--color-success); }
+.notification.error { border-color: var(--color-error); }
+
+.notification-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  margin-left: 0.5rem;
+}
+
+/* Buttons nuance */
+.btn-outline {
+  background: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.btn-outline:hover {
+  background: var(--color-bg-tertiary);
+}
+
+/* Panels */
+.panel {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+}
+
+

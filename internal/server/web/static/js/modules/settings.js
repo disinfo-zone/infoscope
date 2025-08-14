@@ -11,6 +11,22 @@ function getEl(id) { return document.getElementById(id); }
 
 // Filters UI removed from Settings page
 
+// Theme detection to allow page reload when theme changes
+let initialThemeName = '';
+function getCurrentThemeFromDOM() {
+  const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+  for (const link of links) {
+    const href = link.getAttribute('href') || '';
+    const idx = href.indexOf('/static/css/themes/');
+    if (idx !== -1) {
+      const after = href.slice(idx + '/static/css/themes/'.length);
+      const parts = after.split('/');
+      if (parts.length > 1) return parts[0];
+    }
+  }
+  return '';
+}
+
 async function editGroup(groupId) {
   currentEditingGroupId = groupId;
   try {
@@ -374,6 +390,7 @@ function bindSettingsForm() {
 
     try {
       const token = csrf.getToken();
+      const currentTheme = initialThemeName || getCurrentThemeFromDOM();
 
       // Handle optional image uploads
       const imageInput = getEl('footerImage');
@@ -458,12 +475,20 @@ function bindSettingsForm() {
       if (faviconFilename) settings.faviconURL = faviconFilename;
       if (metaImageFilename) settings.metaImageURL = metaImageFilename;
 
+      // Determine if theme changed
+      const selectedThemeForm = (formData.get('theme') || '').toString().trim().toLowerCase();
+
       // Save settings
       const saveRes = await csrf.fetch('/admin/settings', {
         method: 'POST',
         body: JSON.stringify(settings)
       });
       if (!saveRes.ok) throw new Error(await saveRes.text());
+      if (selectedThemeForm && currentTheme && selectedThemeForm !== currentTheme) {
+        // Reload to apply new theme stylesheets
+        location.assign(window.location.pathname + window.location.search);
+        return;
+      }
       showNotification('Settings saved successfully!', 'success', 8000);
     } catch (err) {
       showNotification(`Error: ${err.message}`, 'error', 10000);
@@ -607,6 +632,7 @@ function bindBackup() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initialThemeName = getCurrentThemeFromDOM();
   bindSettingsForm();
   bindPasswordForm();
   bindImageInputs();

@@ -74,13 +74,14 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			}
 
 			// Content Security Policy (hardened)
-			// No inline scripts; all JS must be in external modules. Inline styles allowed for legacy templates.
+			// No inline scripts; all JS must be in external modules.
+			// Allow Google Fonts CSS and font files to support theme typography.
 			csp := strings.Join([]string{
 				"default-src 'self'",
 				"script-src 'self' https:",
-				"style-src 'self' 'unsafe-inline'",
+				"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 				"img-src 'self' data: https:",
-				"font-src 'self' data:",
+				"font-src 'self' data: https://fonts.gstatic.com",
 				"connect-src 'self' https:",
 				"frame-src 'self' https:",
 				"frame-ancestors 'none'",

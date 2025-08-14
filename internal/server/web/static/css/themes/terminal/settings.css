@@ -1,0 +1,84 @@
+/* Settings page overrides for Terminal theme */
+
+.hidden { display: none !important; }
+.img-32 { max-height: 32px; }
+.img-100 { max-height: 100px; }
+
+.settings-container { max-width: 800px; margin: 0 auto; padding: 1rem; }
+
+.panel { background: var(--color-bg-secondary); padding: 2rem; border-radius: var(--border-radius-lg); margin-top: 1.5rem; box-shadow: var(--shadow-sm); }
+
+.setting-group { margin-bottom: 1.5rem; }
+.setting-group label { display: block; color: var(--color-text-secondary); margin-bottom: 0.75rem; font-size: 0.85rem; letter-spacing: 0.1em; font-weight: normal; }
+
+.setting-group input[type="text"],
+.setting-group input[type="number"],
+.setting-group input[type="url"],
+.setting-group input[type="password"],
+.setting-group textarea {
+  width: 100%; padding: 0.75rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md); color: var(--color-text-primary); font-family: var(--font-family-mono);
+  font-size: 0.9rem; transition: all var(--transition-normal);
+}
+
+.file-input-wrapper { position: relative; overflow: hidden; display: inline-block; width: 100%; }
+.file-input { width: 100%; padding: 0.75rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); color: var(--color-text-primary); cursor: pointer; font-family: var(--font-family-mono); font-size: 0.9rem; }
+.file-input::-webkit-file-upload-button { -webkit-appearance: none; background: var(--color-bg-secondary); border: none; border-radius: 3px; color: var(--color-text-primary); padding: 0.5rem 1rem; margin-right: 1rem; font-family: var(--font-family-mono); cursor: pointer; font-size: 0.9rem; transition: all var(--transition-normal); }
+.file-input::file-selector-button { background: var(--color-bg-secondary); border: none; border-radius: 3px; color: var(--color-text-primary); padding: 0.5rem 1rem; margin-right: 1rem; font-family: var(--font-family-mono); cursor: pointer; font-size: 0.9rem; transition: all var(--transition-normal); }
+.file-input::-webkit-file-upload-button:hover, .file-input::file-selector-button:hover { background: var(--color-bg-primary); }
+
+.current-image, .upload-preview { margin: 1rem 0; padding: 1rem; background: var(--color-bg-primary); border-radius: var(--border-radius-md); text-align: center; display: flex; justify-content: center; align-items: center; }
+
+.help-text { margin-top: 0.5rem; font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.4; }
+
+.submit-button { background: var(--color-accent-primary); color: var(--color-bg-primary); border: none; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); cursor: pointer; font-family: var(--font-family-mono); font-size: 0.9rem; letter-spacing: 0.1em; transition: all var(--transition-normal); width: 100%; margin-top: 2rem; }
+.submit-button:hover { background: var(--color-accent-hover); }
+
+.backup-section { margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--color-border); }
+.backup-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.backup-button { padding: 0.75rem 1rem; border: 1px solid var(--color-border); border-radius: var(--border-radius-md); cursor: pointer; font-family: var(--font-family-mono); font-size: 0.8rem; letter-spacing: 0.1em; transition: all var(--transition-normal); width: 100%; background: var(--color-bg-secondary); color: var(--color-text-primary); }
+.backup-button.export { border-color: var(--color-accent-primary); color: var(--color-accent-primary); background: transparent; }
+.backup-button.export:hover { background: var(--color-bg-secondary); }
+.backup-button.import { background: var(--color-accent-primary); color: var(--color-bg-primary); border-color: var(--color-accent-primary); }
+.backup-button.import:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
+
+.status, .backup-status { margin-top: 1rem; padding: 0.75rem; border-radius: var(--border-radius-md); font-size: 0.9rem; display: none; }
+.status.success, .backup-status.success { display: block; background: rgba(var(--color-accent-primary-rgb), 0.1); color: var(--color-accent-primary); border: 1px solid var(--color-accent-primary); }
+.status.error, .backup-status.error { display: block; background: rgba(255, 107, 107, 0.1); color: var(--color-error); border: 1px solid var(--color-error); }
+
+.checkbox-group { margin-bottom: 1rem; }
+.checkbox-label { display: flex !important; align-items: flex-start; gap: 0.7rem; cursor: pointer; margin-bottom: 0.5rem; color: var(--color-text-secondary); font-size: 0.9rem; position: relative; }
+.checkbox-label input[type="checkbox"] { width: 20px !important; height: 20px; margin: 0; margin-top: 0.1rem; appearance: none; background: var(--color-bg-tertiary); border: 2px solid var(--color-border); border-radius: 4px; cursor: pointer; transition: all var(--transition-normal); flex-shrink: 0; position: relative; }
+.checkbox-label input[type="checkbox"]:hover { border-color: var(--color-text-muted); background: var(--color-bg-secondary); }
+.checkbox-label input[type="checkbox"]:checked { background: var(--color-accent-primary); border-color: var(--color-accent-primary); }
+.checkbox-label input[type="checkbox"]:checked::after { content: '✓'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--color-bg-primary); font-size: 14px; font-weight: bold; line-height: 1; }
+.checkbox-label input[type="checkbox"]:focus { box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.2); outline: none; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 1rem; }
+.timezone-select { width: 100%; padding: 0.75rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); color: var(--color-text-primary); font-family: var(--font-family-mono); font-size: 0.9rem; transition: all var(--transition-normal); appearance: none; }
+.timezone-select:focus { outline: none; border-color: var(--color-accent-primary); box-shadow: 0 0 0 1px var(--color-accent-primary); }
+
+@media (max-width: 768px) {
+  .settings-container { padding: 0.5rem; }
+  .panel { padding: 1.25rem; border-radius: 0; margin: 0 -0.5rem; }
+  .backup-actions { grid-template-columns: 1fr; }
+  .setting-group label { font-size: 0.8rem; }
+  .submit-button, .backup-button { padding: 0.875rem 1rem; }
+  .form-row { grid-template-columns: 1fr; gap: 1rem; }
+}
+
+/* Modals injected by settings inline JS - class-based styling */
+.import-results-modal, .confirm-import-modal {
+  position: fixed; inset: 0; display: flex; justify-content: center; align-items: center;
+  background: rgba(0,0,0,0.8); z-index: 10001; font-family: var(--font-family-mono);
+}
+.import-results-modal .modal-title, .confirm-import-modal .modal-title { margin: 0 0 1.5rem 0; }
+.import-results-modal .modal-subtitle { margin: 0 0 1rem 0; color: var(--color-text-secondary); }
+.import-results-modal .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem; }
+.import-results-modal .accent { color: var(--color-accent-primary); }
+.import-results-modal .warning-box { background: rgba(255, 107, 107, 0.1); border: 1px solid var(--color-error); border-radius: var(--border-radius-md); padding: 1rem; font-size: 0.85rem; }
+.import-results-modal .warning-item { margin-bottom: 0.5rem; }
+.import-results-modal .modal-actions.center, .confirm-import-modal .modal-actions.center { display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem; }
+.import-results-modal .modal-note { text-align: center; margin-top: 1rem; font-size: 0.8rem; color: var(--color-text-muted); }
+
+
