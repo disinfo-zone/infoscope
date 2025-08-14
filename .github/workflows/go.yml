@@ -53,12 +53,13 @@ jobs:
         go get golang.org/x/crypto@v0.28.0
         go get golang.org/x/net@v0.30.0
 
-    - name: Create Directories (Linux) 
+    - name: Create Directories and Install UPX (Linux) 
       if: runner.os == 'Linux'
       run: |
         mkdir -p data
         mkdir -p web/static/favicons
         mkdir -p web/static/images
+        sudo apt-get update && sudo apt-get install -y upx-ucl
       shell: bash
 
     - name: Create Directories (Windows)
