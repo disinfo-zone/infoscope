@@ -59,11 +59,7 @@ jobs:
         go-version: '1.22.4'
 
     - name: Install dependencies
-      run: |
-        go get github.com/mattn/go-sqlite3@v1.14.24
-        go get github.com/mmcdole/gofeed@v1.3.0
-        go get golang.org/x/crypto@v0.28.0
-        go get golang.org/x/net@v0.30.0
+      run: go mod download
 
     - name: Create Directories and Install UPX (Linux) 
       if: runner.os == 'Linux'
@@ -71,6 +67,7 @@ jobs:
         mkdir -p data
         mkdir -p web/static/favicons
         mkdir -p web/static/images
+        mkdir -p web/templates/admin
         sudo apt-get update && sudo apt-get install -y upx-ucl
       shell: bash
 
@@ -80,6 +77,7 @@ jobs:
         New-Item -ItemType Directory -Force -Path data
         New-Item -ItemType Directory -Force -Path web\static\favicons
         New-Item -ItemType Directory -Force -Path web\static\images
+        New-Item -ItemType Directory -Force -Path web\templates\admin
       shell: powershell
 
     - name: Setup MSYS2 (Windows)
