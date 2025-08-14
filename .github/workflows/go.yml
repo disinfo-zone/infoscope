@@ -80,6 +80,19 @@ jobs:
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-pkg-config
 
+    - name: Debug Directory Structure (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        echo "Current directory:"
+        pwd
+        echo "Directory contents:"
+        ls -la
+        echo "Checking cmd directory:"
+        ls -la cmd/ || echo "cmd directory not found"
+        echo "Checking for main.go:"
+        find . -name "main.go" -type f || echo "main.go not found"
+      shell: bash
+
     - name: Build (Linux)
       if: runner.os == 'Linux'
       env:
