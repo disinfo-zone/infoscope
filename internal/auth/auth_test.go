@@ -157,7 +157,7 @@ func TestSession_IsExpired(t *testing.T) {
 		},
 		{
 			name:      "session expiring in a moment",
-			session:   Session{ExpiresAt: now.Add(1 * time.Nanosecond)},
+			session:   Session{ExpiresAt: now.Add(1 * time.Millisecond)},
 			isExpired: false,
 		},
 	}
