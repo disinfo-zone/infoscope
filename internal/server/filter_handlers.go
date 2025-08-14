@@ -17,13 +17,13 @@ func extractIDFromPath(path string, prefix string) (int64, error) {
 	// Remove prefix and any trailing slash
 	idStr := strings.TrimPrefix(path, prefix)
 	idStr = strings.TrimSuffix(idStr, "/")
-	
+
 	// Handle paths like "/admin/filters/123/rules"
 	parts := strings.Split(idStr, "/")
 	if len(parts) > 0 && parts[0] != "" {
 		return strconv.ParseInt(parts[0], 10, 64)
 	}
-	
+
 	return 0, fmt.Errorf("invalid ID in path")
 }
 
@@ -503,7 +503,15 @@ func (s *Server) UpdateFilterGroupRules(w http.ResponseWriter, r *http.Request) 
 	}
 
 	db := &database.DB{DB: s.db}
-	err = db.UpdateFilterGroupRules(r.Context(), groupID, dbRules)
+	// Persist new ordered rules. On implementations without the helper, fall back to replace-all.
+	if err = db.UpdateFilterGroupRules(r.Context(), groupID, dbRules); err != nil {
+		s.logger.Printf("Falling back to replace-all rules for group %d: %v", groupID, err)
+		if derr := db.ReplaceFilterGroupRules(r.Context(), groupID, dbRules); derr != nil {
+			s.logger.Printf("Error replacing filter group rules: %v", derr)
+			s.jsonError(w, "Failed to update filter group rules", http.StatusInternalServerError)
+			return
+		}
+	}
 	if err != nil {
 		s.logger.Printf("Error updating filter group rules: %v", err)
 		s.jsonError(w, "Failed to update filter group rules", http.StatusInternalServerError)
@@ -627,7 +635,7 @@ func (s *Server) handleFilterGroupRoutes(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
-	
+
 	switch r.Method {
 	case http.MethodGet:
 		// Check if this is a request for a specific group

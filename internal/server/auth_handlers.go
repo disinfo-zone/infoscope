@@ -102,6 +102,12 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 		}
 	}
 
+	// Ensure HTML content type so browsers render instead of downloading
+	// Set before any bytes are written to allow gzip middleware to add encoding headers later.
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}
+
 	// Choose the appropriate execution method based on template type (admin vs non-admin)
 	// This logic is based on how templates were parsed and named in LoadTemplates.
 	// Admin templates are parsed with layout and are expected to be executed via "layout" definition.

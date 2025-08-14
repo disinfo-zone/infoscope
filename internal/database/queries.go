@@ -22,7 +22,7 @@ type Entry struct {
 	FeedID      int64
 	Title       string
 	URL         string
-	Content     string    // Add content field
+	Content     string // Add content field
 	PublishedAt time.Time
 	FaviconURL  string
 	FeedTitle   string // Joined from feeds table
@@ -75,15 +75,15 @@ type EntryFilter struct {
 
 // FilterGroup represents a group of filters with boolean logic
 type FilterGroup struct {
-	ID               int64             `json:"id"`
-	Name             string            `json:"name"`
-	Action           string            `json:"action"` // 'keep' or 'discard'
-	IsActive         bool              `json:"is_active"`
-	Priority         int               `json:"priority"`
-	ApplyToCategory  string            `json:"apply_to_category,omitempty"` // Optional category filter
-	CreatedAt        time.Time         `json:"created_at"`
-	UpdatedAt        time.Time         `json:"updated_at"`
-	Rules            []FilterGroupRule `json:"rules,omitempty"`
+	ID              int64             `json:"id"`
+	Name            string            `json:"name"`
+	Action          string            `json:"action"` // 'keep' or 'discard'
+	IsActive        bool              `json:"is_active"`
+	Priority        int               `json:"priority"`
+	ApplyToCategory string            `json:"apply_to_category,omitempty"` // Optional category filter
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+	Rules           []FilterGroupRule `json:"rules,omitempty"`
 }
 
 // FilterGroupRule represents the relationship between filters in a group
@@ -214,7 +214,7 @@ func (db *DB) GetActiveFeeds(ctx context.Context) ([]Feed, error) {
 		var f Feed
 		var lastModified, etag, lastError, category sql.NullString
 		var lastFetched sql.NullTime
-		
+
 		err := rows.Scan(
 			&f.ID, &f.URL, &f.Title, &lastFetched, &lastModified,
 			&etag, &f.Status, &f.ErrorCount, &lastError,
@@ -223,7 +223,7 @@ func (db *DB) GetActiveFeeds(ctx context.Context) ([]Feed, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Handle nullable fields
 		if lastFetched.Valid {
 			f.LastFetched = lastFetched.Time
@@ -240,14 +240,14 @@ func (db *DB) GetActiveFeeds(ctx context.Context) ([]Feed, error) {
 		if category.Valid {
 			f.Category = category.String
 		}
-		
+
 		// Load tags for this feed
 		tags, err := db.GetFeedTags(ctx, f.ID)
 		if err != nil {
 			return nil, fmt.Errorf("error loading tags for feed %d: %w", f.ID, err)
 		}
 		f.Tags = tags
-		
+
 		feeds = append(feeds, f)
 	}
 
@@ -411,7 +411,7 @@ func (db *DB) CreateEntryFilter(ctx context.Context, name, pattern, patternType,
         INSERT INTO entry_filters (name, pattern, pattern_type, target_type, case_sensitive)
         VALUES (?, ?, ?, ?, ?)
         RETURNING id, name, pattern, pattern_type, target_type, case_sensitive, created_at, updated_at`
-	
+
 	var filter EntryFilter
 	err := db.QueryRowContext(ctx, query, name, pattern, patternType, targetType, caseSensitive).Scan(
 		&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType, &filter.TargetType,
@@ -420,7 +420,7 @@ func (db *DB) CreateEntryFilter(ctx context.Context, name, pattern, patternType,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create entry filter: %w", err)
 	}
-	
+
 	return &filter, nil
 }
 
@@ -430,20 +430,20 @@ func (db *DB) GetEntryFilter(ctx context.Context, id int64) (*EntryFilter, error
         SELECT id, name, pattern, pattern_type, target_type, case_sensitive, created_at, updated_at
         FROM entry_filters
         WHERE id = ?`
-	
+
 	var filter EntryFilter
 	err := db.QueryRowContext(ctx, query, id).Scan(
 		&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType, &filter.TargetType,
 		&filter.CaseSensitive, &filter.CreatedAt, &filter.UpdatedAt,
 	)
-	
+
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get entry filter: %w", err)
 	}
-	
+
 	return &filter, nil
 }
 
@@ -453,13 +453,13 @@ func (db *DB) GetAllEntryFilters(ctx context.Context) ([]EntryFilter, error) {
         SELECT id, name, pattern, pattern_type, target_type, case_sensitive, created_at, updated_at
         FROM entry_filters
         ORDER BY name`
-	
+
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query entry filters: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var filters []EntryFilter
 	for rows.Next() {
 		var filter EntryFilter
@@ -472,7 +472,7 @@ func (db *DB) GetAllEntryFilters(ctx context.Context) ([]EntryFilter, error) {
 		}
 		filters = append(filters, filter)
 	}
-	
+
 	return filters, rows.Err()
 }
 
@@ -482,42 +482,42 @@ func (db *DB) UpdateEntryFilter(ctx context.Context, id int64, name, pattern, pa
         UPDATE entry_filters
         SET name = ?, pattern = ?, pattern_type = ?, target_type = ?, case_sensitive = ?
         WHERE id = ?`
-	
+
 	result, err := db.ExecContext(ctx, query, name, pattern, patternType, targetType, caseSensitive, id)
 	if err != nil {
 		return fmt.Errorf("failed to update entry filter: %w", err)
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
-	
+
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
 // DeleteEntryFilter deletes an entry filter
 func (db *DB) DeleteEntryFilter(ctx context.Context, id int64) error {
 	query := `DELETE FROM entry_filters WHERE id = ?`
-	
+
 	result, err := db.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete entry filter: %w", err)
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
-	
+
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -527,7 +527,7 @@ func (db *DB) CreateFilterGroup(ctx context.Context, name, action string, priori
         INSERT INTO filter_groups (name, action, priority, apply_to_category)
         VALUES (?, ?, ?, ?)
         RETURNING id, name, action, is_active, priority, apply_to_category, created_at, updated_at`
-	
+
 	var group FilterGroup
 	var category sql.NullString
 	err := db.QueryRowContext(ctx, query, name, action, priority, applyToCategory).Scan(
@@ -537,11 +537,11 @@ func (db *DB) CreateFilterGroup(ctx context.Context, name, action string, priori
 	if err != nil {
 		return nil, fmt.Errorf("failed to create filter group: %w", err)
 	}
-	
+
 	if category.Valid {
 		group.ApplyToCategory = category.String
 	}
-	
+
 	return &group, nil
 }
 
@@ -552,32 +552,32 @@ func (db *DB) GetFilterGroup(ctx context.Context, id int64) (*FilterGroup, error
         SELECT id, name, action, is_active, priority, apply_to_category, created_at, updated_at
         FROM filter_groups
         WHERE id = ?`
-	
+
 	var group FilterGroup
 	var category sql.NullString
 	err := db.QueryRowContext(ctx, groupQuery, id).Scan(
 		&group.ID, &group.Name, &group.Action, &group.IsActive,
 		&group.Priority, &category, &group.CreatedAt, &group.UpdatedAt,
 	)
-	
+
 	if category.Valid {
 		group.ApplyToCategory = category.String
 	}
-	
+
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get filter group: %w", err)
 	}
-	
+
 	// Get the rules for this group
 	rules, err := db.GetFilterGroupRules(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get filter group rules: %w", err)
 	}
 	group.Rules = rules
-	
+
 	return &group, nil
 }
 
@@ -587,13 +587,13 @@ func (db *DB) GetAllFilterGroups(ctx context.Context) ([]FilterGroup, error) {
         SELECT id, name, action, is_active, priority, apply_to_category, created_at, updated_at
         FROM filter_groups
         ORDER BY priority, name`
-	
+
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query filter groups: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var groups []FilterGroup
 	for rows.Next() {
 		var group FilterGroup
@@ -605,21 +605,21 @@ func (db *DB) GetAllFilterGroups(ctx context.Context) ([]FilterGroup, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan filter group: %w", err)
 		}
-		
+
 		if category.Valid {
 			group.ApplyToCategory = category.String
 		}
-		
+
 		// Get rules for this group
 		rules, err := db.GetFilterGroupRules(ctx, group.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get rules for group %d: %w", group.ID, err)
 		}
 		group.Rules = rules
-		
+
 		groups = append(groups, group)
 	}
-	
+
 	return groups, rows.Err()
 }
 
@@ -630,13 +630,13 @@ func (db *DB) GetActiveFilterGroups(ctx context.Context) ([]FilterGroup, error) 
         FROM filter_groups
         WHERE is_active = 1
         ORDER BY priority, name`
-	
+
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query active filter groups: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var groups []FilterGroup
 	for rows.Next() {
 		var group FilterGroup
@@ -648,21 +648,21 @@ func (db *DB) GetActiveFilterGroups(ctx context.Context) ([]FilterGroup, error) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan filter group: %w", err)
 		}
-		
+
 		if category.Valid {
 			group.ApplyToCategory = category.String
 		}
-		
+
 		// Get rules for this group
 		rules, err := db.GetFilterGroupRules(ctx, group.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get rules for group %d: %w", group.ID, err)
 		}
 		group.Rules = rules
-		
+
 		groups = append(groups, group)
 	}
-	
+
 	return groups, rows.Err()
 }
 
@@ -672,42 +672,42 @@ func (db *DB) UpdateFilterGroup(ctx context.Context, id int64, name, action stri
         UPDATE filter_groups
         SET name = ?, action = ?, is_active = ?, priority = ?, apply_to_category = ?
         WHERE id = ?`
-	
+
 	result, err := db.ExecContext(ctx, query, name, action, isActive, priority, applyToCategory, id)
 	if err != nil {
 		return fmt.Errorf("failed to update filter group: %w", err)
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
-	
+
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
 // DeleteFilterGroup deletes a filter group and its rules
 func (db *DB) DeleteFilterGroup(ctx context.Context, id int64) error {
 	query := `DELETE FROM filter_groups WHERE id = ?`
-	
+
 	result, err := db.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete filter group: %w", err)
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
-	
+
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -720,18 +720,18 @@ func (db *DB) GetFilterGroupRules(ctx context.Context, groupID int64) ([]FilterG
         JOIN entry_filters f ON r.filter_id = f.id
         WHERE r.group_id = ?
         ORDER BY r.position, r.id`
-	
+
 	rows, err := db.QueryContext(ctx, query, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query filter group rules: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var rules []FilterGroupRule
 	for rows.Next() {
 		var rule FilterGroupRule
 		var filter EntryFilter
-		
+
 		err := rows.Scan(
 			&rule.ID, &rule.GroupID, &rule.FilterID, &rule.Operator, &rule.Position,
 			&filter.ID, &filter.Name, &filter.Pattern, &filter.PatternType, &filter.TargetType,
@@ -740,12 +740,40 @@ func (db *DB) GetFilterGroupRules(ctx context.Context, groupID int64) ([]FilterG
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan filter group rule: %w", err)
 		}
-		
+
 		rule.Filter = &filter
 		rules = append(rules, rule)
 	}
-	
+
 	return rules, rows.Err()
+}
+
+// ReplaceFilterGroupRules replaces all rules for a group with the provided set in a transaction
+func (db *DB) ReplaceFilterGroupRules(ctx context.Context, groupID int64, rules []FilterGroupRule) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM filter_group_rules WHERE group_id = ?", groupID); err != nil {
+		return err
+	}
+
+	if len(rules) > 0 {
+		stmt, err := tx.PrepareContext(ctx, `INSERT INTO filter_group_rules (group_id, filter_id, operator, position) VALUES (?, ?, ?, ?)`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+		for _, r := range rules {
+			if _, err := stmt.ExecContext(ctx, groupID, r.FilterID, r.Operator, r.Position); err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 // AddFilterToGroup adds a filter to a filter group
@@ -753,33 +781,33 @@ func (db *DB) AddFilterToGroup(ctx context.Context, groupID, filterID int64, ope
 	query := `
         INSERT INTO filter_group_rules (group_id, filter_id, operator, position)
         VALUES (?, ?, ?, ?)`
-	
+
 	_, err := db.ExecContext(ctx, query, groupID, filterID, operator, position)
 	if err != nil {
 		return fmt.Errorf("failed to add filter to group: %w", err)
 	}
-	
+
 	return nil
 }
 
 // RemoveFilterFromGroup removes a filter from a filter group
 func (db *DB) RemoveFilterFromGroup(ctx context.Context, groupID, filterID int64) error {
 	query := `DELETE FROM filter_group_rules WHERE group_id = ? AND filter_id = ?`
-	
+
 	result, err := db.ExecContext(ctx, query, groupID, filterID)
 	if err != nil {
 		return fmt.Errorf("failed to remove filter from group: %w", err)
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
-	
+
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -790,13 +818,13 @@ func (db *DB) UpdateFilterGroupRules(ctx context.Context, groupID int64, rules [
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
-	
+
 	// Delete existing rules
 	_, err = tx.ExecContext(ctx, "DELETE FROM filter_group_rules WHERE group_id = ?", groupID)
 	if err != nil {
 		return fmt.Errorf("failed to delete existing rules: %w", err)
 	}
-	
+
 	// Insert new rules
 	if len(rules) > 0 {
 		stmt, err := tx.PrepareContext(ctx, `
@@ -806,7 +834,7 @@ func (db *DB) UpdateFilterGroupRules(ctx context.Context, groupID int64, rules [
 			return fmt.Errorf("failed to prepare insert statement: %w", err)
 		}
 		defer stmt.Close()
-		
+
 		for _, rule := range rules {
 			_, err = stmt.ExecContext(ctx, groupID, rule.FilterID, rule.Operator, rule.Position)
 			if err != nil {
@@ -814,7 +842,7 @@ func (db *DB) UpdateFilterGroupRules(ctx context.Context, groupID int64, rules [
 			}
 		}
 	}
-	
+
 	return tx.Commit()
 }
 
@@ -1022,11 +1050,11 @@ func (db *DB) getOrCreateTagTx(ctx context.Context, tx *sql.Tx, tagName string) 
 	var tagID int64
 	err := tx.QueryRowContext(ctx,
 		`SELECT id FROM tags WHERE name = ? COLLATE NOCASE`, tagName).Scan(&tagID)
-	
+
 	if err == nil {
 		return tagID, nil
 	}
-	
+
 	if err != sql.ErrNoRows {
 		return 0, fmt.Errorf("failed to query existing tag: %w", err)
 	}

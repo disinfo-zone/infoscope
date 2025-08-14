@@ -83,13 +83,18 @@ func (c *CSRF) getOrCreateToken(w http.ResponseWriter, r *http.Request) (string,
 	c.tokens.Store(token, time.Now().Add(c.config.Expiry))
 
 	// Set cookie
+	sameSite := http.SameSiteLaxMode
+	if c.config.Secure {
+		sameSite = http.SameSiteStrictMode
+	}
+	
 	http.SetCookie(w, &http.Cookie{
 		Name:     c.config.Cookie,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   c.config.Secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: sameSite,
 		MaxAge:   int(c.config.Expiry.Seconds()),
 	})
 

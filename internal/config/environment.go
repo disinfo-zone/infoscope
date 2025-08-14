@@ -34,11 +34,12 @@ func GetConfig() Config {
 	if dbPath := os.Getenv("INFOSCOPE_DB_PATH"); dbPath != "" {
 		config.DBPath = dbPath
 	}
-	if dataPath := os.Getenv("INFOSCOPE_DATA_PATH"); dataPath != "" {
-		config.DataPath = dataPath
-	}
+	// DataPath already handled above; avoid duplicate
 	if webPath := os.Getenv("INFOSCOPE_WEB_PATH"); webPath != "" {
 		config.WebPath = webPath
+	}
+	if dataPath := os.Getenv("INFOSCOPE_DATA_PATH"); dataPath != "" {
+		config.DataPath = dataPath
 	}
 	if prodMode := os.Getenv("INFOSCOPE_PRODUCTION"); prodMode == "true" {
 		config.ProductionMode = true

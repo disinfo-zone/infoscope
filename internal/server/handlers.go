@@ -9,15 +9,17 @@ import (
 	"expvar"
 	"fmt"
 	"html"
-	"net/url"
-	htmlparser "golang.org/x/net/html"
 	"infoscope/internal/database"
 	"infoscope/internal/feed"
 	"infoscope/internal/rss"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	htmlparser "golang.org/x/net/html"
 )
 
 // Metrics variables
@@ -86,7 +88,7 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 
 	var entries []EntryView
 	filterEngine := s.feedService.GetFilterEngine()
-	
+
 	for rows.Next() {
 		var e EntryView
 		var publishedAtStr string // Will hold the "YYYY-MM-DD HH:MM:SS" string from DB
@@ -106,18 +108,18 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 				URL:     e.URL,
 				Content: content.String,
 			}
-			
+
 			// Parse feed category and tags
 			category := ""
 			if feedCategory.Valid {
 				category = feedCategory.String
 			}
-			
+
 			var tags []string
 			if tagsStr.Valid && tagsStr.String != "" {
 				tags = strings.Split(tagsStr.String, ",")
 			}
-			
+
 			decision, err := filterEngine.FilterEntry(ctx, dbEntry, category, tags)
 			if err != nil {
 				s.logger.Printf("Error applying filters to entry '%s': %v", e.Title, err)
@@ -194,7 +196,7 @@ func (s *Server) getFeeds(ctx context.Context) ([]Feed, error) {
 			Tags:        dbFeed.Tags,
 		}
 	}
-	
+
 	return feeds, nil
 }
 
@@ -211,13 +213,13 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		return err
 	}
 	defer stmt.Close()
-	
+
 	// Validate tracking code before updating
 	validatedTrackingCode, err := validateTrackingCode(settings.TrackingCode)
 	if err != nil {
 		return fmt.Errorf("invalid tracking code: %w", err)
 	}
-	
+
 	updates := map[string]struct {
 		value string
 		type_ string
@@ -237,9 +239,17 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
 		"meta_image_url":      {settings.MetaImageURL, "string"},
-		"show_blog_name":      {strconv.FormatBool(settings.ShowBlogName), "bool"},
-		"show_body_text":      {strconv.FormatBool(settings.ShowBodyText), "bool"},
-		"body_text_length":    {strconv.Itoa(settings.BodyTextLength), "int"},
+		// Theme settings: maintain legacy "theme" for compatibility; prefer new keys
+		"theme":        {settings.Theme, "string"},
+		"public_theme": {settings.PublicTheme, "string"},
+		"admin_theme":  {settings.AdminTheme, "string"},
+		// Auto-backup configuration
+		"backup_enabled":        {strconv.FormatBool(settings.BackupEnabled), "bool"},
+		"backup_interval_hours": {strconv.Itoa(settings.BackupIntervalHours), "int"},
+		"backup_retention_days": {strconv.Itoa(settings.BackupRetentionDays), "int"},
+		"show_blog_name":        {strconv.FormatBool(settings.ShowBlogName), "bool"},
+		"show_body_text":        {strconv.FormatBool(settings.ShowBodyText), "bool"},
+		"body_text_length":      {strconv.Itoa(settings.BodyTextLength), "int"},
 	}
 
 	for key, setting := range updates {
@@ -456,7 +466,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		
+
 		// Get filter data for the settings page
 		filters, err := s.getFiltersForTemplate(r.Context())
 		if err != nil {
@@ -464,14 +474,14 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		
+
 		filterGroups, err := s.getFilterGroupsForTemplate(r.Context())
 		if err != nil {
 			s.logger.Printf("Error getting filter groups: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		
+
 		data := SettingsTemplateData{
 			BaseTemplateData: BaseTemplateData{CSRFToken: csrfToken},
 			Title:            "Settings",
@@ -520,10 +530,20 @@ func (s *Server) handleFeedValidation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
+	// Additional SSRF guard on input
+	if err := validateURL(req.URL); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid URL: %v", err), http.StatusBadRequest)
+		return
+	}
 	validationResult, err := feed.ValidateFeedURL(req.URL)
 	if err != nil {
 		s.logger.Printf("Feed validation failed for %s: %v", req.URL, err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		// Return JSON error for consistent frontend handling
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"message": err.Error(),
+		})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -653,17 +673,17 @@ func (s *Server) getFiltersForTemplate(ctx context.Context) ([]map[string]interf
 	if err != nil {
 		return nil, err
 	}
-	
+
 	result := make([]map[string]interface{}, len(filters))
 	for i, filter := range filters {
 		result[i] = map[string]interface{}{
-			"id":            filter.ID,
-			"name":          filter.Name,
-			"pattern":       filter.Pattern,
-			"pattern_type":  filter.PatternType,
+			"id":             filter.ID,
+			"name":           filter.Name,
+			"pattern":        filter.Pattern,
+			"pattern_type":   filter.PatternType,
 			"case_sensitive": filter.CaseSensitive,
-			"created_at":    filter.CreatedAt,
-			"updated_at":    filter.UpdatedAt,
+			"created_at":     filter.CreatedAt,
+			"updated_at":     filter.UpdatedAt,
 		}
 	}
 	return result, nil
@@ -676,7 +696,7 @@ func (s *Server) getFilterGroupsForTemplate(ctx context.Context) ([]map[string]i
 	if err != nil {
 		return nil, err
 	}
-	
+
 	result := make([]map[string]interface{}, len(groups))
 	for i, group := range groups {
 		// Get rules for this group
@@ -684,7 +704,7 @@ func (s *Server) getFilterGroupsForTemplate(ctx context.Context) ([]map[string]i
 		if err != nil {
 			return nil, err
 		}
-		
+
 		result[i] = map[string]interface{}{
 			"id":         group.ID,
 			"name":       group.Name,
@@ -775,6 +795,10 @@ func sanitizeTrackingNode(n *htmlparser.Node, buf *strings.Builder) {
 // sanitizeScriptTag sanitizes script tags
 func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 	var src, async, defer_ string
+	// Preserve a limited, safe set of attributes commonly used by analytics providers
+	// including data-* attributes (e.g., Umami), crossorigin/SRI, and referrerpolicy.
+	type kv struct{ key, val string }
+	var preserved []kv
 	var hasInlineScript bool
 
 	// Check if script has inline content
@@ -804,9 +828,16 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 		case "defer":
 			defer_ = "defer"
 		case "type":
-			// Allow type attribute but ignore for now
+			// Preserve type attribute
+			preserved = append(preserved, kv{key: attr.Key, val: attr.Val})
+		case "crossorigin", "integrity", "referrerpolicy":
+			// Preserve CORS/SRI/referrer policy attributes for external scripts
+			preserved = append(preserved, kv{key: attr.Key, val: attr.Val})
 		default:
-			// Remove other attributes like onclick, etc.
+			// Preserve data-* attributes commonly used for configuration (e.g., Umami)
+			if strings.HasPrefix(strings.ToLower(attr.Key), "data-") {
+				preserved = append(preserved, kv{key: attr.Key, val: attr.Val})
+			}
 		}
 	}
 
@@ -815,18 +846,29 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 		return // Skip this tag
 	}
 
+	// Note: localhost on non-standard ports is allowed by validateURL and will be emitted.
+
 	// Write sanitized script tag
 	buf.WriteString("<script src=\"")
 	buf.WriteString(html.EscapeString(src))
 	buf.WriteString("\"")
-	
+
 	if async != "" {
 		buf.WriteString(" async=\"\"")
 	}
 	if defer_ != "" {
 		buf.WriteString(" defer=\"\"")
 	}
-	
+
+	// Write preserved attributes
+	for _, a := range preserved {
+		buf.WriteString(" ")
+		buf.WriteString(html.EscapeString(a.key))
+		buf.WriteString("=\"")
+		buf.WriteString(html.EscapeString(a.val))
+		buf.WriteString("\")")
+	}
+
 	buf.WriteString("></script>")
 }
 
@@ -860,7 +902,7 @@ func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) {
 	buf.WriteString("<img src=\"")
 	buf.WriteString(html.EscapeString(src))
 	buf.WriteString("\"")
-	
+
 	if width != "" {
 		buf.WriteString(" width=\"")
 		buf.WriteString(html.EscapeString(width))
@@ -876,7 +918,7 @@ func sanitizeImgTag(n *htmlparser.Node, buf *strings.Builder) {
 		buf.WriteString(html.EscapeString(alt))
 		buf.WriteString("\"")
 	}
-	
+
 	buf.WriteString(">")
 }
 
@@ -908,7 +950,7 @@ func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) {
 	buf.WriteString("<iframe src=\"")
 	buf.WriteString(html.EscapeString(src))
 	buf.WriteString("\"")
-	
+
 	if width != "" {
 		buf.WriteString(" width=\"")
 		buf.WriteString(html.EscapeString(width))
@@ -919,7 +961,7 @@ func sanitizeIframeTag(n *htmlparser.Node, buf *strings.Builder) {
 		buf.WriteString(html.EscapeString(height))
 		buf.WriteString("\"")
 	}
-	
+
 	buf.WriteString("></iframe>")
 }
 
@@ -962,13 +1004,13 @@ func sanitizeMetaTag(n *htmlparser.Node, buf *strings.Builder) {
 // sanitizeNoscriptTag sanitizes noscript tags
 func sanitizeNoscriptTag(n *htmlparser.Node, buf *strings.Builder) {
 	buf.WriteString("<noscript>")
-	
+
 	// Process children - continue even if some children are invalid
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		// Process all children, no errors expected
 		sanitizeTrackingNode(c, buf)
 	}
-	
+
 	buf.WriteString("</noscript>")
 }
 
@@ -988,11 +1030,32 @@ func validateURL(urlStr string) error {
 		return fmt.Errorf("only HTTP/HTTPS URLs are allowed, got: %s", u.Scheme)
 	}
 
-	// Block localhost on standard web ports and common development ports for security
+	// Block localhost on standard web ports and common development ports for security,
+	// but allow localhost on non-standard ports (e.g., 3000) for development use.
 	if strings.ToLower(u.Hostname()) == "localhost" {
 		port := u.Port()
 		if port == "" || port == "80" || port == "443" || port == "8080" {
 			return fmt.Errorf("URLs pointing to localhost on standard web ports are not allowed")
+		}
+		// Allow non-standard ports on localhost: skip further SSRF private IP checks
+		return nil
+	}
+
+	// SSRF hardening: block private/reserved address ranges
+	host := u.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("URLs pointing to private/reserved addresses are not allowed")
+		}
+	} else {
+		// Resolve DNS and ensure all answers are public
+		addrs, err := net.LookupIP(host)
+		if err == nil {
+			for _, a := range addrs {
+				if isPrivateIP(a) {
+					return fmt.Errorf("resolved address is private/reserved and not allowed")
+				}
+			}
 		}
 	}
 
@@ -1009,6 +1072,30 @@ func isAllowedParent(tagName string) bool {
 	}
 }
 
+// isPrivateIP returns true if the IP is in a private, loopback, link-local or reserved range
+func isPrivateIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	privateCIDRs := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"::1/128",
+		"fc00::/7",
+		"fe80::/10",
+	}
+	for _, cidr := range privateCIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err == nil && network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // handleFiltersPage renders the filters management page
 func (s *Server) handleFiltersPage(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -1016,8 +1103,20 @@ func (s *Server) handleFiltersPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := r.Context().Value(contextKeyTemplateData)
-	if err := s.renderTemplate(w, r, "admin/filters.html", data); err != nil {
+	// Build proper admin page data so layout expects `.Data.Title` etc
+	settings, err := s.getSettings(r.Context())
+	if err != nil {
+		s.logger.Printf("Error getting settings for filters page: %v", err)
+		settings = make(map[string]string)
+	}
+	csrfToken := s.csrf.Token(w, r)
+	page := AdminPageData{
+		BaseTemplateData: BaseTemplateData{CSRFToken: csrfToken},
+		Title:            "Filters",
+		Active:           "filters",
+		Settings:         settings,
+	}
+	if err := s.renderTemplate(w, r, "admin/filters.html", page); err != nil {
 		s.logger.Printf("Error rendering filters page: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}

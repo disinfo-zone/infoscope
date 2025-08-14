@@ -2,11 +2,10 @@
 data/*.db
 data/*.db-*
 
-# Unpacked Web Template
-/web/
+# Web Template
+web/
 
 # Generated files
-infoscope
 *.exe
 *.exe~
 *.dll
@@ -15,6 +14,21 @@ infoscope
 *.test
 *.out
 *.bak
+
+# User-uploaded content
+web/static/favicons/*
+!web/static/favicons/default.ico
+web/static/images/*
+!web/static/images/infoscope.png
+web/static/images/favicon/*
+!web/static/images/favicon/favicon.ico
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
 # Claude Code files
 CLAUDE.md
 .claude/

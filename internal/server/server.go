@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"infoscope/internal/auth"
@@ -43,6 +45,7 @@ type Config struct {
 	DisableTemplateUpdates bool
 	WebPath                string
 	ProductionMode         bool
+	DataPath               string
 }
 
 type Server struct {
@@ -54,9 +57,92 @@ type Server struct {
 	csrf          *CSRF
 	config        Config
 	templateCache map[string]*template.Template
+	backupStop    chan struct{}
+}
+
+// securityHeaders wraps a handler to add standard security headers and a CSP
+// Note: If you later add inline scripts/styles, ensure they use nonces and that templates include them
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !headerWritten(w) {
+			// Basic hardening headers
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			// Set base Referrer-Policy below (overridden later to tightened policy)
+			w.Header().Set("Referrer-Policy", "no-referrer-when-downgrade")
+			w.Header().Set("X-XSS-Protection", "0") // modern browsers; rely on CSP
+			if s.config.UseHTTPS {
+				w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+			}
+
+			// Content Security Policy (hardened)
+			// No inline scripts; all JS must be in external modules.
+			// Allow Google Fonts CSS and font files to support theme typography.
+			csp := strings.Join([]string{
+				"default-src 'self'",
+				"script-src 'self' https:",
+				"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+				"img-src 'self' data: https:",
+				"font-src 'self' data: https://fonts.gstatic.com",
+				"connect-src 'self' https:",
+				"frame-src 'self' https:",
+				"frame-ancestors 'none'",
+				"base-uri 'self'",
+				"form-action 'self'",
+			}, "; ")
+			w.Header().Set("Content-Security-Policy", csp)
+
+			// Tighter referrer policy
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) registerTemplateFuncs() template.FuncMap {
+	// Helper to sanitize and resolve theme name safely
+	sanitizeTheme := func(settings map[string]string) string {
+		name := strings.TrimSpace(settings["theme"])
+		if name == "" {
+			name = "terminal"
+		}
+		name = strings.ToLower(name)
+		// Allow only safe characters
+		allowed := regexp.MustCompile(`^[a-z0-9_-]+$`)
+		if !allowed.MatchString(name) {
+			name = "terminal"
+		}
+		// Verify directory exists; if not, fallback
+		themeDir := filepath.Join(s.config.WebPath, "static", "css", "themes", name)
+		if fi, err := os.Stat(themeDir); err != nil || !fi.IsDir() {
+			return "terminal"
+		}
+		return name
+	}
+
+	// Helper that resolves a theme using a specific settings key, falling back to legacy "theme"
+	sanitizeThemeForKey := func(settings map[string]string, key string) string {
+		// Prefer the specific key
+		name := strings.TrimSpace(settings[key])
+		if name == "" {
+			// Fallback to legacy single theme
+			name = strings.TrimSpace(settings["theme"])
+		}
+		if name == "" {
+			name = "terminal"
+		}
+		name = strings.ToLower(name)
+		allowed := regexp.MustCompile(`^[a-z0-9_-]+$`)
+		if !allowed.MatchString(name) {
+			name = "terminal"
+		}
+		themeDir := filepath.Join(s.config.WebPath, "static", "css", "themes", name)
+		if fi, err := os.Stat(themeDir); err != nil || !fi.IsDir() {
+			return "terminal"
+		}
+		return name
+	}
+
 	return template.FuncMap{
 		"formatTimeInZone": func(tz string, t time.Time) string {
 			loc, err := time.LoadLocation(tz)
@@ -75,6 +161,39 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 			return t.UTC()
 		},
 		"safeHTML": safeHTML,
+		// getSetting returns settings[key] or defaultValue if missing/empty
+		"getSetting": func(settings map[string]string, key string, defaultValue string) string {
+			if settings == nil {
+				return defaultValue
+			}
+			if v, ok := settings[key]; ok && strings.TrimSpace(v) != "" {
+				return v
+			}
+			return defaultValue
+		},
+		// themeName resolves a safe theme name with fallback
+		"themeName": func(settings map[string]string) string {
+			return sanitizeTheme(settings)
+		},
+		// themeCSS builds a theme-aware CSS path, e.g., /static/css/themes/<theme>/<file>
+		"themeCSS": func(settings map[string]string, file string) string {
+			return "/static/css/themes/" + sanitizeTheme(settings) + "/" + strings.TrimPrefix(file, "/")
+		},
+		// themeNameFor resolves theme using a specific settings key with fallback to legacy "theme"
+		"themeNameFor": func(settings map[string]string, key string) string {
+			return sanitizeThemeForKey(settings, key)
+		},
+		// themeCSSFor builds a CSS path using a specific theme key (e.g., "public_theme" or "admin_theme")
+		"themeCSSFor": func(settings map[string]string, key string, file string) string {
+			return "/static/css/themes/" + sanitizeThemeForKey(settings, key) + "/" + strings.TrimPrefix(file, "/")
+		},
+		// Convenience wrappers
+		"themeCSSPublic": func(settings map[string]string, file string) string {
+			return "/static/css/themes/" + sanitizeThemeForKey(settings, "public_theme") + "/" + strings.TrimPrefix(file, "/")
+		},
+		"themeCSSAdmin": func(settings map[string]string, file string) string {
+			return "/static/css/themes/" + sanitizeThemeForKey(settings, "admin_theme") + "/" + strings.TrimPrefix(file, "/")
+		},
 	}
 }
 
@@ -184,7 +303,9 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 	}
 
 	if shouldExtract {
-		if err := s.extractWebContent(!s.config.DisableTemplateUpdates); err != nil {
+		// Only update embedded web assets when the embedded version is newer or missing locally.
+		// Avoid forcing updates on every restart so that user-uploaded assets under web/static persist.
+		if err := s.extractWebContent(false); err != nil {
 			return nil, fmt.Errorf("failed to extract web content: %w", err)
 		}
 	}
@@ -202,6 +323,9 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 	if err := s.initializeTotalClicks(); err != nil {
 		return nil, fmt.Errorf("error initializing click counts: %w", err)
 	}
+
+	// Start auto-backup scheduler
+	s.startAutoBackupLoop()
 
 	if !s.config.ProductionMode {
 		s.logger.Printf("Server initialized successfully")
@@ -260,22 +384,30 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/api/categories/", s.requireAuth(s.handleCategoriesAPI))
 	mux.HandleFunc("/admin/backup", s.requireAuth(s.handleBackup))
 	mux.HandleFunc("/admin/backup/", s.requireAuth(s.handleBackup))
+	mux.HandleFunc("/admin/backup/export", s.requireAuth(s.handleExport))
+	mux.HandleFunc("/admin/backup/import", s.requireAuth(s.handleImport))
+	// Auto-backup management endpoints
+	mux.HandleFunc("/admin/backup/files", s.requireAuth(s.handleBackupList))
+	mux.HandleFunc("/admin/backup/save", s.requireAuth(s.handleExportToDisk))
+	mux.HandleFunc("/admin/backup/restore-file", s.requireAuth(s.handleRestoreFromFile))
+	mux.HandleFunc("/admin/backup/download", s.requireAuth(s.handleBackupDownload))
+	mux.HandleFunc("/admin/backup/delete", s.requireAuth(s.handleDeleteBackupFile))
 	mux.HandleFunc("/admin/metrics", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/metrics/", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/change-password", s.requireAuth(s.handleChangePassword))
 	mux.HandleFunc("/admin/change-password/", s.requireAuth(s.handleChangePassword))
-	
+
 	// Filter management page
 	mux.HandleFunc("/admin/filters-page", s.requireAuth(s.handleFiltersPage))
 	mux.HandleFunc("/admin/filters-page/", s.requireAuth(s.handleFiltersPage))
-	
+
 	// Filter management API routes
 	mux.HandleFunc("/admin/filters", s.requireAuth(s.handleFilterRoutes))
 	mux.HandleFunc("/admin/filters/", s.requireAuth(s.handleFilterRoutes))
 	mux.HandleFunc("/admin/filter-groups", s.requireAuth(s.handleFilterGroupRoutes))
 	mux.HandleFunc("/admin/filter-groups/", s.requireAuth(s.handleFilterGroupRoutes))
 	mux.HandleFunc("/admin/filter-test", s.requireAuth(s.TestFilter))
-	
+
 	mux.HandleFunc("/admin", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/admin/", s.requireAuth(s.handleAdmin))
 	mux.HandleFunc("/click", s.handleClick)
@@ -296,7 +428,13 @@ func (s *Server) Routes() http.Handler {
 		s.handleIndex(w, r)
 	})
 
-	return mux
+	// Apply CSRF middleware to all routes except static files and safe paths
+	excludePaths := []string{"/healthz", "/healthz/"}
+	csrfWrapped := s.csrf.MiddlewareExceptPaths(mux, excludePaths)
+	// Apply gzip compression for text-based responses
+	gzWrapped := gzipMiddleware(csrfWrapped)
+	// Apply security headers last to cover all responses
+	return s.securityHeaders(gzWrapped)
 }
 
 func (s *Server) handle404(w http.ResponseWriter, r *http.Request) {
@@ -346,5 +484,14 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) Start(addr string) error {
 	s.logger.Printf("Starting server on %s", addr)
-	return http.ListenAndServe(addr, s.Routes())
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           s.Routes(),
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1MB
+	}
+	return srv.ListenAndServe()
 }

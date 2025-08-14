@@ -93,6 +93,15 @@ func (h *ImageHandler) isValidFavicon(file multipart.File, header *multipart.Fil
 		"image/vnd.microsoft.icon": true,
 	}
 	if !allowedFaviconTypes[detectedContentType] {
+		// Some ICO files may be misdetected by sniffing (e.g., as image/gif).
+		// Also, the client may send a correct favicon Content-Type in header.
+		clientCT := header.Header.Get("Content-Type")
+		if strings.EqualFold(filepath.Ext(header.Filename), ".ico") && (detectedContentType == "image/gif" || clientCT == "image/x-icon" || clientCT == "image/vnd.microsoft.icon") {
+			if !h.productionMode {
+				h.logger.Printf("Warning: favicon '%s' detected as %s but headers/ext indicate ICO. Allowing upload.", header.Filename, detectedContentType)
+			}
+			return true, nil
+		}
 		h.logger.Printf("Invalid favicon content type detected: '%s' for file '%s'. Allowed: image/png, image/x-icon, image/vnd.microsoft.icon",
 			detectedContentType, header.Filename)
 		return false, nil
@@ -121,7 +130,12 @@ func (h *ImageHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	allowedMetaTypes := map[string]bool{"image/jpeg": true, "image/png": true, "image/gif": true}
+	allowedMetaTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/gif":  true,
+		"image/webp": true,
+	}
 	if _, err := h.validateFile(file, header, allowedMetaTypes); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -140,8 +154,8 @@ func (h *ImageHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go h.cleanupOldImages(h.uploadDir, filepath.Base(savedFilename), 10)
-	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprint(w, savedFilename)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"filename": savedFilename})
 }
 
 func (h *ImageHandler) saveImage(file multipart.File, header *multipart.FileHeader, directory string) (string, error) {
@@ -293,6 +307,7 @@ func (h *ImageHandler) HandleMetaImageUpload(w http.ResponseWriter, r *http.Requ
 		"image/jpeg": true,
 		"image/png":  true,
 		"image/gif":  true,
+		"image/webp": true,
 	}
 	if _, err := h.validateFile(file, header, allowedMetaTypes); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
