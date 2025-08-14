@@ -118,6 +118,7 @@
                     {{ $currentTheme := getSetting .Data.Settings "theme" "terminal" }}
                     <option value="terminal" {{ if eq $currentTheme "terminal" }}selected{{ end }}>Terminal</option>
                     <option value="latex" {{ if eq $currentTheme "latex" }}selected{{ end }}>LaTeX</option>
+                    <option value="latex-dark" {{ if eq $currentTheme "latex-dark" }}selected{{ end }}>LaTeX-Dark</option>
                 </select>
                 <div class="help-text">Choose the visual theme for the UI.</div>
             </div>
