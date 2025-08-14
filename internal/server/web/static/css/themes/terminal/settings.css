@@ -28,6 +28,9 @@
 .file-input::-webkit-file-upload-button:hover, .file-input::file-selector-button:hover { background: var(--color-bg-primary); }
 
 .current-image, .upload-preview { margin: 1rem 0; padding: 1rem; background: var(--color-bg-primary); border-radius: var(--border-radius-md); text-align: center; display: flex; justify-content: center; align-items: center; }
+/* Mirror preview visibility behavior across themes */
+.upload-preview.hidden { display: none !important; }
+.upload-preview:not(.hidden) { display: flex; }
 
 .help-text { margin-top: 0.5rem; font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.4; }
 

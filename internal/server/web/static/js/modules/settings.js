@@ -9,6 +9,19 @@ import { showNotification } from './ux-enhancements.js';
 
 function getEl(id) { return document.getElementById(id); }
 
+function getCurrentImageFilenameFor(inputId) {
+  const input = getEl(inputId);
+  if (!input) return '';
+  const group = input.closest('.setting-group') || document;
+  const img = group.querySelector('.current-image img');
+  if (!img) return '';
+  const src = img.getAttribute('src') || '';
+  const marker = '/static/images/';
+  const idx = src.indexOf(marker);
+  if (idx === -1) return '';
+  return src.slice(idx + marker.length);
+}
+
 // Filters UI removed from Settings page
 
 // Theme detection to allow page reload when theme changes
@@ -401,6 +414,11 @@ function bindSettingsForm() {
       let faviconFilename = form.querySelector('[name="faviconURLPreview"]')?.value || '';
       let metaImageFilename = form.querySelector('[name="metaImageURLPreview"]')?.value || '';
 
+      // Fallback to current values shown on the page when no new files are selected
+      if (!imageFilename) imageFilename = getCurrentImageFilenameFor('footerImage');
+      if (!faviconFilename) faviconFilename = getCurrentImageFilenameFor('favicon');
+      if (!metaImageFilename) metaImageFilename = getCurrentImageFilenameFor('metaImage');
+
       // Footer image
       if (imageInput && imageInput.files && imageInput.files[0]) {
         const fd = new FormData();
@@ -536,7 +554,10 @@ function bindImageInputs() {
       const preview = getEl(inputId + 'Preview');
       const status = getEl(inputId + 'Status');
       if (!file) {
-        if (preview) preview.style.display = 'none';
+        if (preview) {
+          preview.classList.add('hidden');
+          preview.style.removeProperty('display');
+        }
         if (status) { status.className = 'image-upload-status'; status.textContent = ''; }
         return;
       }
@@ -568,7 +589,8 @@ function bindImageInputs() {
       }
       hidden.value = file.name;
       if (preview) {
-        preview.style.display = 'block';
+        preview.classList.remove('hidden');
+        preview.style.removeProperty('display');
         const img = preview.querySelector('img');
         if (img) {
           const reader = new FileReader();

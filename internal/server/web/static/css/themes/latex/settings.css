@@ -27,6 +27,9 @@ input[type="text"], input[type="number"], input[type="url"], input[type="passwor
 .file-input:focus { outline: none; border-color: var(--color-accent-primary); box-shadow: 0 0 0 1px var(--color-accent-primary); }
 
 .current-image, .upload-preview { margin: 1rem 0; padding: 1rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); text-align: center; }
+/* Ensure upload previews are visible when JS removes the hidden class */
+.upload-preview.hidden { display: none !important; }
+.upload-preview:not(.hidden) { display: block; }
 
 .backup-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .backup-button { background: transparent; color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); padding: 0.75rem 1rem; }
