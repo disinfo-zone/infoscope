@@ -1,8 +1,0 @@
-/* Login page styles - LaTeX-Dark */
-@import url('../latex/login.css');
-
-/* Override hardcoded light colors */
-label { color: var(--color-text-secondary); }
-.login-container { border: 1px solid rgba(255, 255, 255, 0.06); }
-
-
