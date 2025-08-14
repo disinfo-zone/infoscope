@@ -50,13 +50,66 @@ class FilterManager {
     // ESC key to close modals
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        if (document.getElementById('filter-modal')?.style.display === 'block') {
-          this.hideFilterModal();
-        }
-        if (document.getElementById('group-modal')?.style.display === 'block') {
-          this.hideGroupModal();
-        }
+        const filterModal = document.getElementById('filter-modal');
+        const groupModal = document.getElementById('group-modal');
+        if (filterModal?.classList.contains('show')) this.hideFilterModal();
+        if (groupModal?.classList.contains('show')) this.hideGroupModal();
       }
+    });
+
+    // Delegated click handling for all filter/group actions
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.getAttribute('data-action');
+      try {
+        switch (action) {
+          case 'edit-filter':
+            this.editFilter(btn.getAttribute('data-filter-id'));
+            break;
+          case 'delete-filter':
+            this.deleteFilter(btn.getAttribute('data-filter-id'));
+            break;
+          case 'edit-group':
+            this.editGroup(btn.getAttribute('data-group-id'));
+            break;
+          case 'delete-group':
+            this.deleteGroup(btn.getAttribute('data-group-id'));
+            break;
+          case 'toggle-group': {
+            const groupId = btn.getAttribute('data-group-id');
+            const isActive = btn.getAttribute('data-is-active') === 'true';
+            this.toggleGroup(groupId, isActive);
+            break;
+          }
+          case 'remove-filter-from-group': {
+            const groupId = btn.getAttribute('data-group-id');
+            const filterId = btn.getAttribute('data-filter-id');
+            this.removeFilterFromGroup(groupId, filterId);
+            break;
+          }
+        }
+      } catch (err) {
+        console.error('Action failed', action, err);
+      }
+    });
+
+    // Operator changes in group rules
+    document.addEventListener('change', (e) => {
+      const select = e.target.closest('.operator-select');
+      if (!select) return;
+      const groupId = select.getAttribute('data-group-id');
+      const filterId = select.getAttribute('data-filter-id');
+      this.updateRuleOperator(groupId, filterId, select.value);
+    });
+
+    // Delegated toggle for group expand/collapse without inline handlers
+    document.addEventListener('click', (e) => {
+      const header = e.target.closest('.filter-group-header');
+      if (!header) return;
+      if (e.target.closest('.group-actions')) return;
+      const groupEl = header.closest('.filter-group');
+      if (groupEl) groupEl.classList.toggle('expanded');
     });
   }
 
@@ -137,27 +190,27 @@ class FilterManager {
     
     return `
       <div class="filter-card" data-filter-id="${filter.id}">
-        <h4>
-          ${this.escapeHtml(filter.name)}
-          <div class="card-actions">
-            <button class="btn btn-small btn-outline" onclick="filterManager.editFilter(${filter.id})">Edit</button>
-            <button class="btn btn-small btn-danger" onclick="filterManager.deleteFilter(${filter.id})">Delete</button>
+        <div class="filter-header">
+          <h4 class="filter-name">${this.escapeHtml(filter.name)}</h4>
+          <div class="filter-actions">
+            <button class="btn btn-small btn-outline" data-action="edit-filter" data-filter-id="${filter.id}">Edit</button>
+            <button class="btn btn-small btn-danger" data-action="delete-filter" data-filter-id="${filter.id}">Delete</button>
           </div>
-        </h4>
-        <div class="filter-info">
-          <div class="info-row">
-            <span class="info-label">Target:</span>
+        </div>
+        <div class="filter-details">
+          <div class="detail-row">
+            <span class="detail-label">Target:</span>
             <span class="target-badge">${targetLabels[filter.target_type] || filter.target_type}</span>
           </div>
-          <div class="info-row">
-            <span class="info-label">Pattern:</span>
-            <span class="info-value">${this.escapeHtml(filter.pattern)}</span>
+          <div class="detail-row">
+            <span class="detail-label">Pattern:</span>
+            <code class="pattern-text">${this.escapeHtml(filter.pattern)}</code>
           </div>
-          <div class="info-row">
-            <span class="info-label">Type:</span>
-            <span class="pattern-badge ${filter.pattern_type}">${filter.pattern_type}</span>
+          <div class="detail-row">
+            <span class="detail-label">Type:</span>
+            <span class="type-badge ${filter.pattern_type}">${filter.pattern_type}</span>
+            ${filter.case_sensitive ? '<span class="case-badge">Case Sensitive</span>' : ''}
           </div>
-          ${filter.case_sensitive ? '<div class="info-row"><span class="info-label">Case Sensitive</span></div>' : ''}
         </div>
       </div>
     `;
@@ -190,13 +243,22 @@ class FilterManager {
     const rulesHtml = group.rules && group.rules.length > 0 
       ? `<div class="filter-list" data-group-id="${group.id}">
           ${group.rules.map((rule, index) => `
-            <div class="filter-item draggable-item" data-filter-id="${rule.id}" data-order="${index}">
-              <div class="filter-info">
-                <div class="filter-name">${this.escapeHtml(rule.name)}</div>
-                <div class="filter-details">${this.escapeHtml(rule.pattern)} (${rule.pattern_type})</div>
+            <div class="filter-rule draggable-item" data-filter-id="${rule.filter_id}" data-order="${index}">
+              <div class="rule-drag-handle" title="Drag to reorder">⋮⋮</div>
+              ${index > 0 ? `
+                <div class="rule-operator">
+                  <select class="operator-select" data-group-id="${group.id}" data-filter-id="${rule.filter_id}">
+                    <option value="AND" ${((rule.operator || 'AND') === 'AND') ? 'selected' : ''}>AND</option>
+                    <option value="OR" ${((rule.operator || 'AND') === 'OR') ? 'selected' : ''}>OR</option>
+                  </select>
+                </div>
+              ` : '<div class="rule-operator-spacer"></div>'}
+              <div class="rule-info">
+                <div class="rule-name">${this.escapeHtml(rule.filter?.name || '')}</div>
+                <div class="rule-pattern">${this.escapeHtml(rule.filter?.pattern || '')} <span class="rule-type">(${rule.filter?.pattern_type || ''})</span></div>
               </div>
-              <div class="filter-actions">
-                <button onclick="filterManager.removeFilterFromGroup(${group.id}, ${rule.id})" title="Remove from group">×</button>
+              <div class="rule-actions">
+                <button class="btn btn-small btn-outline" data-action="remove-filter-from-group" data-group-id="${group.id}" data-filter-id="${rule.filter_id}">Remove</button>
               </div>
             </div>
           `).join('')}
@@ -204,20 +266,21 @@ class FilterManager {
       : '<p class="no-filters">No filters in this group. Add filters to get started.</p>';
     
     return `
-      <div class="filter-group" data-group-id="${group.id}">
-        <div class="filter-group-header" onclick="this.parentElement.classList.toggle('expanded')">
-          <h4 class="filter-group-title">
+      <div class="filter-group expanded" data-group-id="${group.id}">
+        <div class="filter-group-header" data-role="group-header">
+          <div class="group-title-section">
             <span class="status-indicator ${statusClass}"></span>
-            ${this.escapeHtml(group.name)}
-          </h4>
-          <div class="filter-group-meta">
-            <span class="action-badge ${group.action}">${group.action}</span>
-            <span>Priority: ${group.priority}</span>
-            <span>${ruleCount} filters</span>
+            <h4 class="filter-group-title">${this.escapeHtml(group.name)}</h4>
+            <div class="group-meta">
+              <span class="action-badge ${group.action}">${group.action}</span>
+              <span class="priority-text">Priority: ${group.priority}</span>
+              <span class="filter-count">${ruleCount} filters</span>
+            </div>
           </div>
-          <div class="filter-group-actions" onclick="event.stopPropagation()">
-            <button onclick="filterManager.editGroup(${group.id})" title="Edit group">✎</button>
-            <button onclick="filterManager.deleteGroup(${group.id})" title="Delete group">🗑</button>
+          <div class="group-actions">
+            <button class="btn btn-small btn-outline" data-action="toggle-group" data-group-id="${group.id}" data-is-active="${group.is_active}">${group.is_active ? 'Disable' : 'Enable'}</button>
+            <button class="btn btn-small btn-outline" data-action="edit-group" data-group-id="${group.id}">Edit</button>
+            <button class="btn btn-small btn-danger" data-action="delete-group" data-group-id="${group.id}">Delete</button>
           </div>
         </div>
         <div class="filter-group-content">
@@ -233,12 +296,12 @@ class FilterManager {
 
     initializeDragDrop(filterList, {
       itemSelector: '.draggable-item',
-      handleSelector: '.drag-handle',
+      handleSelector: '.rule-drag-handle',
       onReorder: async (draggedElement, oldIndex, newIndex) => {
         try {
-          const filterIds = Array.from(filterList.children).map(item => 
-            parseInt(item.dataset.filterId)
-          );
+          const filterIds = Array.from(filterList.children)
+            .filter(el => el.classList.contains('draggable-item'))
+            .map(item => parseInt(item.dataset.filterId));
           
           await updateFilterOrder(groupId, filterIds);
           animateReorder(draggedElement);
@@ -471,14 +534,47 @@ class FilterManager {
     }
   }
 
+  async toggleGroup(groupId, currentStatus) {
+    try {
+      const res = await csrf.fetch(`/admin/filter-groups/${groupId}`, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      const group = data.data || data;
+      await csrf.fetch(`/admin/filter-groups/${groupId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: group.name,
+          action: group.action,
+          priority: group.priority,
+          apply_to_category: group.apply_to_category || '',
+          is_active: !currentStatus
+        })
+      });
+      this.showSuccess(`Group ${!currentStatus ? 'enabled' : 'disabled'} successfully`);
+      this.loadGroups();
+    } catch (error) {
+      console.error('Error toggling group:', error);
+      this.showError('Failed to toggle group');
+    }
+  }
+
   async removeFilterFromGroup(groupId, filterId) {
     if (!confirm('Remove this filter from the group?')) return;
-    
     try {
-      await csrf.fetch(`/admin/filter-groups/${groupId}/filters/${filterId}`, {
-        method: 'DELETE'
+      // Fetch current rules
+      const res = await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      const currentRules = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+      const newRules = currentRules
+        .filter(r => (r.filter_id || (r.filter && r.filter.id)) !== parseInt(filterId, 10))
+        .map((r, index) => ({
+          filter_id: r.filter_id || (r.filter && r.filter.id),
+          operator: r.operator || (index === 0 ? 'AND' : 'AND'),
+          position: index
+        }));
+      await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, {
+        method: 'PUT',
+        body: JSON.stringify({ rules: newRules })
       });
-      
       this.loadGroups();
       this.showSuccess('Filter removed from group');
     } catch (error) {
@@ -487,12 +583,45 @@ class FilterManager {
     }
   }
 
+  async updateRuleOperator(groupId, filterId, newOperator) {
+    try {
+      if (newOperator !== 'AND' && newOperator !== 'OR') throw new Error('Invalid operator');
+      const res = await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      const current = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+      const updated = current.map((r, index) => {
+        const id = r.filter_id || (r.filter && r.filter.id);
+        return {
+          filter_id: id,
+          operator: id === parseInt(filterId, 10) ? newOperator : (r.operator || (index === 0 ? 'AND' : 'AND')),
+          position: index
+        };
+      });
+      const put = await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, {
+        method: 'PUT',
+        body: JSON.stringify({ rules: updated })
+      });
+      if (!put.ok) throw new Error(await put.text());
+      this.showSuccess(`Operator set to ${newOperator}`);
+    } catch (error) {
+      console.error('Error updating operator:', error);
+      this.showError('Failed to update operator');
+    }
+  }
+
   async testFilter() {
+    const pattern = document.getElementById('test-pattern')?.value.trim();
     const testText = document.getElementById('test-text')?.value.trim();
     const targetType = document.getElementById('test-target')?.value;
+    const patternType = document.getElementById('test-pattern-type')?.value;
+    
+    if (!pattern) {
+      this.showError('Please enter a pattern to test');
+      return;
+    }
     
     if (!testText) {
-      this.showError('Please enter text to test');
+      this.showError('Please enter text to test against the pattern');
       return;
     }
     
@@ -500,8 +629,8 @@ class FilterManager {
       const response = await csrf.fetch('/admin/filter-test', {
         method: 'POST',
         body: JSON.stringify({
-          pattern: testText,
-          pattern_type: 'keyword',
+          pattern: pattern,
+          pattern_type: patternType,
           target_type: targetType,
           case_sensitive: false,
           test_text: testText

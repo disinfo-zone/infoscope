@@ -9,6 +9,362 @@ import { showNotification } from './ux-enhancements.js';
 
 function getEl(id) { return document.getElementById(id); }
 
+// Filters UI removed from Settings page
+
+async function editGroup(groupId) {
+  currentEditingGroupId = groupId;
+  try {
+    const res = await csrf.fetch(`/admin/filter-groups/${groupId}`, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    const group = result.data || result;
+
+    getEl('editGroupName').value = group.name || '';
+    getEl('editGroupAction').value = group.action || 'keep';
+    getEl('editGroupPriority').value = group.priority ?? 0;
+    getEl('editGroupCategory').value = group.apply_to_category || '';
+    getEl('editGroupActive').checked = !!group.is_active;
+    getEl('editGroupModalTitle').textContent = `Edit Filter Group: ${group.name}`;
+
+    await loadFiltersForAssignment(groupId);
+    getEl('editGroupModal')?.classList.add('show');
+  } catch (err) {
+    showNotification(`Error loading group: ${err.message}`, 'error');
+  }
+}
+
+async function addFiltersToGroup(groupId) {
+  currentEditingGroupId = groupId;
+  try {
+    const res = await csrf.fetch(`/admin/filter-groups/${groupId}`, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    const group = result.data || result;
+    getEl('editGroupModalTitle').textContent = `Add Filters to Group: ${group.name}`;
+    getEl('editGroupName').value = group.name || '';
+    getEl('editGroupAction').value = group.action || 'keep';
+    getEl('editGroupPriority').value = group.priority ?? 0;
+    getEl('editGroupActive').checked = !!group.is_active;
+    await loadFiltersForAssignment(groupId);
+    getEl('editGroupModal')?.classList.add('show');
+  } catch (err) {
+    showNotification(`Error loading group: ${err.message}`, 'error');
+  }
+}
+
+async function saveGroup() {
+  const name = getEl('modalGroupName')?.value.trim();
+  const action = getEl('modalGroupAction')?.value;
+  const priority = parseInt(getEl('modalGroupPriority')?.value || '0', 10) || 0;
+  const category = getEl('modalGroupCategory')?.value.trim() || '';
+  const isActive = !!getEl('modalGroupActive')?.checked;
+  if (!name) { showNotification('Please enter a group name', 'error'); return; }
+  try {
+    const res = await csrf.fetch('/admin/filter-groups', {
+      method: 'POST',
+      body: JSON.stringify({ name, action, priority, apply_to_category: category, is_active: isActive })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showNotification('Filter group created successfully', 'success');
+    getEl('createGroupModal')?.classList.remove('show');
+    location.assign(location.pathname);
+  } catch (err) {
+    showNotification(`Error creating group: ${err.message}`, 'error');
+  }
+}
+
+async function updateGroup() {
+  if (!currentEditingGroupId) return;
+  const name = getEl('editGroupName')?.value.trim();
+  const action = getEl('editGroupAction')?.value;
+  const priority = parseInt(getEl('editGroupPriority')?.value || '0', 10) || 0;
+  const category = getEl('editGroupCategory')?.value.trim() || '';
+  const isActive = !!getEl('editGroupActive')?.checked;
+  if (!name) { showNotification('Please enter a group name', 'error'); return; }
+
+  // Build rules from assigned list
+  const assigned = getEl('assignedFilters');
+  const items = assigned ? Array.from(assigned.querySelectorAll('.filter-assignment-item')) : [];
+  const rules = items.map((item, index) => ({
+    filter_id: parseInt(item.dataset.filterId, 10),
+    operator: index === 0 ? 'AND' : (item.querySelector('.assignment-operator')?.value || 'AND'),
+    position: index
+  }));
+
+  try {
+    const res = await csrf.fetch(`/admin/filter-groups/${currentEditingGroupId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, action, priority, apply_to_category: category, is_active: isActive })
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    const resRules = await csrf.fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`, {
+      method: 'PUT',
+      body: JSON.stringify({ rules })
+    });
+    if (!resRules.ok) throw new Error(await resRules.text());
+
+    showNotification('Filter group updated successfully', 'success');
+    getEl('editGroupModal')?.classList.remove('show');
+    currentEditingGroupId = null;
+    location.assign(location.pathname);
+  } catch (err) {
+    showNotification(`Error updating group: ${err.message}`, 'error');
+  }
+}
+
+async function deleteGroup(groupId) {
+  try {
+    const res = await csrf.fetch(`/admin/filter-groups/${groupId}`, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    const group = result.data || result;
+    const info = getEl('deleteGroupInfo');
+    if (info) {
+      info.innerHTML = `<h5>${group.name}</h5><div class="description">Action: <span class="action-badge ${group.action}">${group.action.toUpperCase()}</span> | Priority: <span class="priority-badge">P${group.priority}</span></div>`;
+    }
+    currentDeletingGroupId = groupId;
+    getEl('deleteGroupModal')?.classList.add('show');
+  } catch (err) {
+    showNotification(`Error loading group: ${err.message}`, 'error');
+  }
+}
+
+async function confirmDeleteGroup() {
+  if (!currentDeletingGroupId) { showNotification('No group selected for deletion', 'error'); return; }
+  try {
+    const res = await csrf.fetch(`/admin/filter-groups/${currentDeletingGroupId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    showNotification('Filter group deleted successfully', 'success');
+    getEl('deleteGroupModal')?.classList.remove('show');
+    currentDeletingGroupId = null;
+    location.assign(location.pathname);
+  } catch (err) {
+    showNotification(`Error deleting group: ${err.message}`, 'error');
+  }
+}
+
+async function loadFiltersForAssignment(groupId) {
+  try {
+    const [filtersRes, rulesRes] = await Promise.all([
+      csrf.fetch('/admin/filters', { headers: { 'Accept': 'application/json' } }),
+      csrf.fetch(`/admin/filter-groups/${groupId}/rules`, { headers: { 'Accept': 'application/json' } })
+    ]);
+    const filtersData = await filtersRes.json();
+    const rulesData = await rulesRes.json();
+    availableFilters = filtersData.data || filtersData || [];
+    const groupRules = rulesData.data || rulesData || [];
+
+    const assignedContainer = getEl('assignedFilters');
+    const availableContainer = getEl('availableFilters');
+    if (!assignedContainer || !availableContainer) return;
+    assignedContainer.innerHTML = '';
+    availableContainer.innerHTML = '';
+
+    const assignedIds = groupRules.map(r => r.filter_id || (r.filter && r.filter.id));
+
+    // Render assigned rules
+    groupRules.forEach((rule, index) => {
+      const filter = availableFilters.find(f => f.id === (rule.filter_id || (rule.filter && rule.filter.id)));
+      if (filter) assignedContainer.appendChild(createAssignmentItem(filter, true, rule.operator || (index === 0 ? 'AND' : 'AND'), index));
+    });
+
+    // Render available filters
+    availableFilters.forEach(filter => {
+      if (!assignedIds.includes(filter.id)) availableContainer.appendChild(createAssignmentItem(filter, false));
+    });
+
+    if (assignedContainer.children.length === 0) assignedContainer.innerHTML = '<div class="empty-state small">No filters assigned</div>';
+    if (availableContainer.children.length === 0) availableContainer.innerHTML = '<div class="empty-state small">No available filters</div>';
+  } catch (err) {
+    showNotification(`Error loading filters: ${err.message}`, 'error');
+  }
+}
+
+function createAssignmentItem(filter, isAssigned, operator = 'AND', position = 0) {
+  const item = document.createElement('div');
+  item.className = 'filter-assignment-item';
+  item.dataset.filterId = filter.id;
+  const operatorHTML = isAssigned && position > 0 ? `
+    <div class="logic-operator-section">
+      <select class="assignment-operator" data-filter-id="${filter.id}">
+        <option value="AND" ${operator === 'AND' ? 'selected' : ''}>AND</option>
+        <option value="OR" ${operator === 'OR' ? 'selected' : ''}>OR</option>
+      </select>
+    </div>
+  ` : '';
+  const actionsHTML = isAssigned
+    ? `<button class="assignment-btn" data-action="remove-filter-from-group" data-filter-id="${filter.id}">Remove</button>`
+    : `<button class="assignment-btn primary" data-action="add-filter-to-group" data-filter-id="${filter.id}" data-group-id="${currentEditingGroupId}">Add</button>`;
+  item.innerHTML = `
+    ${operatorHTML}
+    <div class="assignment-info">
+      <div class="assignment-name">${filter.name}</div>
+      <div class="assignment-pattern">${filter.pattern}</div>
+    </div>
+    <div class="assignment-actions">${actionsHTML}</div>
+  `;
+  return item;
+}
+
+async function addFilterToGroup(filterId, groupId) {
+  try {
+    const rulesRes = await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, { headers: { 'Accept': 'application/json' } });
+    const rulesData = await rulesRes.json();
+    const rulesArray = Array.isArray(rulesData.data) ? rulesData.data : (Array.isArray(rulesData) ? rulesData : []);
+    if (rulesArray.some(rule => (rule.filter_id || (rule.filter && rule.filter.id)) === parseInt(filterId, 10))) {
+      showNotification('Filter already assigned to this group', 'error');
+      return;
+    }
+    const newRules = [
+      ...rulesArray.map((rule, index) => ({
+        filter_id: rule.filter_id || (rule.filter && rule.filter.id),
+        operator: rule.operator || (index === 0 ? 'AND' : 'AND'),
+        position: index
+      })),
+      { filter_id: parseInt(filterId, 10), operator: rulesArray.length === 0 ? 'AND' : 'OR', position: rulesArray.length }
+    ];
+    const put = await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, { method: 'PUT', body: JSON.stringify({ rules: newRules }) });
+    if (!put.ok) throw new Error(await put.text());
+    showNotification('Filter added to group', 'success');
+    if (currentEditingGroupId) await loadFiltersForAssignment(currentEditingGroupId);
+  } catch (err) {
+    showNotification(`Error adding filter: ${err.message}`, 'error');
+  }
+}
+
+async function removeFilterFromGroup(filterId) {
+  if (!currentEditingGroupId) return;
+  try {
+    const rulesRes = await csrf.fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`, { headers: { 'Accept': 'application/json' } });
+    const rulesData = await rulesRes.json();
+    const rulesArray = Array.isArray(rulesData.data) ? rulesData.data : (Array.isArray(rulesData) ? rulesData : []);
+    const newRules = rulesArray
+      .filter(rule => (rule.filter_id || (rule.filter && rule.filter.id)) !== parseInt(filterId, 10))
+      .map((rule, index) => ({ filter_id: rule.filter_id || (rule.filter && rule.filter.id), operator: rule.operator || (index === 0 ? 'AND' : 'AND'), position: index }));
+    const put = await csrf.fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`, { method: 'PUT', body: JSON.stringify({ rules: newRules }) });
+    if (!put.ok) throw new Error(await put.text());
+    showNotification('Filter removed from group', 'success');
+    await loadFiltersForAssignment(currentEditingGroupId);
+  } catch (err) {
+    showNotification(`Error removing filter: ${err.message}`, 'error');
+  }
+}
+
+async function updateFilterOperator(filterId, newOperator) {
+  if (!currentEditingGroupId) return;
+  if (newOperator !== 'AND' && newOperator !== 'OR') { showNotification('Invalid operator', 'error'); return; }
+  try {
+    const rulesRes = await csrf.fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`, { headers: { 'Accept': 'application/json' } });
+    const rulesData = await rulesRes.json();
+    const rulesArray = Array.isArray(rulesData.data) ? rulesData.data : (Array.isArray(rulesData) ? rulesData : []);
+    const updated = rulesArray.map((rule, index) => ({
+      filter_id: rule.filter_id || (rule.filter && rule.filter.id),
+      operator: (rule.filter_id || (rule.filter && rule.filter.id)) === parseInt(filterId, 10) ? newOperator : (rule.operator || (index === 0 ? 'AND' : 'AND')),
+      position: index
+    }));
+    const put = await csrf.fetch(`/admin/filter-groups/${currentEditingGroupId}/rules`, { method: 'PUT', body: JSON.stringify({ rules: updated }) });
+    if (!put.ok) throw new Error(await put.text());
+    showNotification(`Operator updated to ${newOperator}`, 'success');
+  } catch (err) {
+    showNotification(`Error updating operator: ${err.message}`, 'error');
+  }
+}
+
+// ------- Filters: CRUD -------
+async function saveFilter() {
+  const name = getEl('modalFilterName')?.value.trim();
+  const pattern = getEl('modalFilterPattern')?.value.trim();
+  const pattern_type = getEl('modalFilterType')?.value || 'keyword';
+  const target_type = getEl('modalFilterTargetType')?.value || 'title';
+  const case_sensitive = !!getEl('modalFilterCaseSensitive')?.checked;
+  if (!name || !pattern) { showNotification('Please enter both name and pattern', 'error'); return; }
+  try {
+    const res = await csrf.fetch('/admin/filters', { method: 'POST', body: JSON.stringify({ name, pattern, pattern_type, target_type, case_sensitive }) });
+    if (!res.ok) throw new Error(await res.text());
+    showNotification('Filter created successfully', 'success');
+    getEl('createFilterModal')?.classList.remove('show');
+    location.assign(location.pathname);
+  } catch (err) {
+    showNotification(`Error creating filter: ${err.message}`, 'error');
+  }
+}
+
+async function editFilter(filterId) {
+  currentEditingFilterId = parseInt(filterId, 10);
+  try {
+    const res = await csrf.fetch(`/admin/filters/${filterId}`, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    const filter = result.data || result;
+    getEl('editFilterName').value = filter.name || '';
+    getEl('editFilterPattern').value = filter.pattern || '';
+    getEl('editFilterType').value = filter.pattern_type || 'keyword';
+    getEl('editFilterTargetType').value = filter.target_type || 'title';
+    getEl('editFilterCaseSensitive').checked = !!filter.case_sensitive;
+    getEl('editFilterModal')?.classList.add('show');
+  } catch (err) {
+    showNotification(`Error loading filter: ${err.message}`, 'error');
+  }
+}
+
+async function updateFilter() {
+  if (!currentEditingFilterId) { showNotification('No filter selected for editing', 'error'); return; }
+  const name = getEl('editFilterName')?.value.trim();
+  const pattern = getEl('editFilterPattern')?.value.trim();
+  const pattern_type = getEl('editFilterType')?.value || 'keyword';
+  const target_type = getEl('editFilterTargetType')?.value || 'title';
+  const case_sensitive = !!getEl('editFilterCaseSensitive')?.checked;
+  if (!name || !pattern) { showNotification('Please enter both name and pattern', 'error'); return; }
+  try {
+    const res = await csrf.fetch(`/admin/filters/${currentEditingFilterId}`, { method: 'PUT', body: JSON.stringify({ name, pattern, pattern_type, target_type, case_sensitive }) });
+    if (!res.ok) throw new Error(await res.text());
+    showNotification('Filter updated successfully', 'success');
+    getEl('editFilterModal')?.classList.remove('show');
+    currentEditingFilterId = null;
+    location.assign(location.pathname);
+  } catch (err) {
+    showNotification(`Error updating filter: ${err.message}`, 'error');
+  }
+}
+
+async function deleteFilter(filterId) {
+  try {
+    const res = await csrf.fetch(`/admin/filters/${filterId}`, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    const filter = result.data || result;
+    const info = getEl('deleteFilterInfo');
+    if (info) {
+      info.innerHTML = `
+        <h5>${filter.name}</h5>
+        <div class="pattern">${filter.pattern}</div>
+        <div class="filter-meta">
+          <span class="type-badge ${filter.pattern_type}">${(filter.pattern_type || '').toUpperCase()}</span>
+          ${filter.case_sensitive ? '<span class="feature-badge">Case Sensitive</span>' : ''}
+        </div>`;
+    }
+    currentDeletingFilterId = parseInt(filterId, 10);
+    getEl('deleteFilterModal')?.classList.add('show');
+  } catch (err) {
+    showNotification(`Error loading filter: ${err.message}`, 'error');
+  }
+}
+
+async function confirmDeleteFilter() {
+  if (!currentDeletingFilterId) { showNotification('No filter selected for deletion', 'error'); return; }
+  try {
+    const res = await csrf.fetch(`/admin/filters/${currentDeletingFilterId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    showNotification('Filter deleted successfully', 'success');
+    getEl('deleteFilterModal')?.classList.remove('show');
+    currentDeletingFilterId = null;
+    location.assign(location.pathname);
+  } catch (err) {
+    showNotification(`Error deleting filter: ${err.message}`, 'error');
+  }
+}
+
 function bindSettingsForm() {
   const form = getEl('settingsForm');
   if (!form) return;
@@ -255,56 +611,6 @@ document.addEventListener('DOMContentLoaded', () => {
   bindPasswordForm();
   bindImageInputs();
   bindBackup();
-
-  // Delegated actions to replace inline handlers
-  document.addEventListener('click', async (e) => {
-    const target = e.target.closest('[data-action]');
-    if (!target) return;
-    const action = target.getAttribute('data-action');
-
-    if (action === 'open-create-group-modal') {
-      e.preventDefault();
-      document.getElementById('createGroupModal')?.classList.add('show');
-    } else if (action === 'open-create-filter-modal') {
-      e.preventDefault();
-      document.getElementById('createFilterModal')?.classList.add('show');
-    } else if (action === 'close-modal') {
-      e.preventDefault();
-      const id = target.getAttribute('data-modal-id');
-      document.getElementById(id)?.classList.remove('show');
-    } else if (action === 'toggle-group') {
-      const groupId = target.getAttribute('data-group-id');
-      const isActive = target.getAttribute('data-is-active') === 'true';
-      await toggleGroup(groupId, isActive);
-    } else if (action === 'edit-group') {
-      const groupId = target.getAttribute('data-group-id');
-      await editGroup(groupId);
-    } else if (action === 'delete-group') {
-      const groupId = target.getAttribute('data-group-id');
-      await deleteGroup(groupId);
-    } else if (action === 'add-filters-to-group') {
-      const groupId = target.getAttribute('data-group-id');
-      await addFiltersToGroup(groupId);
-    } else if (action === 'edit-filter') {
-      const filterId = target.getAttribute('data-filter-id');
-      await editFilter(filterId);
-    } else if (action === 'delete-filter') {
-      const filterId = target.getAttribute('data-filter-id');
-      await deleteFilter(filterId);
-    } else if (action === 'save-group') {
-      await saveGroup();
-    } else if (action === 'save-filter') {
-      await saveFilter();
-    } else if (action === 'update-group') {
-      await updateGroup();
-    } else if (action === 'update-filter') {
-      await updateFilter();
-    } else if (action === 'confirm-delete-filter') {
-      await confirmDeleteFilter();
-    } else if (action === 'confirm-delete-group') {
-      await confirmDeleteGroup();
-    }
-  });
 
   // Close notifications
   document.addEventListener('click', (e) => {

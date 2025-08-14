@@ -194,16 +194,32 @@ export function animateReorder(element) {
  */
 export async function updateFilterOrder(groupId, filterIds) {
   try {
-    const response = await csrf.fetch(`/admin/filter-groups/${groupId}/reorder`, {
-      method: 'POST',
-      body: JSON.stringify({ filter_ids: filterIds })
+    // Get current rules to preserve operators
+    const res = await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, {
+      headers: { 'Accept': 'application/json' }
+    });
+    const data = await res.json();
+    const existingRules = Array.isArray(data.data) ? data.data : [];
+
+    const operatorByFilterId = {};
+    existingRules.forEach((r, idx) => {
+      const id = r.filter_id || (r.filter && r.filter.id);
+      operatorByFilterId[id] = r.operator || (idx === 0 ? 'AND' : 'AND');
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to update filter order: ${response.status}`);
-    }
+    const rules = filterIds.map((id, index) => ({
+      filter_id: id,
+      operator: index === 0 ? 'AND' : (operatorByFilterId[id] || 'AND'),
+      position: index,
+    }));
 
-    return await response.json();
+    // PUT updated ordered rules back to the server
+    const putRes = await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, {
+      method: 'PUT',
+      body: JSON.stringify({ rules })
+    });
+    if (!putRes.ok) throw new Error(`Failed to update order: ${putRes.status}`);
+    return await putRes.json();
   } catch (error) {
     console.error('Error updating filter order:', error);
     throw error;

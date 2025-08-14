@@ -1091,8 +1091,20 @@ func (s *Server) handleFiltersPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := r.Context().Value(contextKeyTemplateData)
-	if err := s.renderTemplate(w, r, "admin/filters.html", data); err != nil {
+	// Build proper admin page data so layout expects `.Data.Title` etc
+	settings, err := s.getSettings(r.Context())
+	if err != nil {
+		s.logger.Printf("Error getting settings for filters page: %v", err)
+		settings = make(map[string]string)
+	}
+	csrfToken := s.csrf.Token(w, r)
+	page := AdminPageData{
+		BaseTemplateData: BaseTemplateData{CSRFToken: csrfToken},
+		Title:            "Filters",
+		Active:           "filters",
+		Settings:         settings,
+	}
+	if err := s.renderTemplate(w, r, "admin/filters.html", page); err != nil {
 		s.logger.Printf("Error rendering filters page: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}

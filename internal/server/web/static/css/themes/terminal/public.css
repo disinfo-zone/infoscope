@@ -93,6 +93,9 @@ h1 {
   font-weight: var(--font-weight-bold);
   display: block;
   line-height: var(--line-height-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .link-container a:hover {
@@ -107,6 +110,7 @@ h1 {
   margin-top: 0.3rem;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  flex-basis: 100%;
 }
 
 /* Dots separator */
@@ -115,7 +119,6 @@ h1 {
   margin: 0 8px;
   overflow: hidden;
   white-space: nowrap;
-  flex-shrink: 0;
   min-width: 20px;
   line-height: var(--line-height-tight);
   align-self: baseline;
@@ -151,6 +154,7 @@ h1 {
 /* Mobile responsive design */
 @media (max-width: 600px) {
   .entry {
+    display: grid;
     grid-template-columns: auto 1fr;
     grid-template-rows: auto auto auto;
     gap: var(--spacing-sm);
