@@ -478,7 +478,7 @@ function bindSettingsForm() {
         const jsonKey = fieldMapping[key] || key;
         if (key === 'show_blog_name' || key === 'show_body_text') {
           settings[jsonKey] = true;
-        } else if (key === 'maxPosts' || key === 'updateInterval' || key === 'body_text_length') {
+        } else if (key === 'maxPosts' || key === 'updateInterval' || key === 'body_text_length' || key === 'backupIntervalHours' || key === 'backupRetentionDays') {
           settings[jsonKey] = parseInt(value, 10) || 0;
         } else {
           settings[jsonKey] = value;
@@ -487,6 +487,8 @@ function bindSettingsForm() {
 
       if (!formData.has('show_blog_name')) settings['showBlogName'] = false;
       if (!formData.has('show_body_text')) settings['showBodyText'] = false;
+      // Auto backup checkbox
+      settings['backupEnabled'] = !!formData.get('backupEnabled');
 
       // Uploaded file names override related fields
       if (imageFilename) settings.footerImageURL = imageFilename;
@@ -650,6 +652,111 @@ function bindBackup() {
         showNotification(`Import error: ${err.message}`, 'error');
       } finally {
         importInput.value = '';
+      }
+    });
+  }
+
+  // Server-side backup management
+  const listContainer = getEl('backupList');
+  async function refreshBackupList() {
+    if (!listContainer) return;
+    try {
+      const res = await fetch('/admin/backup/files', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const files = Array.isArray(data.files) ? data.files : [];
+      if (files.length === 0) { listContainer.innerHTML = '<div class="empty-state small">No backups found</div>'; return; }
+      listContainer.innerHTML = '';
+      files.forEach(f => {
+        const row = document.createElement('div');
+        row.className = 'backup-row';
+        const date = new Date(f.modified);
+        row.innerHTML = `
+          <div class="backup-name">${f.name}</div>
+          <div class="backup-meta">${date.toLocaleString()} • ${(f.size/1024).toFixed(1)} KB</div>
+          <div class="backup-actions-inline">
+            <button class="backup-button" data-restore-file="${f.name}">RESTORE</button>
+            <button class="backup-button" data-download-file="${f.name}">DOWNLOAD</button>
+            <button class="backup-button danger" data-delete-file="${f.name}">DELETE</button>
+          </div>`;
+        listContainer.appendChild(row);
+      });
+    } catch (_) { /* ignore */ }
+  }
+  refreshBackupList();
+
+  document.addEventListener('click', async (e) => {
+    const restoreBtn = e.target.closest('[data-restore-file]');
+    if (restoreBtn) {
+      const name = restoreBtn.getAttribute('data-restore-file');
+      if (!name) return;
+      if (!confirm(`Restore backup ${name}? This will replace current data.`)) return;
+      try {
+        const res = await csrf.fetch('/admin/backup/restore-file', { method: 'POST', body: JSON.stringify({ filename: name }) });
+        if (!res.ok) throw new Error(await res.text());
+        showNotification('Backup restored successfully', 'success');
+        location.assign(window.location.pathname + window.location.search);
+      } catch (err) {
+        showNotification(`Restore failed: ${err.message}`, 'error');
+      }
+    }
+    const downloadBtn = e.target.closest('[data-download-file]');
+    if (downloadBtn) {
+      const name = downloadBtn.getAttribute('data-download-file');
+      if (!name) return;
+      try {
+        const url = `/admin/backup/download?name=${encodeURIComponent(name)}`;
+        const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      } catch (err) {
+        showNotification(`Download failed: ${err.message}`, 'error');
+      }
+    }
+    const deleteBtn = e.target.closest('[data-delete-file]');
+    if (deleteBtn) {
+      const name = deleteBtn.getAttribute('data-delete-file');
+      if (!name) return;
+      // Styled caution modal
+      const modal = document.createElement('div');
+      modal.className = 'backup-confirm-modal';
+      modal.innerHTML = `
+        <div class="backup-confirm-content">
+          <h3>Confirm Delete</h3>
+          <p>Are you sure you want to delete <strong>${name}</strong>? This action cannot be undone.</p>
+          <div class="backup-confirm-actions">
+            <button type="button" class="btn btn-cancel">Cancel</button>
+            <button type="button" class="btn btn-danger">Delete</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      const closeModal = () => { if (modal && modal.parentNode) modal.parentNode.removeChild(modal); };
+      modal.addEventListener('click', (ev) => { if (ev.target === modal) closeModal(); });
+      modal.querySelector('.btn-cancel')?.addEventListener('click', closeModal);
+      modal.querySelector('.btn-danger')?.addEventListener('click', async () => {
+        try {
+          const res = await csrf.fetch('/admin/backup/delete', { method: 'POST', body: JSON.stringify({ filename: name }) });
+          if (!res.ok) throw new Error(await res.text());
+          showNotification('Backup deleted', 'success');
+          closeModal();
+          refreshBackupList();
+        } catch (err) {
+          showNotification(`Delete failed: ${err.message}`, 'error');
+        }
+      });
+    }
+  });
+
+  const createNow = getEl('createServerBackup');
+  if (createNow) {
+    createNow.addEventListener('click', async () => {
+      try {
+        const res = await csrf.fetch('/admin/backup/save', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const r = await res.json();
+        showNotification(`Backup created: ${r.filename}`, 'success');
+        refreshBackupList();
+      } catch (err) {
+        showNotification(`Create backup failed: ${err.message}`, 'error');
       }
     });
   }

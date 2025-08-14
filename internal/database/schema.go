@@ -338,7 +338,7 @@ func migrateFeedsTable(db *sql.DB) error {
 		{"error_count", "INTEGER", "0", true},
 		{"last_error", "TEXT", "NULL", true},
 		{"last_fetched", "TIMESTAMP", "NULL", true},
-		{"updated_at", "TIMESTAMP", "", false}, // No default value for 'updated_at'
+		{"updated_at", "TIMESTAMP", "", false},          // No default value for 'updated_at'
 		{"title_manually_edited", "BOOLEAN", "0", true}, // Track if title was manually edited
 	}
 
@@ -441,6 +441,14 @@ func insertDefaultSettings(db *sql.DB) error {
 		"show_blog_name":      "false",
 		"show_body_text":      "false",
 		"body_text_length":    "200",
+		// Themes
+		"theme":        "terminal",
+		"public_theme": "terminal",
+		"admin_theme":  "terminal",
+		// Auto-backup defaults
+		"backup_enabled":        "false",
+		"backup_interval_hours": "24",
+		"backup_retention_days": "30",
 	}
 
 	tx, err := db.Begin()
@@ -576,7 +584,7 @@ func migrateFilterTables(db *sql.DB) error {
 		BEGIN
 			UPDATE entry_filters SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 		END;`,
-		
+
 		`CREATE TRIGGER IF NOT EXISTS filter_groups_updated_at_trigger
 		AFTER UPDATE ON filter_groups
 		FOR EACH ROW
@@ -601,7 +609,7 @@ func migrateTaxonomyTables(db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("error checking category column: %w", err)
 	}
-	
+
 	if !exists {
 		_, err := db.Exec("ALTER TABLE feeds ADD COLUMN category TEXT")
 		if err != nil {

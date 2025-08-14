@@ -45,6 +45,7 @@ type Config struct {
 	DisableTemplateUpdates bool
 	WebPath                string
 	ProductionMode         bool
+	DataPath               string
 }
 
 type Server struct {
@@ -56,6 +57,7 @@ type Server struct {
 	csrf          *CSRF
 	config        Config
 	templateCache map[string]*template.Template
+	backupStop    chan struct{}
 }
 
 // securityHeaders wraps a handler to add standard security headers and a CSP
@@ -322,6 +324,9 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 		return nil, fmt.Errorf("error initializing click counts: %w", err)
 	}
 
+	// Start auto-backup scheduler
+	s.startAutoBackupLoop()
+
 	if !s.config.ProductionMode {
 		s.logger.Printf("Server initialized successfully")
 	}
@@ -381,6 +386,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/backup/", s.requireAuth(s.handleBackup))
 	mux.HandleFunc("/admin/backup/export", s.requireAuth(s.handleExport))
 	mux.HandleFunc("/admin/backup/import", s.requireAuth(s.handleImport))
+	// Auto-backup management endpoints
+	mux.HandleFunc("/admin/backup/files", s.requireAuth(s.handleBackupList))
+	mux.HandleFunc("/admin/backup/save", s.requireAuth(s.handleExportToDisk))
+	mux.HandleFunc("/admin/backup/restore-file", s.requireAuth(s.handleRestoreFromFile))
+	mux.HandleFunc("/admin/backup/download", s.requireAuth(s.handleBackupDownload))
+	mux.HandleFunc("/admin/backup/delete", s.requireAuth(s.handleDeleteBackupFile))
 	mux.HandleFunc("/admin/metrics", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/metrics/", s.requireAuth(s.handleMetrics))
 	mux.HandleFunc("/admin/change-password", s.requireAuth(s.handleChangePassword))

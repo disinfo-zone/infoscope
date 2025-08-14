@@ -1,4 +1,8 @@
 /* UX enhancements - LaTeX-Dark */
 @import url('../latex/ux-enhancements.css');
 
+/* Ensure dark-specific contrasts if needed */
+.notification { background: var(--color-bg-secondary); color: var(--color-text-primary); }
+.notification-close:hover { background: rgba(255,255,255,0.08); }
+
 

@@ -93,6 +93,10 @@ type Settings struct {
 	Theme             string `json:"theme"` // legacy single-theme field for backward compatibility
 	PublicTheme       string `json:"publicTheme"`
 	AdminTheme        string `json:"adminTheme"`
+	// Auto-backup configuration
+	BackupEnabled       bool `json:"backupEnabled"`
+	BackupIntervalHours int  `json:"backupIntervalHours"`
+	BackupRetentionDays int  `json:"backupRetentionDays"`
 }
 
 type Feed struct {

@@ -245,12 +245,37 @@
             
             <div class="setting-group backup-section">
                 <h3>BACKUP & RESTORE</h3>
+                <div class="form-row">
+                    <div>
+                        <label class="checkbox-label" for="backupEnabled">
+                            <input type="checkbox" id="backupEnabled" name="backupEnabled" {{ if eq (index .Data.Settings "backup_enabled") "true" }}checked{{ end }}>
+                            Enable Auto Backups
+                        </label>
+                        <div class="help-text">Automatically create backups on a schedule</div>
+                    </div>
+                    <div>
+                        <label for="backupIntervalHours">INTERVAL (HOURS)</label>
+                        <input type="number" id="backupIntervalHours" name="backupIntervalHours" value="{{ getSetting .Data.Settings "backup_interval_hours" "24" }}" min="1">
+                    </div>
+                    <div>
+                        <label for="backupRetentionDays">RETENTION (DAYS)</label>
+                        <input type="number" id="backupRetentionDays" name="backupRetentionDays" value="{{ getSetting .Data.Settings "backup_retention_days" "30" }}" min="1">
+                    </div>
+                </div>
                 <div class="backup-actions">
                     <button type="button" data-action="export-backup" class="backup-button export">EXPORT BACKUP</button>
                     <div class="import-container">
                         <input type="file" id="importFile" accept=".json" class="hidden">
                         <button type="button" data-action="trigger-import" class="backup-button import">IMPORT BACKUP</button>
                     </div>
+                </div>
+                <div class="setting-group">
+                    <label>AVAILABLE BACKUPS</label>
+                    <div id="backupList" class="backup-list"></div>
+                    <div class="help-text">Backups stored in the server's backup directory are listed here.</div>
+                </div>
+                <div class="backup-actions">
+                    <button type="button" id="createServerBackup" class="backup-button">CREATE SERVER BACKUP NOW</button>
                 </div>
                 <div id="backupStatus" class="backup-status"></div>
             </div>

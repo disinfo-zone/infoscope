@@ -39,6 +39,14 @@ input[type="text"], input[type="number"], input[type="url"], input[type="passwor
 .help-text { color: var(--color-text-muted); font-size: 0.9rem; }
 
 .status, .backup-status { margin-top: 1rem; padding: 0.75rem; border-radius: var(--border-radius-md); display: none; }
+/* Backup list and controls */
+.backup-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.backup-row { display: grid; grid-template-columns: 1fr auto auto; gap: 0.75rem; align-items: center; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--color-border); }
+.backup-name { font-family: var(--font-family-mono); font-size: 0.85rem; color: var(--color-text-primary); word-break: break-all; }
+.backup-meta { font-size: 0.85rem; color: var(--color-text-muted); }
+.backup-actions-inline { display: flex; gap: 0.5rem; }
+.backup-button.danger { border-color: var(--color-error); color: var(--color-error); }
+@media (max-width: 768px) { .backup-actions { grid-template-columns: 1fr; } }
 /* Ensure main submit button spans full width */
 .submit-button { width: 100%; display: block; }
 .status.success, .backup-status.success { display: block; background: rgba(var(--color-accent-primary-rgb), 0.08); color: var(--color-accent-primary); border: 1px solid var(--color-accent-primary); }
@@ -55,6 +63,14 @@ input[type="text"], input[type="number"], input[type="url"], input[type="passwor
 @media (max-width: 768px) {
   .backup-actions { grid-template-columns: 1fr; }
 }
+
+/* Modal styles for backup delete confirmation */
+.backup-confirm-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); z-index: 10001; }
+.backup-confirm-content { background: #1c1c1c; color: #f0f0f0; border: 1px solid var(--color-border); border-radius: var(--border-radius-md); padding: 1.5rem; max-width: 420px; width: calc(100% - 2rem); }
+.backup-confirm-content h3 { margin-top: 0; margin-bottom: 0.75rem; color: var(--color-error); font-size: 1.1rem; }
+.backup-confirm-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem; }
+.backup-confirm-actions .btn { padding: 0.5rem 0.9rem; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-secondary); color: var(--color-text-primary); cursor: pointer; }
+.backup-confirm-actions .btn-danger { background: var(--color-error); color: #fff; border-color: var(--color-error); }
 
 /* Modals injected by settings inline JS - class-based styling */
 .import-results-modal, .confirm-import-modal {
