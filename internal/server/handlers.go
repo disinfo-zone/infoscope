@@ -531,7 +531,12 @@ func (s *Server) handleFeedValidation(w http.ResponseWriter, r *http.Request) {
 	validationResult, err := feed.ValidateFeedURL(req.URL)
 	if err != nil {
 		s.logger.Printf("Feed validation failed for %s: %v", req.URL, err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		// Return JSON error for consistent frontend handling
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"message": err.Error(),
+		})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

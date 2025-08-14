@@ -27,6 +27,11 @@ type FeedValidationResult struct {
 	ItemCount   int    `json:"itemCount"`
 	LastUpdated string `json:"lastUpdated,omitempty"`
 	FeedType    string `json:"feedType,omitempty"` // RSS, Atom, etc.
+	// Sample of the most recent item for preview in UI
+	SampleItemTitle     string `json:"sampleItemTitle,omitempty"`
+	SampleItemURL       string `json:"sampleItemURL,omitempty"`
+	SampleItemPublished string `json:"sampleItemPublished,omitempty"`
+	SampleItemContent   string `json:"sampleItemContent,omitempty"`
 }
 
 func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
@@ -113,6 +118,29 @@ func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
 		result.LastUpdated = feed.UpdatedParsed.Format("January 2, 2006")
 	} else if len(feed.Items) > 0 && feed.Items[0].PublishedParsed != nil {
 		result.LastUpdated = feed.Items[0].PublishedParsed.Format("January 2, 2006")
+	}
+
+	// Include a sample of the newest item for UI preview
+	if len(feed.Items) > 0 {
+		item := feed.Items[0]
+		result.SampleItemTitle = item.Title
+		result.SampleItemURL = item.Link
+		if item.PublishedParsed != nil {
+			result.SampleItemPublished = item.PublishedParsed.Format(time.RFC1123Z)
+		}
+		// Prefer Content, fall back to Description
+		sampleBody := item.Content
+		if sampleBody == "" {
+			sampleBody = item.Description
+		}
+		// Trim excessive whitespace and shorten overly long previews
+		if sampleBody != "" {
+			// Basic whitespace normalization
+			if len(sampleBody) > 2000 {
+				sampleBody = sampleBody[:2000]
+			}
+			result.SampleItemContent = sampleBody
+		}
 	}
 
 	return result, nil

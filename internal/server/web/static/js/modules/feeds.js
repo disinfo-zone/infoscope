@@ -42,9 +42,12 @@ class FeedsManager {
       if (feedUrlInput) {
         feedUrlInput.addEventListener('input', (e) => {
           const submitButton = document.getElementById('submitButton');
+          const url = e.target.value.trim();
           if (submitButton) {
-            submitButton.disabled = !e.target.value.trim();
+            submitButton.disabled = !url;
           }
+          // Debounced validation and preview rendering
+          this.scheduleFeedValidation(url);
         });
       }
     }
@@ -119,6 +122,120 @@ class FeedsManager {
         }
       });
     }
+  }
+
+  scheduleFeedValidation(url) {
+    const previewElement = document.getElementById('feedPreview');
+    const errorElement = document.getElementById('feedError');
+    const inputWrapper = document.querySelector('.input-wrapper');
+
+    // Reset prior state quickly
+    this.clearError(errorElement);
+    if (previewElement) {
+      previewElement.innerHTML = '';
+      previewElement.classList.remove('show');
+    }
+
+    // Basic guard: only attempt validation for plausible URLs
+    if (!url || !/^https?:\/\//i.test(url)) {
+      if (inputWrapper) inputWrapper.classList.remove('loading');
+      return;
+    }
+
+    if (this.validateTimeout) clearTimeout(this.validateTimeout);
+    if (inputWrapper) inputWrapper.classList.add('loading');
+    this.validateTimeout = setTimeout(() => this.validateFeed(url), 500);
+  }
+
+  async validateFeed(url) {
+    const previewElement = document.getElementById('feedPreview');
+    const errorElement = document.getElementById('feedError');
+    const inputWrapper = document.querySelector('.input-wrapper');
+
+    try {
+      const response = await fetch('/admin/feeds/validate', {
+        method: 'POST',
+        headers: csrf.getHeaders(),
+        credentials: 'same-origin',
+        body: JSON.stringify({ url })
+      });
+      if (!response.ok) {
+        let message = 'Validation failed';
+        try {
+          const errData = await response.json();
+          message = errData.message || message;
+        } catch (_) {
+          const text = await response.text();
+          message = text || message;
+        }
+        throw new Error(message);
+      }
+      const data = await response.json();
+      this.renderValidationPreview(data);
+      this.clearError(errorElement);
+      if (previewElement) previewElement.classList.add('show');
+    } catch (err) {
+      const message = err && err.message ? err.message : 'Validation failed';
+      this.showError(message, errorElement);
+      if (previewElement) {
+        previewElement.innerHTML = '';
+        previewElement.classList.remove('show');
+      }
+    } finally {
+      if (inputWrapper) inputWrapper.classList.remove('loading');
+    }
+  }
+
+  renderValidationPreview(data) {
+    const previewElement = document.getElementById('feedPreview');
+    if (!previewElement || !data) return;
+
+    const feedTitle = this.escapeHtml(data.title || '');
+    const feedDesc = this.escapeHtml(data.description || '');
+    const itemTitle = this.escapeHtml(data.sampleItemTitle || '');
+    const itemDate = this.escapeHtml(data.sampleItemPublished || '');
+    const bodyText = this.truncateText(this.stripHTML(data.sampleItemContent || ''), 300);
+
+    const parts = [];
+    if (feedTitle) {
+      parts.push(`<div class="preview-feed-title"><strong>${feedTitle}</strong></div>`);
+    }
+    if (feedDesc) {
+      parts.push(`<div class="preview-feed-desc text-muted">${feedDesc}</div>`);
+    }
+    if (itemTitle || bodyText) {
+      parts.push('<hr class="preview-sep" />');
+      parts.push('<div class="preview-latest-label text-muted">Latest item</div>');
+      if (itemTitle) {
+        parts.push(`<div class="preview-item-title">${itemTitle}${itemDate ? ` <span class="text-muted">(${itemDate})</span>` : ''}</div>`);
+      }
+      if (bodyText) {
+        parts.push(`<div class="preview-item-body">${this.escapeHtml(bodyText)}</div>`);
+      }
+    }
+
+    if (parts.length === 0) {
+      previewElement.innerHTML = '<div class="text-muted">No preview available for this feed</div>';
+    } else {
+      previewElement.innerHTML = parts.join('');
+    }
+  }
+
+  stripHTML(html) {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const text = tmp.textContent || tmp.innerText || '';
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
+  truncateText(text, max) {
+    if (!text) return '';
+    if (!max || text.length <= max) return text;
+    const slice = text.slice(0, max);
+    const lastSpace = slice.lastIndexOf(' ');
+    const safe = lastSpace > max * 0.6 ? slice.slice(0, lastSpace) : slice;
+    return `${safe}...`;
   }
 
   async handleAddFeed(e) {
