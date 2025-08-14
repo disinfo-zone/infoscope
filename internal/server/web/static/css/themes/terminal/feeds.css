@@ -261,6 +261,13 @@ td {
     min-width: auto;
   }
 
+  /* Ensure actions column remains visible on mobile */
+  th.action-column,
+  td.action-column,
+  .action-column {
+    display: table-cell !important;
+  }
+
   /* Hide less important columns on mobile */
   .date-column,
   th:nth-child(5) {
@@ -310,6 +317,13 @@ td {
       font-size: var(--font-size-tiny);
     }
 
+    /* In block layout, keep actions visible and stacked */
+    th.action-column,
+    td.action-column,
+    .action-column {
+      display: block !important;
+    }
+
     .url-column {
       max-width: none;
     }
@@ -317,6 +331,11 @@ td {
     .feed-url {
       font-size: var(--font-size-tiny);
       word-break: break-all;
+    }
+
+    /* Make edit button full-width for narrow screens */
+    .edit-button {
+      width: 100%;
     }
   }
 }
