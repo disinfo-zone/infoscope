@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ .CSRFToken }}">
     <link rel="icon" type="image/x-icon" href="/static/images/favicon/default.ico">
-    <link rel="stylesheet" href="{{ themeCSS (index .Data "Settings") "variables.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSAdmin (index .Data "Settings") "variables.css" }}">
     <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="{{ themeCSS (index .Data "Settings") "login.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSAdmin (index .Data "Settings") "login.css" }}">
 </head>
 <body>
     <div class="setup-container">

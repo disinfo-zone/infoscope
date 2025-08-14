@@ -113,14 +113,24 @@
                 </div>
             </div>
             <div class="setting-group">
-                <label for="theme">THEME</label>
-                <select id="theme" name="theme">
-                    {{ $currentTheme := getSetting .Data.Settings "theme" "terminal" }}
-                    <option value="terminal" {{ if eq $currentTheme "terminal" }}selected{{ end }}>Terminal</option>
-                    <option value="latex" {{ if eq $currentTheme "latex" }}selected{{ end }}>LaTeX</option>
-                    <option value="latex-dark" {{ if eq $currentTheme "latex-dark" }}selected{{ end }}>LaTeX-Dark</option>
+                <label for="publicTheme">PUBLIC THEME</label>
+                <select id="publicTheme" name="publicTheme">
+                    {{ $publicTheme := getSetting .Data.Settings "public_theme" (getSetting .Data.Settings "theme" "terminal") }}
+                    <option value="terminal" {{ if eq $publicTheme "terminal" }}selected{{ end }}>Terminal</option>
+                    <option value="latex" {{ if eq $publicTheme "latex" }}selected{{ end }}>LaTeX</option>
+                    <option value="latex-dark" {{ if eq $publicTheme "latex-dark" }}selected{{ end }}>LaTeX-Dark</option>
                 </select>
-                <div class="help-text">Choose the visual theme for the UI.</div>
+                <div class="help-text">Choose the visual theme for the public index.</div>
+            </div>
+            <div class="setting-group">
+                <label for="adminTheme">ADMIN THEME</label>
+                <select id="adminTheme" name="adminTheme">
+                    {{ $adminTheme := getSetting .Data.Settings "admin_theme" (getSetting .Data.Settings "theme" "terminal") }}
+                    <option value="terminal" {{ if eq $adminTheme "terminal" }}selected{{ end }}>Terminal</option>
+                    <option value="latex" {{ if eq $adminTheme "latex" }}selected{{ end }}>LaTeX</option>
+                    <option value="latex-dark" {{ if eq $adminTheme "latex-dark" }}selected{{ end }}>LaTeX-Dark</option>
+                </select>
+                <div class="help-text">Choose the visual theme for the admin backend.</div>
             </div>
             <div class="setting-group">
                 <label for="timezone">TIMEZONE</label>
@@ -272,7 +282,7 @@
 </div>
 {{ end }}
 {{ define "styles" }}
-<link rel="stylesheet" href="{{ themeCSS .Data.Settings "settings.css" }}">
+<link rel="stylesheet" href="{{ themeCSSAdmin .Data.Settings "settings.css" }}">
 {{ end }}
 {{ define "scripts" }}
 <script type="module" src="/static/js/modules/settings.js"></script>

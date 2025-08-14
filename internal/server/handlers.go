@@ -239,10 +239,13 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"timezone":            {settings.Timezone, "string"},
 		"meta_description":    {settings.MetaDescription, "string"},
 		"meta_image_url":      {settings.MetaImageURL, "string"},
-		"theme":               {settings.Theme, "string"},
-		"show_blog_name":      {strconv.FormatBool(settings.ShowBlogName), "bool"},
-		"show_body_text":      {strconv.FormatBool(settings.ShowBodyText), "bool"},
-		"body_text_length":    {strconv.Itoa(settings.BodyTextLength), "int"},
+		// Theme settings: maintain legacy "theme" for compatibility; prefer new keys
+		"theme":            {settings.Theme, "string"},
+		"public_theme":     {settings.PublicTheme, "string"},
+		"admin_theme":      {settings.AdminTheme, "string"},
+		"show_blog_name":   {strconv.FormatBool(settings.ShowBlogName), "bool"},
+		"show_body_text":   {strconv.FormatBool(settings.ShowBodyText), "bool"},
+		"body_text_length": {strconv.Itoa(settings.BodyTextLength), "int"},
 	}
 
 	for key, setting := range updates {

@@ -9,10 +9,10 @@
     <link rel="icon" type="image/x-icon" href="/static/images/{{ index .Data.Settings "favicon_url" }}">
     
     <!-- External CSS -->
-    <link rel="stylesheet" href="{{ themeCSS .Data.Settings "variables.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSAdmin .Data.Settings "variables.css" }}">
     <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="{{ themeCSS .Data.Settings "admin.css" }}">
-    <link rel="stylesheet" href="{{ themeCSS .Data.Settings "ux-enhancements.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSAdmin .Data.Settings "admin.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSAdmin .Data.Settings "ux-enhancements.css" }}">
     {{ block "styles" . }}{{ end }}
     <!-- External JavaScript -->
     <script type="module" src="/static/js/modules/admin.js"></script>

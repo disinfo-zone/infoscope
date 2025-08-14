@@ -118,6 +118,29 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 		return name
 	}
 
+	// Helper that resolves a theme using a specific settings key, falling back to legacy "theme"
+	sanitizeThemeForKey := func(settings map[string]string, key string) string {
+		// Prefer the specific key
+		name := strings.TrimSpace(settings[key])
+		if name == "" {
+			// Fallback to legacy single theme
+			name = strings.TrimSpace(settings["theme"])
+		}
+		if name == "" {
+			name = "terminal"
+		}
+		name = strings.ToLower(name)
+		allowed := regexp.MustCompile(`^[a-z0-9_-]+$`)
+		if !allowed.MatchString(name) {
+			name = "terminal"
+		}
+		themeDir := filepath.Join(s.config.WebPath, "static", "css", "themes", name)
+		if fi, err := os.Stat(themeDir); err != nil || !fi.IsDir() {
+			return "terminal"
+		}
+		return name
+	}
+
 	return template.FuncMap{
 		"formatTimeInZone": func(tz string, t time.Time) string {
 			loc, err := time.LoadLocation(tz)
@@ -153,6 +176,21 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 		// themeCSS builds a theme-aware CSS path, e.g., /static/css/themes/<theme>/<file>
 		"themeCSS": func(settings map[string]string, file string) string {
 			return "/static/css/themes/" + sanitizeTheme(settings) + "/" + strings.TrimPrefix(file, "/")
+		},
+		// themeNameFor resolves theme using a specific settings key with fallback to legacy "theme"
+		"themeNameFor": func(settings map[string]string, key string) string {
+			return sanitizeThemeForKey(settings, key)
+		},
+		// themeCSSFor builds a CSS path using a specific theme key (e.g., "public_theme" or "admin_theme")
+		"themeCSSFor": func(settings map[string]string, key string, file string) string {
+			return "/static/css/themes/" + sanitizeThemeForKey(settings, key) + "/" + strings.TrimPrefix(file, "/")
+		},
+		// Convenience wrappers
+		"themeCSSPublic": func(settings map[string]string, file string) string {
+			return "/static/css/themes/" + sanitizeThemeForKey(settings, "public_theme") + "/" + strings.TrimPrefix(file, "/")
+		},
+		"themeCSSAdmin": func(settings map[string]string, file string) string {
+			return "/static/css/themes/" + sanitizeThemeForKey(settings, "admin_theme") + "/" + strings.TrimPrefix(file, "/")
 		},
 	}
 }

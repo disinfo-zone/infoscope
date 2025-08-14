@@ -494,7 +494,8 @@ function bindSettingsForm() {
       if (metaImageFilename) settings.metaImageURL = metaImageFilename;
 
       // Determine if theme changed
-      const selectedThemeForm = (formData.get('theme') || '').toString().trim().toLowerCase();
+      const selectedPublicTheme = (formData.get('publicTheme') || '').toString().trim().toLowerCase();
+      const selectedAdminTheme = (formData.get('adminTheme') || '').toString().trim().toLowerCase();
 
       // Save settings
       const saveRes = await csrf.fetch('/admin/settings', {
@@ -502,7 +503,8 @@ function bindSettingsForm() {
         body: JSON.stringify(settings)
       });
       if (!saveRes.ok) throw new Error(await saveRes.text());
-      if (selectedThemeForm && currentTheme && selectedThemeForm !== currentTheme) {
+      // If admin theme changed, reload to apply new admin stylesheets
+      if (selectedAdminTheme && currentTheme && selectedAdminTheme !== currentTheme) {
         // Reload to apply new theme stylesheets
         location.assign(window.location.pathname + window.location.search);
         return;

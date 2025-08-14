@@ -90,7 +90,9 @@ type Settings struct {
 	ShowBlogName      bool   `json:"showBlogName"`
 	ShowBodyText      bool   `json:"showBodyText"`
 	BodyTextLength    int    `json:"bodyTextLength"`
-	Theme             string `json:"theme"`
+	Theme             string `json:"theme"` // legacy single-theme field for backward compatibility
+	PublicTheme       string `json:"publicTheme"`
+	AdminTheme        string `json:"adminTheme"`
 }
 
 type Feed struct {

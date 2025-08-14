@@ -32,10 +32,10 @@
     <link rel="alternate" type="application/rss+xml" title="{{ .Data.Title }} Feed" href="/rss.xml" />
     
     <!-- External CSS -->
-    <link rel="stylesheet" href="{{ themeCSS .Data.Settings "variables.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "variables.css" }}">
     <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="{{ themeCSS .Data.Settings "public.css" }}">
-    <link rel="stylesheet" href="{{ themeCSS .Data.Settings "ux-enhancements.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "public.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "ux-enhancements.css" }}">
     
     <!-- Preload critical favicons for faster loading -->
     {{ range $index, $entry := .Data.Entries }}
