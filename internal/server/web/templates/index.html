@@ -60,7 +60,7 @@
             <div class="link-container">
                 <div class="title-row">
                     <a href="{{ .URL }}" data-entry-id="{{ .ID }}" target="_blank" rel="noopener noreferrer" class="tracked-link">
-                        {{ if and .FeedTitle (eq (index $.Data.Settings "show_blog_name") "true") }}{{ .FeedTitle | html }}: {{ end }}{{ .Title | html }}
+                        {{ if and .FeedTitle (eq (index $.Data.Settings "show_blog_name") "true") }}<span class="blog-title">{{ .FeedTitle | html }}:</span> {{ end }}<span class="post-title">{{ .Title | html }}</span>
                     </a>
                     <span class="dots" aria-hidden="true"></span>
                     <span class="date">{{ .Date }}</span>
