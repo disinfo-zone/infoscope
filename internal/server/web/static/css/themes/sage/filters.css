@@ -688,6 +688,7 @@
 .form-row {
   display: flex;
   gap: var(--spacing-md);
+  padding: 0 var(--spacing-lg);
 }
 
 .form-row .form-group {

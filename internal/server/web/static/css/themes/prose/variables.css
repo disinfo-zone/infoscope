@@ -1,0 +1,271 @@
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap');
+
+/* Prose Theme CSS Variables - Elegant Typography & Readability Focus */
+:root {
+  /* System preference detection */
+  color-scheme: light dark;
+  
+  /* Typography - Elegant serif for headers, clean sans for UI */
+  --font-family-primary: 'Crimson Text', Georgia, 'Times New Roman', serif;
+  --font-family-secondary: 'Inter', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-family-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  
+  --font-size-base: 17px;
+  --font-size-large: 2.5rem;
+  --font-size-medium: 1.25rem;
+  --font-size-small: 0.9rem;
+  --font-size-tiny: 0.8rem;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-base: 1.65;
+  --line-height-tight: 1.2;
+  --line-height-relaxed: 1.8;
+  
+  /* Spacing - Generous, book-like spacing */
+  --spacing-xs: 0.375rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-xxl: 3rem;
+  
+  /* Layout - Comfortable reading dimensions */
+  --max-width-content: 880px;
+  --max-width-form: 520px;
+  --sidebar-width: 280px;
+  --border-radius-sm: 3px;
+  --border-radius-md: 6px;
+  --border-radius-lg: 12px;
+  
+  /* Animation - Smooth and refined */
+  --transition-fast: 0.1s;
+  --transition-normal: 0.2s;
+  --transition-slow: 0.4s;
+  --transition-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --transition-theme: color 0.3s var(--transition-ease), 
+                      background-color 0.3s var(--transition-ease),
+                      border-color 0.3s var(--transition-ease),
+                      box-shadow 0.3s var(--transition-ease),
+                      transform 0.2s var(--transition-ease);
+  
+  /* Shadows - Soft, paper-like depth */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-paper: 0 2px 8px rgba(0, 0, 0, 0.06);
+  
+  /* Z-index layers */
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-modal: 999;
+  --z-sidebar: 1000;
+  --z-menu-toggle: 1001;
+  
+  /* Grid and flex values */
+  --grid-gap-sm: 8px;
+  --grid-gap-md: 16px;
+  --flex-gap-sm: 0.75rem;
+  --flex-gap-md: 1.25rem;
+  
+  /* Opacity values */
+  --opacity-disabled: 0.5;
+  --opacity-hover: 0.75;
+  --opacity-focus: 0.1;
+}
+
+/* Light mode - Warm, paper-inspired palette */
+:root {
+  /* Light mode colors - warm, readable palette inspired by fine books */
+  --color-bg-primary: #fefcf7;
+  --color-bg-secondary: #f8f5f0;
+  --color-bg-tertiary: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-text-primary: #2c3e50;
+  --color-text-secondary: #34495e;
+  --color-text-muted: #5d6d7e;
+  --color-text-faded: #85929e;
+  --color-text-dots: #bdc3c7;
+  --color-accent-primary: #d35400;
+  --color-accent-hover: #e67e22;
+  --color-accent-secondary: #8e44ad;
+  --color-border: #ecf0f1;
+  --color-border-focus: #d35400;
+  --color-error: #c0392b;
+  --color-success: #27ae60;
+  --color-warning: #f39c12;
+  --color-info: #3498db;
+  
+  /* Light mode specific shadows */
+  --shadow-sm: 0 2px 4px rgba(44, 62, 80, 0.04);
+  --shadow-md: 0 4px 12px rgba(44, 62, 80, 0.08);
+  --shadow-lg: 0 8px 32px rgba(44, 62, 80, 0.12);
+  --shadow-entry: 0 1px 3px rgba(44, 62, 80, 0.05);
+  --shadow-entry-hover: 0 4px 16px rgba(44, 62, 80, 0.1);
+  --shadow-paper: 0 2px 8px rgba(44, 62, 80, 0.06);
+  
+  /* Visual alignment for leader dots */
+  --dots-offset-y: calc(100% - 1px);
+}
+
+/* Dark mode - Deep, sophisticated navy with warm golden accents */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* Dark mode colors - sophisticated navy with warm accents */
+    --color-bg-primary: #0f1419;
+    --color-bg-secondary: #1a1f26;
+    --color-bg-tertiary: 171d22;
+    --color-bg-card: #111315;
+    --color-text-primary: #e8e3d3;
+    --color-text-secondary: #d4cfc0;
+    --color-text-muted: #a09888;
+    --color-text-faded: #6b6555;
+    --color-text-dots: #3d3a33;
+    --color-accent-primary: #f39c12;
+    --color-accent-hover: #f4d03f;
+    --color-accent-secondary: #bb8fce;
+    --color-border: #2c323a;
+    --color-border-focus: #f39c12;
+    --color-error: #ec7063;
+    --color-success: #58d68d;
+    --color-warning: #f4d03f;
+    --color-info: #5dade2;
+    
+    /* Dark mode specific shadows */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-entry: 0 1px 3px rgba(0, 0, 0, 0.15);
+    --shadow-entry-hover: 0 4px 16px rgba(0, 0, 0, 0.25);
+    --shadow-paper: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* Manual dark mode override */
+:root[data-theme="dark"] {
+  /* Dark mode colors - sophisticated navy with warm accents */
+    --color-bg-primary: #0f1419;
+    --color-bg-secondary: #1a1f26;
+    --color-bg-tertiary: 171d22;
+    --color-bg-card: #111315;
+    --color-text-primary: #e8e3d3;
+    --color-text-secondary: #d4cfc0;
+    --color-text-muted: #a09888;
+    --color-text-faded: #6b6555;
+    --color-text-dots: #3d3a33;
+    --color-accent-primary: #f39c12;
+    --color-accent-hover: #f4d03f;
+    --color-accent-secondary: #bb8fce;
+    --color-border: #2c323a;
+    --color-border-focus: #f39c12;
+    --color-error: #ec7063;
+    --color-success: #58d68d;
+    --color-warning: #f4d03f;
+    --color-info: #5dade2;
+  
+  /* Dark mode specific shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-entry: 0 1px 3px rgba(0, 0, 0, 0.15);
+  --shadow-entry-hover: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-paper: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Manual light mode override */
+:root[data-theme="light"] {
+  /* Light mode colors - warm, readable palette inspired by fine books */
+  --color-bg-primary: #fefcf7;
+  --color-bg-secondary: #f8f5f0;
+  --color-bg-tertiary: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-text-primary: #2c3e50;
+  --color-text-secondary: #34495e;
+  --color-text-muted: #5d6d7e;
+  --color-text-faded: #85929e;
+  --color-text-dots: #bdc3c7;
+  --color-accent-primary: #d35400;
+  --color-accent-hover: #e67e22;
+  --color-accent-secondary: #8e44ad;
+  --color-border: #ecf0f1;
+  --color-border-focus: #d35400;
+  --color-error: #c0392b;
+  --color-success: #27ae60;
+  --color-warning: #f39c12;
+  --color-info: #3498db;
+  
+  /* Light mode specific shadows */
+  --shadow-sm: 0 2px 4px rgba(44, 62, 80, 0.04);
+  --shadow-md: 0 4px 12px rgba(44, 62, 80, 0.08);
+  --shadow-lg: 0 8px 32px rgba(44, 62, 80, 0.12);
+  --shadow-entry: 0 1px 3px rgba(44, 62, 80, 0.05);
+  --shadow-entry-hover: 0 4px 16px rgba(44, 62, 80, 0.1);
+  --shadow-paper: 0 2px 8px rgba(44, 62, 80, 0.06);
+}
+
+/* Enhanced accessibility and visual polish */
+:root {
+  /* Focus ring for accessibility */
+  --focus-ring: 0 0 0 3px rgba(211, 84, 0, 0.2);
+  --focus-ring-dark: 0 0 0 3px rgba(243, 156, 18, 0.2);
+  
+  /* Hover animations */
+  --hover-lift: translateY(-2px);
+  --hover-scale: scale(1.02);
+  
+  /* Custom gradients for visual interest */
+  --gradient-warm: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+  --gradient-cool: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  --gradient-dark: linear-gradient(135deg, #1a1f26 0%, #252b33 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --focus-ring: var(--focus-ring-dark);
+  }
+}
+
+:root[data-theme="dark"] {
+  --focus-ring: var(--focus-ring-dark);
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0s;
+    --transition-normal: 0s;
+    --transition-slow: 0s;
+    --transition-theme: none;
+    --hover-lift: translateY(0);
+    --hover-scale: scale(1);
+  }
+}
+
+/* High contrast mode adjustments */
+@media (prefers-contrast: high) {
+  :root {
+    --color-text-faded: var(--color-text-muted);
+    --color-text-dots: var(--color-border);
+    --opacity-disabled: 0.3;
+  }
+}
+
+/* Print styles */
+@media print {
+  :root {
+    --color-bg-primary: white;
+    --color-bg-secondary: white;
+    --color-bg-tertiary: white;
+    --color-bg-card: white;
+    --color-text-primary: black;
+    --color-text-secondary: #333;
+    --color-accent-primary: #666;
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-entry: none;
+    --shadow-entry-hover: none;
+    --shadow-paper: none;
+  }
+}

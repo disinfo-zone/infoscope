@@ -51,7 +51,9 @@
 </head>
 <body>
     <h1>{{ .Data.Title }}</h1>
+    {{ if and .Data.HeaderLinkURL .Data.HeaderLinkText }}
     <a href="{{ .Data.HeaderLinkURL }}" class="header-link return">{{ .Data.HeaderLinkText }}</a>
+    {{ end }}
 
     <div class="feed">
         {{ range .Data.Entries }}        <div class="entry">
@@ -82,7 +84,9 @@
             <img src="/static/images/{{ .Data.FooterImageURL }}" alt="Footer image">
         </div>
         {{ end }}
+        {{ if and .Data.FooterLinkURL .Data.FooterLinkText }}
         <a href="{{ .Data.FooterLinkURL }}" class="footer-link return">{{ .Data.FooterLinkText }}</a>
+        {{ end }}
     </div>    <!-- External JavaScript -->
     <script type="module" src="/static/js/main.js"></script>
     

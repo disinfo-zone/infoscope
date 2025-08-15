@@ -119,7 +119,7 @@ h1 {
 /* Blog title styling - make less prominent than post titles */
 .blog-title {
   color: var(--color-text-muted);
-  opacity: 0.95;
+  opacity: 0.75;
 }
 
 /* Body text preview */

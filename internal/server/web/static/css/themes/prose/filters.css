@@ -1,4 +1,4 @@
-/* Filters management page styles */
+/* Prose Theme - Filters management styles */
 
 .filters-dashboard {
   padding: var(--spacing-xl);
@@ -144,6 +144,9 @@
 .test-form select {
   min-width: 120px;
   height: 40px;
+  display: flex;
+  align-items: center;
+  line-height: 1.2;
 }
 
 .test-form .btn {
@@ -673,6 +676,70 @@
   justify-content: flex-end;
   padding: var(--spacing-lg);
   border-top: 1px solid var(--color-border);
+}
+
+/* Filter Selection Modal Styles */
+.filter-selection-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-tertiary);
+}
+
+.filter-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: var(--transition-normal);
+  font-size: var(--font-size-small);
+}
+
+.filter-option:last-child {
+  border-bottom: none;
+}
+
+.filter-option:hover {
+  background: var(--color-bg-secondary);
+}
+
+.filter-option input[type="checkbox"] {
+  margin: 0;
+  width: auto;
+  height: auto;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.filter-option-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-option-name {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.filter-option-pattern {
+  font-family: monospace;
+  font-size: var(--font-size-tiny);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Group Add Filter Button Styling */
+.group-add-filter {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  text-align: center;
 }
 
 /* Messages */

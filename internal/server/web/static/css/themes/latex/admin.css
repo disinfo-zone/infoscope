@@ -502,6 +502,10 @@ tr:hover {
   .main-content main {
     padding: var(--spacing-lg);
   }
+  
+  .title {
+    margin-left: var(--spacing-xl);
+  }
 
   .menu-toggle {
     position: fixed;

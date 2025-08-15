@@ -24,10 +24,16 @@
             </div>
             <div class="setting-group">
                 <label for="headerLinkText">HEADER LINK TEXT</label>
-                <input type="text" id="headerLinkText" name="headerLinkText" value="{{ index .Data.Settings "header_link_text" }}" required>
+                <input type="text" id="headerLinkText" name="headerLinkText" value="{{ index .Data.Settings "header_link_text" }}">
+                <div class="help-text">
+                    Optional. Text for the header link (appears at the top of the page).
+                </div>
             </div>            <div class="setting-group">
                 <label for="headerLinkURL">HEADER LINK URL</label>
-                <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Data.Settings "header_link_url" }}" required>
+                <input type="url" id="headerLinkURL" name="headerLinkURL" value="{{ index .Data.Settings "header_link_url" }}">
+                <div class="help-text">
+                    Optional. URL for the header link (e.g., / for home page).
+                </div>
             </div>
             <div class="setting-group">
                 <label>FAVICON</label>
@@ -78,15 +84,24 @@
             </div>
             <div class="setting-group">
                 <label for="footerLinkText">FOOTER LINK TEXT</label>
-                <input type="text" id="footerLinkText" name="footerLinkText" value="{{ index .Data.Settings "footer_link_text" }}" required>
+                <input type="text" id="footerLinkText" name="footerLinkText" value="{{ index .Data.Settings "footer_link_text" }}">
+                <div class="help-text">
+                    Optional. Text for the footer link (appears at the bottom of the page).
+                </div>
             </div>
             <div class="setting-group">
                 <label for="footerLinkURL">FOOTER LINK URL</label>
-                <input type="url" id="footerLinkURL" name="footerLinkURL" value="{{ index .Data.Settings "footer_link_url" }}" required>
+                <input type="url" id="footerLinkURL" name="footerLinkURL" value="{{ index .Data.Settings "footer_link_url" }}">
+                <div class="help-text">
+                    Optional. URL for the footer link (e.g., / for home page).
+                </div>
             </div>
             <div class="setting-group">
                 <label for="footerImageHeight">FOOTER IMAGE HEIGHT</label>
-                <input type="text" id="footerImageHeight" name="footerImageHeight" value="{{ index .Data.Settings "footer_image_height" }}" required>
+                <input type="text" id="footerImageHeight" name="footerImageHeight" value="{{ index .Data.Settings "footer_image_height" }}" placeholder="50px">
+                <div class="help-text">
+                    Optional. CSS height value for footer image (e.g., 50px, 3rem). Only used when footer image is uploaded.
+                </div>
             </div>
             <div class="setting-group">
                 <label>FOOTER IMAGE</label>

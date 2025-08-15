@@ -52,8 +52,10 @@ class FilterManager {
       if (e.key === 'Escape') {
         const filterModal = document.getElementById('filter-modal');
         const groupModal = document.getElementById('group-modal');
+        const addFilterModal = document.getElementById('add-filter-modal');
         if (filterModal?.classList.contains('show')) this.hideFilterModal();
         if (groupModal?.classList.contains('show')) this.hideGroupModal();
+        if (addFilterModal?.classList.contains('show')) this.hideAddFilterModal();
       }
     });
 
@@ -86,6 +88,11 @@ class FilterManager {
             const groupId = btn.getAttribute('data-group-id');
             const filterId = btn.getAttribute('data-filter-id');
             this.removeFilterFromGroup(groupId, filterId);
+            break;
+          }
+          case 'add-filter-to-group': {
+            const groupId = btn.getAttribute('data-group-id');
+            this.showAddFilterToGroupModal(groupId);
             break;
           }
         }
@@ -265,6 +272,15 @@ class FilterManager {
         </div>`
       : '<p class="no-filters">No filters in this group. Add filters to get started.</p>';
     
+    // Add "Add Filter" button to group content
+    const addFilterButton = `
+      <div class="group-add-filter">
+        <button class="btn btn-small btn-primary" data-action="add-filter-to-group" data-group-id="${group.id}">
+          <span class="icon">+</span> Add Filter
+        </button>
+      </div>
+    `;
+    
     return `
       <div class="filter-group expanded" data-group-id="${group.id}">
         <div class="filter-group-header" data-role="group-header">
@@ -285,6 +301,7 @@ class FilterManager {
         </div>
         <div class="filter-group-content">
           ${rulesHtml}
+          ${addFilterButton}
         </div>
       </div>
     `;
@@ -373,6 +390,142 @@ class FilterManager {
       modal.classList.remove('show');
       document.body.style.overflow = '';
       this.currentGroup = null;
+    }
+  }
+
+  async showAddFilterToGroupModal(groupId) {
+    try {
+      // Get available filters (filters not already in this group)
+      const [filtersResponse, groupResponse] = await Promise.all([
+        csrf.fetch('/admin/filters', { headers: { 'Accept': 'application/json' } }),
+        csrf.fetch(`/admin/filter-groups/${groupId}`, { headers: { 'Accept': 'application/json' } })
+      ]);
+      
+      const filtersData = await filtersResponse.json();
+      const groupData = await groupResponse.json();
+      
+      const allFilters = filtersData.data || [];
+      const group = groupData.data || groupData;
+      const usedFilterIds = new Set((group.rules || []).map(rule => rule.filter_id || (rule.filter && rule.filter.id)));
+      const availableFilters = allFilters.filter(filter => !usedFilterIds.has(filter.id));
+      
+      if (availableFilters.length === 0) {
+        this.showError('No available filters to add to this group');
+        return;
+      }
+      
+      // Create and show modal
+      this.createAddFilterModal(groupId, group.name, availableFilters);
+    } catch (error) {
+      console.error('Error loading filters for group:', error);
+      this.showError('Failed to load available filters');
+    }
+  }
+
+  createAddFilterModal(groupId, groupName, availableFilters) {
+    // Remove existing modal if present
+    const existingModal = document.getElementById('add-filter-modal');
+    if (existingModal) existingModal.remove();
+    
+    const modalHtml = `
+      <div id="add-filter-modal" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Add Filter to "${this.escapeHtml(groupName)}"</h3>
+            <button class="modal-close" id="add-filter-modal-close">&times;</button>
+          </div>
+          <div class="form-group">
+            <label for="available-filters">Select filters to add:</label>
+            <div class="filter-selection-list">
+              ${availableFilters.map(filter => `
+                <label class="filter-option">
+                  <input type="checkbox" value="${filter.id}" data-filter-name="${this.escapeHtml(filter.name)}">
+                  <div class="filter-option-details">
+                    <div class="filter-option-name">${this.escapeHtml(filter.name)}</div>
+                    <div class="filter-option-pattern">${this.escapeHtml(filter.pattern)} (${filter.pattern_type})</div>
+                  </div>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" id="add-filter-cancel">Cancel</button>
+            <button class="btn btn-primary" id="add-filter-confirm">Add Selected</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    const modal = document.getElementById('add-filter-modal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    // Bind events
+    document.getElementById('add-filter-modal-close').addEventListener('click', () => this.hideAddFilterModal());
+    document.getElementById('add-filter-cancel').addEventListener('click', () => this.hideAddFilterModal());
+    document.getElementById('add-filter-confirm').addEventListener('click', () => this.addSelectedFiltersToGroup(groupId));
+    
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+      if (e.target.id === 'add-filter-modal') this.hideAddFilterModal();
+    });
+  }
+
+  hideAddFilterModal() {
+    const modal = document.getElementById('add-filter-modal');
+    if (modal) {
+      modal.classList.remove('show');
+      document.body.style.overflow = '';
+      setTimeout(() => modal.remove(), 300);
+    }
+  }
+
+  async addSelectedFiltersToGroup(groupId) {
+    const checkboxes = document.querySelectorAll('#add-filter-modal input[type="checkbox"]:checked');
+    if (checkboxes.length === 0) {
+      this.showError('Please select at least one filter to add');
+      return;
+    }
+    
+    try {
+      // Get current group rules
+      const response = await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, { 
+        headers: { 'Accept': 'application/json' } 
+      });
+      const data = await response.json();
+      const currentRules = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+      
+      // Create new rules for selected filters
+      const newRules = Array.from(checkboxes).map((checkbox, index) => ({
+        filter_id: parseInt(checkbox.value),
+        operator: 'AND',
+        position: currentRules.length + index
+      }));
+      
+      // Combine existing and new rules
+      const allRules = [
+        ...currentRules.map((rule, index) => ({
+          filter_id: rule.filter_id || (rule.filter && rule.filter.id),
+          operator: rule.operator || (index === 0 ? 'AND' : 'AND'),
+          position: index
+        })),
+        ...newRules
+      ];
+      
+      // Update group rules
+      await csrf.fetch(`/admin/filter-groups/${groupId}/rules`, {
+        method: 'PUT',
+        body: JSON.stringify({ rules: allRules })
+      });
+      
+      this.hideAddFilterModal();
+      this.loadGroups();
+      this.showSuccess(`Added ${checkboxes.length} filter${checkboxes.length > 1 ? 's' : ''} to group`);
+    } catch (error) {
+      console.error('Error adding filters to group:', error);
+      this.showError('Failed to add filters to group');
     }
   }
 

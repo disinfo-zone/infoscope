@@ -1,5 +1,5 @@
 /**
- * Theme Switcher Module - Terminal-2 Theme
+ * Theme Switcher Module - Universal Theme Handler
  * Handles manual light/dark mode switching with localStorage persistence
  */
 
@@ -25,10 +25,10 @@ class ThemeSwitcher {
         button.setAttribute('aria-label', 'Toggle theme');
         button.setAttribute('title', 'Toggle light/dark mode');
         
-        // Add icons (subtle unicode)
+        // Add elegant icons
         button.innerHTML = `
-            <span class="sun-icon">◐</span>
-            <span class="moon-icon">◑</span>
+            <span class="sun-icon">☀</span>
+            <span class="moon-icon">☾</span>
         `;
         
         document.body.appendChild(button);
