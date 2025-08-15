@@ -26,9 +26,10 @@ var (
 	dataPath          = flag.String("data", "", "Path to data directory (default: data or INFOSCOPE_DATA_PATH)")
 	version           = flag.Bool("version", false, "Print version information")
 	prodMode          = flag.Bool("prod", false, "Enable production mode (HTTPS-only features including strict CSRF)")
-	noTemplateUpdates = flag.Bool("no-template-updates", false, "Disable automatic template updates")
-	webPath           = flag.String("web", "", "Path to web content directory (default: web or INFOSCOPE_WEB_PATH)")
-	healthcheck       = flag.Bool("healthcheck", false, "Perform a health check and exit")
+	noTemplateUpdates    = flag.Bool("no-template-updates", false, "Disable automatic template updates")
+	forceTemplateUpdates = flag.Bool("force-template-updates", false, "Force template updates even when disabled")
+	webPath              = flag.String("web", "", "Path to web content directory (default: web or INFOSCOPE_WEB_PATH)")
+	healthcheck          = flag.Bool("healthcheck", false, "Perform a health check and exit")
 )
 
 func main() {
@@ -90,8 +91,13 @@ func main() {
 		cfg.WebPath = *webPath
 	}
 
-	// Disable template updates if flag is set
+	// Handle template update flags
 	cfg.DisableTemplateUpdates = *noTemplateUpdates
+	
+	// Force updates override disable setting
+	if *forceTemplateUpdates {
+		cfg.DisableTemplateUpdates = false
+	}
 
 	// Determine if the -prod flag was explicitly set
 	prodFlagSet := false

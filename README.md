@@ -92,6 +92,7 @@ Command line flags:
 - `-version`: Print version information
 - `-prod`: Enable production mode with enhanced security
 - `-no-template-updates`: Disable automatic template updates (for example if you edit the html)
+- `-force-template-updates`: Force template updates even when disabled (useful for production theme updates)
 
 Environment variables:
 - `INFOSCOPE_PORT`: HTTP port
@@ -169,6 +170,18 @@ By default, Infoscope automatically extracts and updates its web templates and s
 - Production environments where templates shouldn't change without explicit deployment
 - Customized installations where you've modified the templates
 - Environments where file writes should be minimized
+
+#### Updating Themes in Production
+
+If you're running Infoscope with `-no-template-updates` (or `INFOSCOPE_NO_TEMPLATE_UPDATES=true`) and need to update to newer themes:
+
+1. **One-time update**: Restart Infoscope with the `-force-template-updates` flag:
+   ```bash
+   ./infoscope -no-template-updates -force-template-updates
+   ```
+   This will extract the latest themes once, then resume normal operation with template updates disabled.
+
+2. **Alternative**: Temporarily remove the `-no-template-updates` flag for one restart, then re-enable it.
 
 ### Development vs Production Mode:
 
