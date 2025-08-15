@@ -1,68 +1,79 @@
-@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap');
-/* LaTeX Theme CSS Variables */
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* LaTeX2 Theme - Auto Dark/Light Responsive CSS Variables */
 :root {
-  /* Colors - light, paper-like */
+  /* Light Mode Colors - enhanced warm paper aesthetic */
   --color-bg-primary: #fffdf7; /* warm paper */
   --color-bg-secondary: #ffffff; /* panels */
-  --color-bg-tertiary: #f4f4ef; /* inputs */
+  --color-bg-tertiary: #f8f6f0; /* inputs - slightly warmer */
   --color-text-primary: #2b2b2b; /* primary text */
   --color-text-secondary: #111111; /* headings */
   --color-text-muted: #6b7280; /* muted */
   --color-text-faded: #4b5563; /* preview text */
   --color-text-dots: #6b7280;
-  /* Accents (subtle, scholarly) */
+  
+  /* Accents - refined scholarly palette */
   --color-accent-primary: #2f4858; /* muted blue-slate */
+  --color-accent-secondary: #3d5a6c; /* lighter variant */
   --color-accent-hover: #223647;
   --color-border: #e5e7eb;
-  --color-border-focus: #1a73e8;
+  --color-border-focus: #4a6b82;
   --color-error: #d32f2f;
   --color-success: #2e7d32;
+  --color-warning: #ed6c02;
 
   /* Useful RGB for rgba() usage */
-  --color-accent-primary-rgb: 26, 115, 232;
+  --color-accent-primary-rgb: 47, 72, 88;
+  --color-accent-secondary-rgb: 61, 90, 108;
 
-  /* Typography - LaTeX-like serif defaults */
+  /* Enhanced Typography - LaTeX-inspired with improvements */
   --font-family-primary: 'EB Garamond', Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-family-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  /* bump sizes slightly for readability with EB Garamond */
+  --font-family-heading: 'EB Garamond', Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  
+  /* Refined font sizing for better readability */
   --font-size-base: 18px;
-  --font-size-large: 2.35rem;
-  --font-size-medium: 1.2rem;
+  --font-size-large: 2.4rem;
+  --font-size-medium: 1.25rem;
   --font-size-small: 1rem;
   --font-size-tiny: 0.9em;
   --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
   --font-weight-bold: 700;
-  --line-height-base: 1.6;
-  --line-height-tight: 1.2;
+  --line-height-base: 1.65; /* improved readability */
+  --line-height-tight: 1.25;
+  --line-height-relaxed: 1.8;
+  
   /* Visual alignment for leader dots with serif baseline */
   --dots-offset-y: calc(100% - 0.5px);
 
-  /* Spacing */
+  /* Refined Spacing Scale */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 0.75rem;
   --spacing-lg: 1rem;
-  --spacing-xl: 1.25rem;
-  --spacing-xxl: 1.75rem;
+  --spacing-xl: 1.5rem;
+  --spacing-xxl: 2rem;
 
-  /* Layout */
-  --max-width-content: 960px;
-  --max-width-form: 480px;
-  --sidebar-width: 260px;
-  --border-radius-sm: 3px;
-  --border-radius-md: 6px;
-  --border-radius-lg: 10px;
+  /* Layout improvements */
+  --max-width-content: 980px; /* slightly wider for better reading */
+  --max-width-form: 500px;
+  --sidebar-width: 280px;
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
 
-  /* Animation */
-  --transition-fast: 0.06s;
-  --transition-normal: 0.12s;
-  --transition-slow: 0.25s;
-  --transition-ease: ease;
+  /* Refined Animation */
+  --transition-fast: 0.08s;
+  --transition-normal: 0.15s;
+  --transition-slow: 0.3s;
+  --transition-ease: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Shadows */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
+  /* Enhanced Shadows for light mode */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
 
   /* Z-index layers */
   --z-base: 1;
@@ -72,18 +83,93 @@
   --z-menu-toggle: 1001;
 }
 
-/* Additional theme-specific variables */
+/* Dark Mode - Automatic based on system preference */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark Mode Colors - enhanced ink-on-card aesthetic */
+    --color-bg-primary: #0f1115; /* deep charcoal */
+    --color-bg-secondary: #161b23; /* panels */
+    --color-bg-tertiary: #1e2532; /* inputs */
+    --color-text-primary: #e8e3d5; /* warm off-white - enhanced */
+    --color-text-secondary: #f2ede0; /* headings - warmer */
+    --color-text-muted: #a8b3c2; /* muted */
+    --color-text-faded: #909dae; /* preview text */
+    --color-text-dots: #6b7a8f;
+    
+    /* Dark mode accents - enhanced scholarly palette */
+    --color-accent-primary: #5a7a92; /* lighter blue-slate for dark mode */
+    --color-accent-secondary: #6d8ca5; /* lighter variant */
+    --color-accent-hover: #6d8ca5;
+    --color-border: #2b3442;
+    --color-border-focus: #7a9bb0;
+    --color-error: #ef6b6b;
+    --color-success: #66c185;
+    --color-warning: #ffb74d;
+
+    /* Updated RGB for dark mode */
+    --color-accent-primary-rgb: 90, 122, 146;
+    --color-accent-secondary-rgb: 109, 140, 165;
+
+    /* Enhanced shadows for dark mode */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.15);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+    
+    /* Adjust dot pattern for dark mode readability */
+    --dots-offset-y: calc(100% - 1px);
+  }
+}
+
+/* Additional enhanced variables */
 :root {
   /* Opacity values */
   --opacity-disabled: 0.6;
   --opacity-hover: 0.9;
-  --opacity-focus: 0.06;
+  --opacity-focus: 0.08;
+  --opacity-subtle: 0.05;
 
   /* Grid and flex values */
-  --grid-gap-sm: 6px;
-  --grid-gap-md: 12px;
+  --grid-gap-sm: 8px;
+  --grid-gap-md: 16px;
   --flex-gap-sm: 0.5rem;
   --flex-gap-md: 1rem;
+  
+  /* Enhanced interactive states */
+  --hover-lift: translateY(-1px);
+  --active-scale: scale(0.98);
+  
+  /* Content width breakpoints */
+  --breakpoint-mobile: 768px;
+  --breakpoint-tablet: 1024px;
+  --breakpoint-desktop: 1200px;
 }
 
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --color-border: #666666;
+    --color-text-muted: #333333;
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-text-primary: #ffffff;
+      --color-text-secondary: #ffffff;
+      --color-border: #999999;
+      --color-text-muted: #cccccc;
+    }
+  }
+}
 
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0.01s;
+    --transition-normal: 0.01s;
+    --transition-slow: 0.01s;
+    --hover-lift: none;
+    --active-scale: none;
+  }
+}

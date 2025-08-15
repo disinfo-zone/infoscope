@@ -10,7 +10,8 @@
       "Bash(rg:*)",
       "Bash(git add:*)",
       "Bash(mkdir:*)",
-      "Bash(go run:*)"
+      "Bash(go run:*)",
+      "Bash(./infoscope -version)"
     ],
     "deny": []
   }

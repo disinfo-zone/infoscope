@@ -1,12 +1,12 @@
-/* LaTeX2 Theme - Enhanced Feeds Management with Auto Dark/Light Mode */
+/* Sage Theme Feeds Management - Exact copy of Terminal structure with Sage styling */
 
 .feeds-container {
   max-width: 100%;
   margin: 0 auto;
-  font-family: var(--font-family-primary);
+  font-family: var(--font-family-heading);
 }
 
-/* Enhanced Add Feed Panel */
+/* Add Feed Panel */
 .panel.add-feed {
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
@@ -14,12 +14,6 @@
   padding: var(--spacing-xl);
   margin-bottom: var(--spacing-xl);
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition-normal) var(--transition-ease);
-}
-
-.panel.add-feed:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-accent-primary);
 }
 
 .panel h3 {
@@ -30,7 +24,7 @@
   font-family: var(--font-family-heading);
 }
 
-/* Enhanced Input Group Layout */
+/* Input Group Layout */
 .input-group {
   display: flex;
   gap: var(--spacing-md);
@@ -60,7 +54,7 @@
   outline: none;
   border-color: var(--color-border-focus);
   background: var(--color-bg-primary);
-  box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.15);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.1);
 }
 
 .submit-button {
@@ -70,7 +64,7 @@
   font-size: var(--font-size-base);
   background: var(--color-accent-primary);
   color: var(--color-bg-primary);
-  border: 2px solid var(--color-accent-primary);
+  border: none;
   border-radius: var(--border-radius-md);
   cursor: pointer;
   font-family: var(--font-family-heading);
@@ -78,37 +72,19 @@
   text-transform: uppercase;
   letter-spacing: 0.025em;
   transition: all var(--transition-normal) var(--transition-ease);
-  position: relative;
-  overflow: hidden;
-}
-
-.submit-button:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left var(--transition-slow) var(--transition-ease);
 }
 
 .submit-button:hover {
   background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
-  transform: var(--hover-lift);
-  box-shadow: var(--shadow-md);
-}
-
-.submit-button:hover:before {
-  left: 100%;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .submit-button:active {
-  transform: var(--active-scale);
+  transform: translateY(0);
 }
 
-/* Enhanced Loading Spinner */
+/* Loading Spinner */
 .spinner {
   display: none;
   position: absolute;
@@ -132,18 +108,17 @@
   100% { transform: translateY(-50%) rotate(360deg); }
 }
 
-/* Enhanced Error and Preview Messages */
+/* Error and Preview Messages */
 .error-message {
   color: var(--color-error);
   font-size: var(--font-size-small);
   margin-top: var(--spacing-sm);
   padding: var(--spacing-sm);
-  background: rgba(var(--color-error), 0.1);
+  background: rgba(220, 38, 38, 0.1);
   border-radius: var(--border-radius-md);
   border-left: 3px solid var(--color-error);
   display: none;
   font-family: var(--font-family-heading);
-  font-weight: var(--font-weight-medium);
 }
 
 .error-message:not(:empty) {
@@ -153,7 +128,7 @@
 .feed-preview {
   margin-top: var(--spacing-md);
   padding: var(--spacing-md);
-  background: rgba(var(--color-accent-primary-rgb), 0.08);
+  background: rgba(var(--color-accent-primary-rgb), 0.05);
   border-radius: var(--border-radius-md);
   border-left: 3px solid var(--color-accent-primary);
   opacity: 0;
@@ -167,28 +142,20 @@
   transform: translateY(0);
 }
 
-/* Enhanced Current Feeds Panel */
+/* Current Feeds Panel */
 .panel {
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius-lg);
   padding: var(--spacing-xl);
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition-normal) var(--transition-ease);
 }
 
-.panel:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-accent-primary);
-}
-
-/* Enhanced Table Container with Mobile Optimization */
+/* Table Container with Mobile Optimization */
 .table-container {
   overflow-x: auto;
   margin: calc(var(--spacing-md) * -1);
   border-radius: var(--border-radius-md);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-primary);
 }
 
 table {
@@ -222,11 +189,7 @@ td {
   font-family: var(--font-family-primary);
 }
 
-tr:hover {
-  background: rgba(var(--color-accent-primary-rgb), var(--opacity-subtle));
-}
-
-/* Enhanced Column Styling */
+/* Column Styling */
 .title-col {
   font-weight: var(--font-weight-semibold);
   word-wrap: break-word;
@@ -244,27 +207,23 @@ tr:hover {
   font-size: var(--font-size-tiny);
   font-family: var(--font-family-mono);
   transition: color var(--transition-normal) var(--transition-ease);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-thickness: 1px;
 }
 
 .feed-url:hover {
   color: var(--color-accent-hover);
-  text-decoration-thickness: 2px;
+  text-decoration: underline;
 }
 
 .category-tag {
   background: var(--color-accent-primary);
   color: var(--color-bg-primary);
-  padding: 4px 8px;
+  padding: 2px 8px;
   border-radius: var(--border-radius-sm);
   font-size: var(--font-size-tiny);
   font-weight: var(--font-weight-semibold);
   font-family: var(--font-family-heading);
   text-transform: uppercase;
   letter-spacing: 0.025em;
-  border: 1px solid var(--color-accent-primary);
 }
 
 .tag-list {
@@ -281,7 +240,6 @@ tr:hover {
   font-size: var(--font-size-tiny);
   border: 1px solid var(--color-border);
   font-family: var(--font-family-heading);
-  font-weight: var(--font-weight-medium);
 }
 
 .empty-value {
@@ -293,7 +251,7 @@ tr:hover {
 .edit-button {
   background: var(--color-accent-primary);
   color: var(--color-bg-primary);
-  border: 2px solid var(--color-accent-primary);
+  border: 1px solid var(--color-accent-primary);
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--border-radius-md);
   font-size: var(--font-size-small);
@@ -304,33 +262,14 @@ tr:hover {
   letter-spacing: 0.025em;
   min-width: 80px;
   font-family: var(--font-family-heading);
-  position: relative;
-  overflow: hidden;
-}
-
-.edit-button:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left var(--transition-slow) var(--transition-ease);
 }
 
 .edit-button:hover {
   background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
   box-shadow: var(--shadow-md);
-  transform: var(--hover-lift);
 }
 
-.edit-button:hover:before {
-  left: 100%;
-}
-
-/* Enhanced Mobile Responsive Design */
+/* Mobile Responsive Design */
 @media (max-width: 768px) {
   .feeds-container {
     margin: 0;
@@ -446,7 +385,7 @@ tr:hover {
   }
 }
 
-/* Enhanced Modal Styles */
+/* Modal Styles */
 .modal {
   display: none;
   position: fixed;
@@ -455,9 +394,8 @@ tr:hover {
   top: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  transition: all var(--transition-normal) var(--transition-ease);
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
 }
 
 .modal.show {
@@ -477,7 +415,6 @@ tr:hover {
   max-height: 80vh;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
-  transition: background-color var(--transition-normal) var(--transition-ease);
 }
 
 .edit-modal-content {
@@ -493,7 +430,7 @@ tr:hover {
   border-top: 1px solid var(--color-border);
 }
 
-/* Enhanced Modal Buttons */
+/* Modal Buttons */
 .modal-actions button,
 .save-button,
 .cancel-button,
@@ -509,29 +446,6 @@ tr:hover {
   border: 2px solid;
   min-width: 120px;
   font-family: var(--font-family-heading);
-  position: relative;
-  overflow: hidden;
-}
-
-.modal-actions button:before,
-.save-button:before,
-.cancel-button:before,
-.delete-button:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  transition: left var(--transition-slow) var(--transition-ease);
-}
-
-.modal-actions button:hover:before,
-.save-button:hover:before,
-.cancel-button:hover:before,
-.delete-button:hover:before {
-  left: 100%;
 }
 
 .save-button {
@@ -544,7 +458,6 @@ tr:hover {
   background: var(--color-accent-hover);
   border-color: var(--color-accent-hover);
   box-shadow: var(--shadow-md);
-  transform: var(--hover-lift);
 }
 
 .cancel-button {
@@ -573,7 +486,7 @@ tr:hover {
   box-shadow: var(--shadow-md);
 }
 
-/* Enhanced Form Styling */
+/* Form Styling */
 .form-group {
   margin-bottom: var(--spacing-lg);
 }
@@ -589,7 +502,7 @@ tr:hover {
   font-family: var(--font-family-heading);
 }
 
-/* Enhanced Modal Form Inputs */
+/* Modal Form Inputs */
 .edit-form input[type="text"],
 .edit-form input[type="url"],
 .edit-form input[type="email"],
@@ -615,16 +528,24 @@ tr:hover {
   outline: none;
   border-color: var(--color-border-focus);
   background: var(--color-bg-primary);
-  box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.15);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.1);
   transform: none; /* Prevent zoom on mobile */
 }
 
-/* Enhanced Modal Title */
+.edit-form input[type="text"]:hover,
+.edit-form input[type="url"]:hover,
+.edit-form input[type="email"]:hover,
+.edit-form select:hover,
+.edit-form textarea:hover {
+  border-color: var(--color-accent-primary);
+}
+
+/* Modal Title */
 .modal-content h3 {
   margin: 0 0 var(--spacing-xl) 0;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-medium);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-large);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.025em;
   border-bottom: 2px solid var(--color-accent-primary);
@@ -632,7 +553,7 @@ tr:hover {
   font-family: var(--font-family-heading);
 }
 
-/* Enhanced Tag Input Styling */
+/* Tag Input Styling */
 .tag-input-container {
   display: flex;
   flex-direction: column;
@@ -654,7 +575,7 @@ tr:hover {
 .tag-tokens:focus-within {
   border-color: var(--color-border-focus);
   background: var(--color-bg-primary);
-  box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.15);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.1);
 }
 
 .tag-token {
@@ -681,10 +602,108 @@ tr:hover {
   opacity: 1;
 }
 
-/* Enhanced Animations */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.available-tags {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+}
+
+.available-tags-label {
+  font-size: var(--font-size-tiny);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-sm);
+  font-family: var(--font-family-heading);
+}
+
+.available-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.available-tag {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 2px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-tiny);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast) var(--transition-ease);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  font-family: var(--font-family-heading);
+}
+
+.available-tag:hover {
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+  border-color: var(--color-accent-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.new-tag-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.new-tag-label {
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  font-family: var(--font-family-heading);
+}
+
+.tag-help {
+  font-size: var(--font-size-tiny);
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+  font-family: var(--font-family-heading);
+}
+
+/* Category Input */
+.category-input-wrapper {
+  position: relative;
+}
+
+.category-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--color-bg-primary);
+  border: 2px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+  box-shadow: var(--shadow-md);
+}
+
+.category-suggestion {
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-fast) var(--transition-ease);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-family-heading);
+}
+
+.category-suggestion:last-child {
+  border-bottom: none;
+}
+
+.category-suggestion:hover {
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
 }
 
 /* Mobile modal adjustments */
@@ -706,16 +725,8 @@ tr:hover {
   }
 }
 
-/* Accessibility and reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .submit-button:before,
-  .edit-button:before,
-  .modal-actions button:before {
-    display: none;
-  }
-
-  .submit-button:hover,
-  .edit-button:hover {
-    transform: none;
-  }
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

@@ -12,8 +12,8 @@ body {
 
 /* Mobile padding optimization */
 @media (max-width: 768px) {
-  body { padding: var(--spacing-xl) var(--spacing-xs) var(--spacing-sm); }
-  .feed { margin: var(--spacing-sm) auto; }
+  body { padding: var(--spacing-lg) var(--spacing-sm) var(--spacing-sm); }
+  .feed { margin: var(--spacing-sm) auto; max-width: 100%; }
 }
 
 /* Header */
@@ -82,6 +82,13 @@ h1 {
 /* Link container */
 .link-container { overflow: hidden; min-width: 0; max-width: calc(100vw - 200px); }
 
+/* Mobile link container optimization */
+@media (max-width: 768px) {
+  .link-container {
+    max-width: calc(100vw - 80px);
+  }
+}
+
 .title-row {
   display: flex;
   align-items: baseline;
@@ -107,6 +114,12 @@ h1 {
   color: var(--color-accent-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* Blog title styling - make less prominent than post titles */
+.blog-title {
+  color: var(--color-text-muted);
+  opacity: 0.95;
 }
 
 /* Body text preview */

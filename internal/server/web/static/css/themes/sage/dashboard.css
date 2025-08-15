@@ -1,0 +1,216 @@
+/* Sage Theme Dashboard - Based on Terminal theme structure */
+
+/* Dashboard container */
+.dashboard {
+  padding: 1rem;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-heading);
+}
+
+.dashboard h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.05em;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: var(--color-bg-secondary);
+  border-radius: var(--border-radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-normal) var(--transition-ease);
+}
+
+.stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.stat-card.highlight {
+  border: 1px solid var(--color-accent-primary);
+  background: rgba(var(--color-accent-primary-rgb), 0.03);
+}
+
+.stat-card h3 {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  margin: 0 0 0.5rem 0;
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--font-family-heading);
+}
+
+/* Stats value styling */
+.stat-card > :last-child {
+  font-size: 1.5rem;
+  color: var(--color-accent-primary);
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-heading);
+}
+
+/* Panels Layout */
+.stats-panels {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.panel {
+  background: var(--color-bg-secondary);
+  border-radius: var(--border-radius-lg);
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel h3 {
+  color: var(--color-text-secondary);
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  font-family: var(--font-family-heading);
+}
+
+/* Table Styling */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--color-bg-primary);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table-wrapper th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--color-bg-tertiary);
+}
+
+.table-wrapper td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  font-family: var(--font-family-primary);
+}
+
+.table-wrapper tbody tr {
+  transition: background-color var(--transition-normal) var(--transition-ease);
+}
+
+.table-wrapper tbody tr:hover {
+  background-color: rgba(var(--color-accent-primary-rgb), 0.05);
+}
+
+/* Column widths */
+.table-wrapper th:nth-child(1),
+.table-wrapper td:nth-child(1) {
+  width: 60%;
+}
+
+.table-wrapper th:nth-child(2),
+.table-wrapper td:nth-child(2) {
+  width: 15%;
+  text-align: center;
+}
+
+.table-wrapper th:nth-child(3),
+.table-wrapper td:nth-child(3) {
+  width: 25%;
+  text-align: right;
+}
+
+/* Link Styling */
+.feed-url {
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.3;
+  transition: color var(--transition-normal) var(--transition-ease);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+}
+
+.feed-url:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+/* Responsive Layout */
+@media (min-width: 768px) {
+  .stats-panels {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard {
+    padding: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-wrapper th:last-child,
+  .table-wrapper td:last-child {
+    display: none;
+  }
+
+  .table-wrapper th:nth-child(1),
+  .table-wrapper td:nth-child(1) {
+    width: 75%;
+  }
+
+  .table-wrapper th:nth-child(2),
+  .table-wrapper td:nth-child(2) {
+    width: 25%;
+  }
+
+  .panel {
+    margin-bottom: 1rem;
+  }
+
+  .stats-panels {
+    gap: 1rem;
+  }
+
+  .feed-url {
+    min-height: 2.6em; /* Ensures space for two lines */
+  }
+}

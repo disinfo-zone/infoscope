@@ -1,0 +1,202 @@
+/* Sage Theme UX Enhancements - Refined interactions and accessibility */
+
+/* Smooth favicon loading animation */
+.favicon {
+  opacity: 0;
+  transition: opacity var(--transition-normal) ease-out;
+}
+
+.favicon.loaded {
+  opacity: 0.9;
+}
+
+.entry:hover .favicon.loaded {
+  opacity: 1;
+}
+
+/* Enhanced link hover states */
+.tracked-link {
+  position: relative;
+  transition: all var(--transition-normal) var(--transition-ease);
+}
+
+.tracked-link:focus {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+.tracked-link:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.tracked-link:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Subtle entry interaction feedback */
+.entry {
+  position: relative;
+  overflow: hidden;
+}
+
+.entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--color-accent-primary-rgb), 0.03),
+    transparent
+  );
+  transition: left var(--transition-slow) var(--transition-ease);
+  pointer-events: none;
+}
+
+.entry:hover::before {
+  left: 100%;
+}
+
+/* Enhanced typography readability */
+.link-container a {
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.body-text {
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Loading state for entries */
+.entry.loading {
+  opacity: 0;
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Staggered loading animation */
+.entry:nth-child(1) { animation-delay: 0.05s; }
+.entry:nth-child(2) { animation-delay: 0.1s; }
+.entry:nth-child(3) { animation-delay: 0.15s; }
+.entry:nth-child(4) { animation-delay: 0.2s; }
+.entry:nth-child(5) { animation-delay: 0.25s; }
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --color-text-primary: #000000;
+    --color-text-muted: #333333;
+    --color-accent-primary: #1a5f3a;
+    --color-border: #666666;
+  }
+  
+  .entry:hover {
+    background-color: #f0f0f0;
+    box-shadow: 0 0 0 2px var(--color-accent-primary);
+  }
+  
+  .tracked-link:focus {
+    outline: 3px solid var(--color-accent-primary);
+    outline-offset: 2px;
+  }
+}
+
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .entry::before {
+    display: none;
+  }
+  
+  .entry.loading {
+    animation: fadeIn 0.2s ease-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .favicon {
+    transition: opacity 0.1s ease-out;
+  }
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white;
+    color: black;
+    font-size: 12pt;
+    line-height: 1.4;
+    padding: 0;
+  }
+  
+  .entry {
+    break-inside: avoid;
+    padding: 8pt 0;
+    border-bottom: 1pt solid #ddd;
+  }
+  
+  .entry:hover {
+    background: none;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .favicon {
+    display: none;
+  }
+  
+  .dots {
+    display: none;
+  }
+  
+  .tracked-link {
+    color: black !important;
+    text-decoration: underline;
+  }
+  
+  .body-text {
+    color: #666 !important;
+    font-style: normal;
+  }
+  
+  .header-link,
+  .footer-link {
+    display: none;
+  }
+}
+
+/* Touch device optimizations */
+@media (pointer: coarse) {
+  .entry {
+    padding: var(--spacing-md);
+  }
+  
+  .tracked-link {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .entry:hover {
+    transform: none; /* Disable transform on touch to prevent issues */
+  }
+}
