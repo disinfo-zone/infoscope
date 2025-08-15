@@ -6,6 +6,7 @@
 // Make trackClick globally available for onclick handlers in templates
 import { trackClick } from './modules/tracking.js';
 import { showNotification } from './modules/ux-enhancements.js';
+import './modules/theme.js';
 
 window.trackClick = trackClick;
 window.showNotification = showNotification;

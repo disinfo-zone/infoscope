@@ -1,21 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap');
-/* Terminal Theme CSS Variables */
+
+/* Terminal-2 Theme CSS Variables - Enhanced with Light/Dark Mode Support */
 :root {
-  /* Colors */
-  --color-bg-primary: #121a2b;
-  --color-bg-secondary: #1a2438;
-  --color-bg-tertiary: #0c1220;
-  --color-text-primary: #7da9b7;
-  --color-text-secondary: #c4d3cb;
-  --color-text-muted: #4a5d6b;
-  --color-text-faded: #5a6b7a;
-  --color-text-dots: #2a3450;
-  --color-accent-primary: #67bb79;
-  --color-accent-hover: #39ff64;
-  --color-border: #2a3450;
-  --color-border-focus: #67bb79;
-  --color-error: #ff6b6b;
-  --color-success: #67bb79;
+  /* System preference detection */
+  color-scheme: light dark;
   
   /* Typography */
   --font-family-primary: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
@@ -28,8 +16,6 @@
   --font-weight-bold: bold;
   --line-height-base: 1.3;
   --line-height-tight: 1;
-  /* Visual alignment for leader dots with baseline of monospace titles */
-  --dots-offset-y: calc(100% - 1px);
   
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -49,9 +35,13 @@
   
   /* Animation */
   --transition-fast: 0.05s;
-  --transition-normal: 0.1s;
-  --transition-slow: 0.2s;
-  --transition-ease: ease;
+  --transition-normal: 0.15s;
+  --transition-slow: 0.3s;
+  --transition-ease: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --transition-theme: color 0.3s var(--transition-ease), 
+                      background-color 0.3s var(--transition-ease),
+                      border-color 0.3s var(--transition-ease),
+                      box-shadow 0.3s var(--transition-ease);
   
   /* Shadows */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -64,18 +54,137 @@
   --z-modal: 999;
   --z-sidebar: 1000;
   --z-menu-toggle: 1001;
-}
-
-/* Additional theme-specific variables */
-:root {
-  /* Opacity values */
-  --opacity-disabled: 0.6;
-  --opacity-hover: 0.8;
-  --opacity-focus: 0.05;
   
   /* Grid and flex values */
   --grid-gap-sm: 5px;
   --grid-gap-md: 10px;
   --flex-gap-sm: 0.5rem;
   --flex-gap-md: 1rem;
+  
+  /* Opacity values */
+  --opacity-disabled: 0.6;
+  --opacity-hover: 0.8;
+  --opacity-focus: 0.05;
+}
+
+/* Light mode (default) - Clean, modern terminal aesthetic */
+:root {
+  /* Light mode colors - balanced contrast */
+  --color-bg-primary: #fafafa;
+  --color-bg-secondary: #f0f0f0;
+  --color-bg-tertiary: #ffffff;
+  --color-text-primary: #2d3748;
+  --color-text-secondary: #4a5568;
+  --color-text-muted: #4a5568;
+  --color-text-faded: #4a5568;
+  --color-text-dots: #a0aec0;
+  --color-accent-primary: #38a169;
+  --color-accent-hover: #2f855a;
+  --color-border: #e2e8f0;
+  --color-border-focus: #38a169;
+  --color-error: #e53e3e;
+  --color-success: #38a169;
+  
+  /* Light mode specific shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-entry: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-entry-hover: 0 2px 8px rgba(0, 0, 0, 0.08);
+  
+  /* Visual alignment for leader dots */
+  --dots-offset-y: calc(100% - 1px);
+}
+
+/* Dark mode - Enhanced terminal aesthetic with better contrast */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* Dark mode colors - refined terminal palette */
+    --color-bg-primary: #0f172a;
+    --color-bg-secondary: #1e293b;
+    --color-bg-tertiary: #334155;
+    --color-text-primary: #cbd5e1;
+    --color-text-secondary: #a0aec0;
+    --color-text-muted: #64748b;
+    --color-text-faded: #475569;
+    --color-text-dots: #334155;
+    --color-accent-primary: #67bb79;
+    --color-accent-hover: #39ff64;
+    --color-border: #334155;
+    --color-border-focus: #67bb79;
+    --color-error: #f87171;
+    --color-success: #67bb79;
+    
+    /* Dark mode specific shadows */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-entry: 0 1px 3px rgba(0, 0, 0, 0.2);
+    --shadow-entry-hover: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Manual dark mode override */
+:root[data-theme="dark"] {
+  /* Dark mode colors - refined terminal palette */
+  --color-bg-primary: #0f172a;
+  --color-bg-secondary: #1e293b;
+  --color-bg-tertiary: #334155;
+  --color-text-primary: #cbd5e1;
+  --color-text-secondary: #a0aec0;
+  --color-text-muted: #64748b;
+  --color-text-faded: #475569;
+  --color-text-dots: #334155;
+  --color-accent-primary: #67bb79;
+  --color-accent-hover: #39ff64;
+  --color-border: #334155;
+  --color-border-focus: #67bb79;
+  --color-error: #f87171;
+  --color-success: #67bb79;
+  
+  /* Dark mode specific shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-entry: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-entry-hover: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Enhanced accessibility and visual polish */
+:root {
+  /* Focus ring for accessibility */
+  --focus-ring: 0 0 0 3px rgba(56, 161, 105, 0.2);
+  --focus-ring-dark: 0 0 0 3px rgba(103, 187, 121, 0.2);
+  
+  /* Hover animations */
+  --hover-lift: translateY(-1px);
+  --hover-scale: scale(1.01);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --focus-ring: var(--focus-ring-dark);
+  }
+}
+
+:root[data-theme="dark"] {
+  --focus-ring: var(--focus-ring-dark);
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0s;
+    --transition-normal: 0s;
+    --transition-slow: 0s;
+    --transition-theme: none;
+  }
+}
+
+/* High contrast mode adjustments */
+@media (prefers-contrast: high) {
+  :root {
+    --color-text-faded: var(--color-text-muted);
+    --color-text-dots: var(--color-border);
+  }
 }
