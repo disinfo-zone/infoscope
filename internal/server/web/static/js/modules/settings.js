@@ -762,12 +762,101 @@ function bindBackup() {
   }
 }
 
+function bindThemeScanning() {
+  const scanButton = getEl('scanThemesButton');
+  const statusDiv = getEl('themesScanStatus');
+  
+  if (scanButton) {
+    scanButton.addEventListener('click', async () => {
+      // Show loading state
+      scanButton.disabled = true;
+      scanButton.textContent = 'SCANNING...';
+      if (statusDiv) {
+        statusDiv.className = 'status loading';
+        statusDiv.textContent = 'Scanning themes directory...';
+      }
+      
+      try {
+        const response = await csrf.fetch('/admin/themes/refresh', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Show success message
+          if (statusDiv) {
+            statusDiv.className = 'status success';
+            statusDiv.textContent = result.message;
+          }
+          
+          // Update the theme dropdowns with new themes
+          const publicSelect = getEl('publicTheme');
+          const adminSelect = getEl('adminTheme');
+          
+          if (publicSelect && adminSelect && result.themes) {
+            const currentPublic = publicSelect.value;
+            const currentAdmin = adminSelect.value;
+            
+            // Clear and repopulate dropdowns
+            [publicSelect, adminSelect].forEach(select => {
+              const currentValue = select.value;
+              select.innerHTML = '';
+              
+              result.themes.forEach(theme => {
+                const option = document.createElement('option');
+                option.value = theme;
+                option.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
+                if (theme === currentValue) {
+                  option.selected = true;
+                }
+                select.appendChild(option);
+              });
+            });
+          }
+          
+          showNotification(result.message, 'success');
+          
+          // Clear status after 3 seconds
+          setTimeout(() => {
+            if (statusDiv) {
+              statusDiv.className = 'status';
+              statusDiv.textContent = '';
+            }
+          }, 3000);
+        } else {
+          throw new Error(result.message || 'Theme scan failed');
+        }
+        
+      } catch (error) {
+        if (statusDiv) {
+          statusDiv.className = 'status error';
+          statusDiv.textContent = `Error: ${error.message}`;
+        }
+        showNotification(`Theme scan failed: ${error.message}`, 'error');
+      } finally {
+        // Restore button state
+        scanButton.disabled = false;
+        scanButton.textContent = 'SCAN FOR NEW THEMES';
+      }
+    });
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initialThemeName = getCurrentThemeFromDOM();
   bindSettingsForm();
   bindPasswordForm();
   bindImageInputs();
   bindBackup();
+  bindThemeScanning();
 
   // Close notifications
   document.addEventListener('click', (e) => {

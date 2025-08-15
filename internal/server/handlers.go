@@ -514,6 +514,40 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleThemeRefresh handles POST requests to refresh the theme cache
+func (s *Server) handleThemeRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	if !s.csrf.Validate(w, r) {
+		return
+	}
+	
+	// Refresh the theme cache
+	themes := s.refreshThemes()
+	
+	// Return the updated theme list as JSON
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Theme cache refreshed successfully. Found %d themes.", len(themes)),
+		"themes":  themes,
+		"count":   len(themes),
+	}
+	
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.logger.Printf("Error encoding theme refresh response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	
+	if !s.config.ProductionMode {
+		s.logger.Printf("Theme cache refreshed via API. Found themes: %v", themes)
+	}
+}
+
 func (s *Server) handleFeedValidation(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

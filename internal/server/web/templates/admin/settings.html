@@ -116,10 +116,9 @@
                 <label for="publicTheme">PUBLIC THEME</label>
                 <select id="publicTheme" name="publicTheme">
                     {{ $publicTheme := getSetting .Data.Settings "public_theme" (getSetting .Data.Settings "theme" "terminal") }}
-                    <option value="terminal" {{ if eq $publicTheme "terminal" }}selected{{ end }}>Terminal</option>
-                    <option value="latex" {{ if eq $publicTheme "latex" }}selected{{ end }}>LaTeX</option>
-                    <option value="aurora" {{ if eq $publicTheme "aurora" }}selected{{ end }}>Aurora</option>
-                    <option value="sage" {{ if eq $publicTheme "sage" }}selected{{ end }}>Sage</option>
+                    {{ range getAvailableThemes }}
+                    <option value="{{ . }}" {{ if eq $publicTheme . }}selected{{ end }}>{{ title . }}</option>
+                    {{ end }}
                 </select>
                 <div class="help-text">Choose the visual theme for the public index.</div>
             </div>
@@ -127,12 +126,23 @@
                 <label for="adminTheme">ADMIN THEME</label>
                 <select id="adminTheme" name="adminTheme">
                     {{ $adminTheme := getSetting .Data.Settings "admin_theme" (getSetting .Data.Settings "theme" "terminal") }}
-                    <option value="terminal" {{ if eq $adminTheme "terminal" }}selected{{ end }}>Terminal</option>
-                    <option value="latex" {{ if eq $adminTheme "latex" }}selected{{ end }}>LaTeX</option>
-                    <option value="aurora" {{ if eq $adminTheme "aurora" }}selected{{ end }}>Aurora</option>
-                    <option value="sage" {{ if eq $adminTheme "sage" }}selected{{ end }}>Sage</option>
+                    {{ range getAvailableThemes }}
+                    <option value="{{ . }}" {{ if eq $adminTheme . }}selected{{ end }}>{{ title . }}</option>
+                    {{ end }}
                 </select>
                 <div class="help-text">Choose the visual theme for the admin backend.</div>
+            </div>
+            
+            <!-- Theme Management -->
+            <div class="setting-group">
+                <label>THEME MANAGEMENT</label>
+                <div class="help-text">
+                    Scan for new themes in the themes directory without restarting the server.
+                </div>
+                <button type="button" id="scanThemesButton" class="action-btn secondary">
+                    SCAN FOR NEW THEMES
+                </button>
+                <div id="themesScanStatus" class="status"></div>
             </div>
             <div class="setting-group">
                 <label for="timezone">TIMEZONE</label>

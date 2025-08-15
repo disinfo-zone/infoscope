@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"infoscope/internal/auth"
@@ -58,6 +59,10 @@ type Server struct {
 	config        Config
 	templateCache map[string]*template.Template
 	backupStop    chan struct{}
+	// Theme caching with thread safety
+	themesMutex     sync.RWMutex
+	cachedThemes    []string
+	themesLastScan  time.Time
 }
 
 // securityHeaders wraps a handler to add standard security headers and a CSP
@@ -194,6 +199,17 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 		"themeCSSAdmin": func(settings map[string]string, file string) string {
 			return "/static/css/themes/" + sanitizeThemeForKey(settings, "admin_theme") + "/" + strings.TrimPrefix(file, "/")
 		},
+		// getAvailableThemes returns cached list of available theme names for use in dropdowns
+		"getAvailableThemes": func() []string {
+			return s.getAvailableThemes()
+		},
+		// title capitalizes the first letter of a string
+		"title": func(s string) string {
+			if len(s) == 0 {
+				return s
+			}
+			return strings.ToUpper(s[:1]) + s[1:]
+		},
 	}
 }
 
@@ -319,6 +335,9 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 	if !s.config.ProductionMode {
 		s.logger.Printf("Successfully loaded and cached %d templates.", len(s.templateCache))
 	}
+	
+	// Initialize theme cache on startup
+	s.refreshThemes()
 
 	if err := s.initializeTotalClicks(); err != nil {
 		return nil, fmt.Errorf("error initializing click counts: %w", err)
@@ -373,6 +392,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/logout/", s.requireAuth(s.handleLogout))
 	mux.HandleFunc("/admin/settings", s.requireAuth(s.handleSettings))
 	mux.HandleFunc("/admin/settings/", s.requireAuth(s.handleSettings))
+	mux.HandleFunc("/admin/themes/refresh", s.requireAuth(s.handleThemeRefresh))
 	mux.HandleFunc("/admin/feeds", s.requireAuth(s.handleFeeds))
 	mux.HandleFunc("/admin/feeds/", s.requireAuth(s.handleFeeds))
 	mux.HandleFunc("/admin/feeds/validate", s.requireAuth(s.handleFeedValidation))
@@ -480,6 +500,137 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		ctx = context.WithValue(ctx, contextKeyTemplateData, data)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// scanAvailableThemes performs the actual file system scan for themes
+// This is called once at startup and when explicitly requested via API
+func (s *Server) scanAvailableThemes() []string {
+	themesDir := filepath.Join(s.config.WebPath, "static", "css", "themes")
+	
+	// Check if themes directory exists
+	if _, err := os.Stat(themesDir); os.IsNotExist(err) {
+		if !s.config.ProductionMode {
+			s.logger.Printf("Themes directory does not exist: %s", themesDir)
+		}
+		return []string{"terminal"}
+	}
+	
+	entries, err := os.ReadDir(themesDir)
+	if err != nil {
+		s.logger.Printf("Error reading themes directory: %v", err)
+		return []string{"terminal"}
+	}
+	
+	var themes []string
+	allowed := regexp.MustCompile(`^[a-z0-9_-]+$`)
+	
+	for _, entry := range entries {
+		// Security: Skip non-directories and symbolic links
+		if !entry.IsDir() {
+			continue
+		}
+		
+		// Additional security: Check if it's a symlink by getting file info
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			s.logger.Printf("Skipping symbolic link in themes directory: %s", entry.Name())
+			continue
+		}
+		
+		name := strings.ToLower(entry.Name())
+		
+		// Security: Strict validation of theme names
+		if !allowed.MatchString(name) {
+			if !s.config.ProductionMode {
+				s.logger.Printf("Skipping invalid theme name: %s", entry.Name())
+			}
+			continue
+		}
+		
+		// Additional security: Prevent path traversal
+		if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
+			s.logger.Printf("Skipping potentially dangerous theme name: %s", name)
+			continue
+		}
+		
+		// Verify this is a valid theme directory by checking if it has at least one CSS file
+		themeDir := filepath.Join(themesDir, name)
+		
+		// Security: Ensure the constructed path is still within themes directory
+		absThemesDir, err := filepath.Abs(themesDir)
+		if err != nil {
+			continue
+		}
+		absThemeDir, err := filepath.Abs(themeDir)
+		if err != nil {
+			continue
+		}
+		if !strings.HasPrefix(absThemeDir, absThemesDir) {
+			s.logger.Printf("Skipping theme outside of themes directory: %s", name)
+			continue
+		}
+		
+		// Check for CSS files
+		themeCSSFiles, err := filepath.Glob(filepath.Join(themeDir, "*.css"))
+		if err != nil || len(themeCSSFiles) == 0 {
+			if !s.config.ProductionMode {
+				s.logger.Printf("Skipping theme with no CSS files: %s", name)
+			}
+			continue
+		}
+		
+		themes = append(themes, name)
+	}
+	
+	// Ensure "terminal" is always available as fallback
+	terminalExists := false
+	for _, theme := range themes {
+		if theme == "terminal" {
+			terminalExists = true
+			break
+		}
+	}
+	if !terminalExists {
+		themes = append([]string{"terminal"}, themes...)
+	}
+	
+	if !s.config.ProductionMode {
+		s.logger.Printf("Detected %d themes: %v", len(themes), themes)
+	}
+	
+	return themes
+}
+
+// getAvailableThemes returns cached themes with thread-safe access
+// This is the function used by templates and API endpoints
+func (s *Server) getAvailableThemes() []string {
+	s.themesMutex.RLock()
+	defer s.themesMutex.RUnlock()
+	
+	// Return a copy to prevent modification of cached data
+	themes := make([]string, len(s.cachedThemes))
+	copy(themes, s.cachedThemes)
+	return themes
+}
+
+// refreshThemes rescans the file system and updates the cache
+// This can be called via API endpoint without restarting the server
+func (s *Server) refreshThemes() []string {
+	newThemes := s.scanAvailableThemes()
+	
+	s.themesMutex.Lock()
+	s.cachedThemes = newThemes
+	s.themesLastScan = time.Now()
+	s.themesMutex.Unlock()
+	
+	if !s.config.ProductionMode {
+		s.logger.Printf("Theme cache refreshed with %d themes", len(newThemes))
+	}
+	
+	return newThemes
 }
 
 func (s *Server) Start(addr string) error {
