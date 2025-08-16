@@ -368,6 +368,54 @@
   border-color: var(--color-border);
 }
 
+/* Template update confirmation modal */
+.template-update-confirm-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10001;
+  font-family: var(--font-family-mono);
+}
+
+.template-update-confirm-content {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: 2rem;
+  max-width: 500px;
+  color: var(--color-text-primary);
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.template-update-confirm-title {
+  color: var(--color-accent-primary);
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+}
+
+.template-update-confirm-message {
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.template-update-confirm-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.template-update-confirm-actions .action-btn {
+  min-width: 100px;
+}
+
 /* Enhanced Status Messages */
 .status, 
 .backup-status { 

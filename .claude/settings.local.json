@@ -17,7 +17,8 @@
       "Bash(true)",
       "Bash(xcopy:*)",
       "Bash(cp:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
