@@ -850,6 +850,178 @@ function bindThemeScanning() {
   }
 }
 
+function bindTemplateUpdates() {
+  const updateButton = getEl('updateTemplatesButton');
+  const statusDiv = getEl('templatesUpdateStatus');
+  
+  if (updateButton) {
+    updateButton.addEventListener('click', async () => {
+      // Show custom confirmation dialog
+      showTemplateUpdateConfirmation(() => performTemplateUpdate(updateButton, statusDiv));
+    });
+  }
+}
+
+function showTemplateUpdateConfirmation(onConfirm) {
+  // Create modal container
+  const modal = document.createElement('div');
+  modal.className = 'template-update-confirm-modal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+    font-family: var(--font-family-mono, 'Courier New', monospace);
+  `;
+  
+  // Create modal content
+  const content = document.createElement('div');
+  content.style.cssText = `
+    background: var(--color-bg-primary, #121a2b);
+    border: 1px solid var(--color-border, #2a3450);
+    border-radius: var(--border-radius-md, 8px);
+    padding: 2rem;
+    max-width: 500px;
+    color: var(--color-text-primary, #e8e8e8);
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  `;
+  
+  content.innerHTML = `
+    <h3 style="color: var(--color-accent-primary, #67bb79); margin-bottom: 1rem; font-size: 1.2rem;">⚠ Confirm Template Update</h3>
+    
+    <p style="margin-bottom: 1.5rem; line-height: 1.5; color: var(--color-text-secondary, #c7d2fe);">
+      This will <strong>overwrite all templates and themes</strong> with embedded versions from the application.<br><br>
+      Any local customizations you have made will be <strong>permanently lost</strong>.<br><br>
+      Are you sure you want to continue?
+    </p>
+    
+    <div style="display: flex; gap: 1rem; justify-content: center;">
+      <button id="templateUpdateCancel" class="action-btn secondary" style="min-width: 100px;">CANCEL</button>
+      <button id="templateUpdateConfirm" class="action-btn primary" style="min-width: 100px;">UPDATE</button>
+    </div>
+  `;
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Add event handlers
+  const cancelBtn = modal.querySelector('#templateUpdateCancel');
+  const confirmBtn = modal.querySelector('#templateUpdateConfirm');
+  
+  const closeModal = () => {
+    if (modal && modal.parentNode) {
+      modal.parentNode.removeChild(modal);
+    }
+  };
+  
+  cancelBtn.addEventListener('click', closeModal);
+  confirmBtn.addEventListener('click', () => {
+    closeModal();
+    onConfirm();
+  });
+  
+  // Close on background click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
+  
+  // Close on Escape key
+  const handleEscape = (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+      document.removeEventListener('keydown', handleEscape);
+    }
+  };
+  document.addEventListener('keydown', handleEscape);
+}
+
+async function performTemplateUpdate(updateButton, statusDiv) {
+  // Show loading state
+  updateButton.disabled = true;
+  updateButton.textContent = 'UPDATING...';
+  if (statusDiv) {
+    statusDiv.className = 'status loading';
+    statusDiv.textContent = 'Updating templates and themes...';
+  }
+  
+  try {
+    const response = await csrf.fetch('/admin/templates/update', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // Show success message
+      if (statusDiv) {
+        statusDiv.className = 'status success';
+        statusDiv.textContent = result.message;
+      }
+      
+      // Update the theme dropdowns if themes were updated
+      const publicSelect = getEl('publicTheme');
+      const adminSelect = getEl('adminTheme');
+      
+      if (publicSelect && adminSelect && result.themes) {
+        // Clear and repopulate dropdowns
+        [publicSelect, adminSelect].forEach(select => {
+          const currentValue = select.value;
+          select.innerHTML = '';
+          
+          result.themes.forEach(theme => {
+            const option = document.createElement('option');
+            option.value = theme;
+            option.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
+            if (theme === currentValue) {
+              option.selected = true;
+            }
+            select.appendChild(option);
+          });
+        });
+      }
+      
+      showNotification(result.message, 'success');
+      
+      // Clear status after 5 seconds
+      setTimeout(() => {
+        if (statusDiv) {
+          statusDiv.className = 'status';
+          statusDiv.textContent = '';
+        }
+      }, 5000);
+    } else {
+      throw new Error(result.message || 'Template update failed');
+    }
+    
+  } catch (error) {
+    if (statusDiv) {
+      statusDiv.className = 'status error';
+      statusDiv.textContent = `Error: ${error.message}`;
+    }
+    showNotification(`Template update failed: ${error.message}`, 'error');
+  } finally {
+    // Restore button state
+    updateButton.disabled = false;
+    updateButton.textContent = 'UPDATE TEMPLATES';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initialThemeName = getCurrentThemeFromDOM();
   bindSettingsForm();
@@ -857,6 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindImageInputs();
   bindBackup();
   bindThemeScanning();
+  bindTemplateUpdates();
 
   // Close notifications
   document.addEventListener('click', (e) => {

@@ -548,6 +548,52 @@ func (s *Server) handleThemeRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleTemplateUpdate handles POST requests to force update templates
+func (s *Server) handleTemplateUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	if !s.csrf.Validate(w, r) {
+		return
+	}
+	
+	// Force extract web content (including themes)
+	if err := s.extractWebContent(true); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("Failed to update templates: %v", err),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	
+	// Refresh themes after extraction
+	themes := s.refreshThemes()
+	
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Templates and themes updated successfully. Found %d themes.", len(themes)),
+		"themes":  themes,
+		"count":   len(themes),
+	}
+	
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.logger.Printf("Error encoding template update response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	
+	if !s.config.ProductionMode {
+		s.logger.Printf("Templates updated via API. Found themes: %v", themes)
+	}
+}
+
 func (s *Server) handleFeedValidation(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

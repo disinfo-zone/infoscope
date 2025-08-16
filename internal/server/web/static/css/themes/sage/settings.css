@@ -220,6 +220,58 @@
   background: rgba(220, 38, 38, 0.1);
 }
 
+/* Action buttons for settings page actions */
+.action-btn { 
+  padding: 0.75rem 1rem; 
+  border: 1px solid var(--color-border); 
+  border-radius: var(--border-radius-md); 
+  cursor: pointer; 
+  font-family: var(--font-family-mono); 
+  font-size: 0.8rem; 
+  letter-spacing: 0.1em; 
+  transition: all var(--transition-normal); 
+  background: var(--color-bg-secondary); 
+  color: var(--color-text-primary);
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+}
+
+.action-btn:hover { 
+  background: var(--color-bg-primary); 
+}
+
+.action-btn.primary { 
+  background: var(--color-accent-primary); 
+  color: var(--color-bg-primary); 
+  border-color: var(--color-accent-primary); 
+}
+
+.action-btn.primary:hover { 
+  background: var(--color-accent-hover); 
+  border-color: var(--color-accent-hover); 
+}
+
+.action-btn.secondary { 
+  border-color: var(--color-accent-primary); 
+  color: var(--color-accent-primary); 
+  background: transparent; 
+}
+
+.action-btn.secondary:hover { 
+  background: var(--color-bg-secondary); 
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-btn:disabled:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border);
+}
+
 .status, .backup-status { 
   margin-top: 1rem; 
   padding: 0.75rem; 
@@ -258,6 +310,13 @@
 .backup-actions-inline { 
   display: flex; 
   gap: 0.5rem; 
+}
+
+.status.loading, .backup-status.loading { 
+  display: block; 
+  background: rgba(var(--color-accent-primary-rgb), 0.1); 
+  color: var(--color-accent-primary); 
+  border: 1px solid var(--color-accent-primary); 
 }
 
 .status.success, .backup-status.success { 

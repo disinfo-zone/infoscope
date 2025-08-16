@@ -393,6 +393,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/admin/settings", s.requireAuth(s.handleSettings))
 	mux.HandleFunc("/admin/settings/", s.requireAuth(s.handleSettings))
 	mux.HandleFunc("/admin/themes/refresh", s.requireAuth(s.handleThemeRefresh))
+	mux.HandleFunc("/admin/templates/update", s.requireAuth(s.handleTemplateUpdate))
 	mux.HandleFunc("/admin/feeds", s.requireAuth(s.handleFeeds))
 	mux.HandleFunc("/admin/feeds/", s.requireAuth(s.handleFeeds))
 	mux.HandleFunc("/admin/feeds/validate", s.requireAuth(s.handleFeedValidation))
