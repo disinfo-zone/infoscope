@@ -32,17 +32,19 @@ type EntryView struct {
 
 type IndexData struct {
 	BaseTemplateData
-	Title             string
-	Entries           []EntryView
-	HeaderLinkURL     string
-	HeaderLinkText    string
-	FooterLinkURL     string
-	FooterLinkText    string
-	FooterImageURL    string
-	FooterImageHeight string
-	TrackingCode      string
-	Settings          map[string]string
-	SiteURL           string
+	Title                     string
+	Entries                   []EntryView
+	HeaderLinkURL             string
+	HeaderLinkText            string
+	FooterLinkURL             string
+	FooterLinkText            string
+	FooterImageURL            string
+	FooterImageHeight         string
+	TrackingCode              string
+	Settings                  map[string]string
+	SiteURL                   string
+	AllowPublicThemeSelection bool
+	AvailableThemes           []string
 }
 
 type BaseTemplateData struct {
@@ -97,6 +99,9 @@ type Settings struct {
 	BackupEnabled       bool `json:"backupEnabled"`
 	BackupIntervalHours int  `json:"backupIntervalHours"`
 	BackupRetentionDays int  `json:"backupRetentionDays"`
+	// Public theme selection settings
+	AllowPublicThemeSelection bool   `json:"allowPublicThemeSelection"`
+	PublicAvailableThemes     string `json:"publicAvailableThemes"`
 }
 
 type Feed struct {

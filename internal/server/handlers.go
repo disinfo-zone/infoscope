@@ -252,6 +252,30 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"body_text_length":      {strconv.Itoa(settings.BodyTextLength), "int"},
 	}
 
+	// Security: Validate theme selection settings
+	if settings.AllowPublicThemeSelection {
+		// Validate available themes list
+		validatedThemes := s.validatePublicThemes(settings.PublicAvailableThemes)
+		updates["allow_public_theme_selection"] = struct {
+			value string
+			type_ string
+		}{strconv.FormatBool(settings.AllowPublicThemeSelection), "bool"}
+		updates["public_available_themes"] = struct {
+			value string
+			type_ string
+		}{validatedThemes, "string"}
+	} else {
+		// When disabled, clear the themes list for security
+		updates["allow_public_theme_selection"] = struct {
+			value string
+			type_ string
+		}{"false", "bool"}
+		updates["public_available_themes"] = struct {
+			value string
+			type_ string
+		}{"", "string"}
+	}
+
 	for key, setting := range updates {
 		if _, err := stmt.ExecContext(ctx, key, setting.value, setting.type_); err != nil {
 			return err
@@ -429,19 +453,45 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 			s.logger.Printf("Sample entry: %+v", entries[0])
 		}
 	}
+	// Check if public theme selection is enabled
+	allowThemeSelection := settings["allow_public_theme_selection"] == "true"
+	var availableThemes []string
+	if allowThemeSelection {
+		allAvailableThemes := s.getAvailableThemes()
+		
+		// Get the selected themes for public use and validate them
+		if settings["public_available_themes"] != "" {
+			themes := strings.Split(settings["public_available_themes"], ",")
+			for _, theme := range themes {
+				if trimmed := strings.TrimSpace(theme); trimmed != "" {
+					// Security: Validate theme name against filesystem scan and safe characters
+					if s.isValidThemeName(trimmed) && s.containsString(allAvailableThemes, trimmed) {
+						availableThemes = append(availableThemes, trimmed)
+					}
+				}
+			}
+		}
+		// If no valid themes selected, default to all available themes
+		if len(availableThemes) == 0 {
+			availableThemes = allAvailableThemes
+		}
+	}
+
 	data := IndexData{
-		BaseTemplateData:  BaseTemplateData{CSRFToken: csrfToken},
-		Title:             settings["site_title"],
-		Entries:           entries,
-		HeaderLinkURL:     settings["header_link_url"],
-		HeaderLinkText:    settings["header_link_text"],
-		FooterLinkURL:     settings["footer_link_url"],
-		FooterLinkText:    settings["footer_link_text"],
-		FooterImageURL:    settings["footer_image_url"],
-		FooterImageHeight: settings["footer_image_height"],
-		TrackingCode:      settings["tracking_code"],
-		Settings:          settings,
-		SiteURL:           settings["site_url"],
+		BaseTemplateData:          BaseTemplateData{CSRFToken: csrfToken},
+		Title:                     settings["site_title"],
+		Entries:                   entries,
+		HeaderLinkURL:             settings["header_link_url"],
+		HeaderLinkText:            settings["header_link_text"],
+		FooterLinkURL:             settings["footer_link_url"],
+		FooterLinkText:            settings["footer_link_text"],
+		FooterImageURL:            settings["footer_image_url"],
+		FooterImageHeight:         settings["footer_image_height"],
+		TrackingCode:              settings["tracking_code"],
+		Settings:                  settings,
+		SiteURL:                   settings["site_url"],
+		AllowPublicThemeSelection: allowThemeSelection,
+		AvailableThemes:           availableThemes,
 	}
 	if !s.config.ProductionMode {
 		s.logger.Printf("Rendering template with data: %+v", data)

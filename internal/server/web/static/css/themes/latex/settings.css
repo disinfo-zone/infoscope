@@ -465,6 +465,33 @@
   font-size: var(--font-size-small);
 }
 
+.backup-row { 
+  display: grid; 
+  grid-template-columns: 1fr auto auto; 
+  gap: 0.75rem; 
+  align-items: center; 
+  padding: 0.6rem 0.5rem; 
+  border-bottom: 1px solid var(--color-border); 
+}
+
+.backup-name { 
+  font-family: var(--font-family-mono); 
+  font-size: 0.85rem; 
+  color: var(--color-text-primary); 
+  word-break: break-word; 
+  overflow-wrap: break-word; 
+}
+
+.backup-meta { 
+  font-size: 0.8rem; 
+  color: var(--color-text-muted); 
+}
+
+.backup-actions-inline { 
+  display: flex; 
+  gap: 0.5rem; 
+}
+
 /* Checkbox Styling */
 .setting-group input[type="checkbox"] {
   width: auto;
@@ -494,6 +521,37 @@
   
   .backup-actions {
     grid-template-columns: 1fr;
+  }
+  
+  .backup-row {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 0.5rem;
+    padding: 1rem 0.5rem;
+  }
+  
+  .backup-name {
+    font-size: 0.9rem;
+    font-weight: var(--font-weight-medium);
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  .backup-meta {
+    font-size: 0.75rem;
+    opacity: 0.8;
+  }
+  
+  .backup-actions-inline {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .backup-actions-inline .backup-button {
+    font-size: 0.7rem;
+    padding: 0.5rem 0.75rem;
   }
   
   .setting-group {

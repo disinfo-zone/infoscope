@@ -300,3 +300,288 @@ h1 {
     transform: none;
   }
 }
+
+/* Settings Button - Natural sage style */
+.settings-button {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-dropdown);
+  opacity: 0.85;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal) var(--transition-ease);
+  backdrop-filter: blur(8px);
+}
+
+.settings-button:hover {
+  opacity: 1;
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  background-color: var(--color-bg-tertiary);
+  transform: var(--hover-lift);
+  box-shadow: var(--shadow-md);
+}
+
+.settings-button:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  opacity: 1;
+}
+
+.settings-button:active {
+  transform: scale(0.95);
+}
+
+.settings-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  stroke-width: 1.5;
+  transition: transform var(--transition-normal) var(--transition-ease);
+}
+
+.settings-button:hover .settings-icon {
+  transform: rotate(90deg);
+}
+
+/* Settings Modal - Natural and calming */
+.settings-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: var(--z-modal);
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-normal) var(--transition-ease);
+}
+
+.settings-modal[style*="flex"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.settings-modal-content {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  transform: translateY(-20px) scale(0.95);
+  transition: transform var(--transition-normal) var(--transition-ease);
+}
+
+.settings-modal[style*="flex"] .settings-modal-content {
+  transform: translateY(0) scale(1);
+}
+
+.settings-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.settings-modal-header h3 {
+  margin: 0;
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-large);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--border-radius-sm);
+  transition: all var(--transition-normal) var(--transition-ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+}
+
+.settings-close:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+  transform: var(--hover-lift);
+}
+
+.settings-close:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.settings-modal-body {
+  padding: var(--spacing-xl);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.setting-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.setting-section:last-child {
+  margin-bottom: 0;
+}
+
+.setting-section > label {
+  display: block;
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-md);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.theme-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all var(--transition-normal) var(--transition-ease);
+  background: var(--color-bg-secondary);
+}
+
+.theme-option:hover {
+  border-color: var(--color-accent-primary);
+  background: var(--color-bg-tertiary);
+  transform: var(--hover-lift);
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-option input[type="radio"] {
+  margin: 0;
+  accent-color: var(--color-accent-primary);
+}
+
+.theme-name {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-primary);
+  flex: 1;
+}
+
+.settings-modal-footer {
+  padding: var(--spacing-xl);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+}
+
+.apply-button {
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+  border: 1px solid var(--color-accent-primary);
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all var(--transition-normal) var(--transition-ease);
+  min-width: 90px;
+}
+
+.apply-button:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  transform: var(--hover-lift);
+  box-shadow: var(--shadow-md);
+}
+
+.apply-button:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.apply-button:active {
+  transform: var(--active-scale);
+}
+
+/* Mobile responsiveness for settings */
+@media (max-width: 768px) {
+  .settings-button {
+    top: 1rem;
+    right: 1rem;
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  .settings-icon {
+    width: 1rem;
+    height: 1rem;
+  }
+  
+  .settings-modal-content {
+    width: 95%;
+    margin: var(--spacing-md);
+  }
+  
+  .settings-modal-header,
+  .settings-modal-body,
+  .settings-modal-footer {
+    padding: var(--spacing-lg);
+  }
+  
+  .settings-modal-header h3 {
+    font-size: var(--font-size-medium);
+  }
+  
+  .theme-option {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  
+  .theme-name {
+    font-size: var(--font-size-small);
+  }
+  
+  .apply-button {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: var(--font-size-tiny);
+    min-width: 80px;
+  }
+}

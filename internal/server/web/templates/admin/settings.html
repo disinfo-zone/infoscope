@@ -171,6 +171,23 @@
                 </button>
                 <div id="templatesUpdateStatus" class="status"></div>
             </div>
+            
+            <!-- Public Theme Selection -->
+            <div class="setting-group">
+                <label>AVAILABLE THEMES FOR USERS</label>
+                <div class="help-text">
+                    Select which themes users can choose from on the public pages. Only visible when "Allow Public Theme Selection" is enabled.
+                </div>
+                <div class="checkbox-group" id="availableThemesGroup">
+                    {{ $availableThemes := getAvailableThemes }}
+                    {{ range $theme := $availableThemes }}
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="public_available_themes" value="{{ $theme }}" checked>
+                        {{ title $theme }}
+                    </label>
+                    {{ end }}
+                </div>
+            </div>
             <div class="setting-group">
                 <label for="timezone">TIMEZONE</label>
                 <select id="timezone" name="timezone" class="timezone-select">
@@ -259,6 +276,17 @@
                         </label>
                         <div class="help-text">
                             Display a preview of the entry content below the title.
+                        </div>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <label class="checkbox-label" for="allowPublicThemeSelection">
+                            <input type="checkbox" id="allowPublicThemeSelection" name="allow_public_theme_selection" 
+                                   {{ if eq (index .Data.Settings "allow_public_theme_selection") "true" }}checked{{ end }}>
+                            Allow Public Theme Selection
+                        </label>
+                        <div class="help-text">
+                            Let visitors choose their preferred theme via a settings menu on the public pages.
                         </div>
                     </div>
                 </div>
@@ -443,16 +471,28 @@ function initializeSettingsForm() {
             const fieldMapping = {
                 'show_blog_name': 'showBlogName',
                 'show_body_text': 'showBodyText',
-                'body_text_length': 'bodyTextLength'
+                'body_text_length': 'bodyTextLength',
+                'allow_public_theme_selection': 'allowPublicThemeSelection'
             };
             
+            // Handle multiple checkbox values for themes
+            const publicAvailableThemes = [];
             for (let [key, value] of formData.entries()) {
-                if (key !== 'image' && key !== 'favicon' && key !== 'footerImage' && key !== 'metaImage') {
+                if (key === 'public_available_themes') {
+                    publicAvailableThemes.push(value);
+                }
+            }
+            if (publicAvailableThemes.length > 0) {
+                settings.publicAvailableThemes = publicAvailableThemes.join(',');
+            }
+            
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'image' && key !== 'favicon' && key !== 'footerImage' && key !== 'metaImage' && key !== 'public_available_themes') {
                     // Map field name if needed
                     const jsonKey = fieldMapping[key] || key;
                     
                     // Handle checkbox values (convert to boolean)
-                    if (key === 'show_blog_name' || key === 'show_body_text') {
+                    if (key === 'show_blog_name' || key === 'show_body_text' || key === 'allow_public_theme_selection') {
                         settings[jsonKey] = true; // Checkbox is checked if present in formData
                     }
                     // Handle numeric values
@@ -472,6 +512,9 @@ function initializeSettingsForm() {
             }
             if (!formData.has('show_body_text')) {
                 settings['showBodyText'] = false;
+            }
+            if (!formData.has('allow_public_theme_selection')) {
+                settings['allowPublicThemeSelection'] = false;
             }
             
             // Override with uploaded filenames
@@ -2310,6 +2353,27 @@ function reorderAssignedFilters() {
 window.editFilter = editFilter;
 window.deleteFilter = deleteFilter;
 window.showCreateFilterModal = showCreateFilterModal;
+
+// Initialize theme selection checkboxes based on saved settings
+document.addEventListener('DOMContentLoaded', function() {
+    // Set the correct theme checkboxes based on saved settings
+    const savedThemes = '{{ index .Data.Settings "public_available_themes" }}';
+    if (savedThemes && savedThemes.trim() !== '') {
+        // Uncheck all theme checkboxes first
+        document.querySelectorAll('input[name="public_available_themes"]').forEach(cb => {
+            cb.checked = false;
+        });
+        
+        // Check only the saved themes
+        const themesArray = savedThemes.split(',');
+        themesArray.forEach(theme => {
+            const checkbox = document.querySelector(`input[name="public_available_themes"][value="${theme.trim()}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+    }
+});
 </script>
 
 <!-- Create Filter Group Modal removed -->

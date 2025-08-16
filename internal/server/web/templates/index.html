@@ -32,10 +32,51 @@
     <link rel="alternate" type="application/rss+xml" title="{{ .Data.Title }} Feed" href="/rss.xml" />
     
     <!-- External CSS -->
-    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "variables.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "variables.css" }}" id="themeVariablesCSS">
     <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "public.css" }}">
-    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "ux-enhancements.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "public.css" }}" id="themePublicCSS">
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "ux-enhancements.css" }}" id="themeUxCSS">
+    
+    {{ if .Data.AllowPublicThemeSelection }}
+    <!-- Theme switching script - must run before page render -->
+    <script>
+        // Check for user's theme preference and update CSS links before page loads
+        (function() {
+            const userTheme = localStorage.getItem('userSelectedTheme');
+            if (userTheme) {
+                // Security: Validate theme name against allowed themes list
+                const allowedThemes = [{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }}, {{ end }}'{{ $theme }}'{{ end }}];
+                
+                // Edge case: If no themes available, clear localStorage and exit
+                if (allowedThemes.length === 0) {
+                    localStorage.removeItem('userSelectedTheme');
+                    return;
+                }
+                
+                // Only proceed if theme is in allowed list and contains only safe characters
+                if (allowedThemes.includes(userTheme) && /^[a-zA-Z0-9_-]+$/.test(userTheme)) {
+                    const variablesLink = document.getElementById('themeVariablesCSS');
+                    const publicLink = document.getElementById('themePublicCSS');
+                    const uxLink = document.getElementById('themeUxCSS');
+                    
+                    // Use encodeURIComponent for additional safety
+                    const safeTheme = encodeURIComponent(userTheme);
+                    try {
+                        if (variablesLink) variablesLink.href = `/static/css/themes/${safeTheme}/variables.css`;
+                        if (publicLink) publicLink.href = `/static/css/themes/${safeTheme}/public.css`;
+                        if (uxLink) uxLink.href = `/static/css/themes/${safeTheme}/ux-enhancements.css`;
+                    } catch (error) {
+                        console.error('Error applying theme:', error);
+                        localStorage.removeItem('userSelectedTheme');
+                    }
+                } else {
+                    // Invalid theme, remove from localStorage
+                    localStorage.removeItem('userSelectedTheme');
+                }
+            }
+        })();
+    </script>
+    {{ end }}
     
     <!-- Preload critical favicons for faster loading -->
     {{ range $index, $entry := .Data.Entries }}
@@ -53,6 +94,15 @@
     <h1>{{ .Data.Title }}</h1>
     {{ if and .Data.HeaderLinkURL .Data.HeaderLinkText }}
     <a href="{{ .Data.HeaderLinkURL }}" class="header-link return">{{ .Data.HeaderLinkText }}</a>
+    {{ end }}
+    
+    {{ if .Data.AllowPublicThemeSelection }}
+    <button id="settingsButton" class="settings-button" aria-label="Settings" title="Settings">
+        <svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m18.6-2.4l-5.7 5.7m-5.7-5.7L1.6 9.6M22.4 14.4l-5.7-5.7m-5.7 5.7L4.6 14.4"></path>
+        </svg>
+    </button>
     {{ end }}
 
     <div class="feed">
@@ -90,8 +140,127 @@
     </div>    <!-- External JavaScript -->
     <script type="module" src="/static/js/main.js"></script>
     
+    {{ if .Data.AllowPublicThemeSelection }}
+    <!-- Theme Selection JavaScript -->
+    <script>
+        // Theme selection functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const settingsButton = document.getElementById('settingsButton');
+            const settingsModal = document.getElementById('settingsModal');
+            const closeButton = document.getElementById('closeSettingsModal');
+            const applyButton = document.getElementById('applySettings');
+            
+            // Get current theme from localStorage or default to first available theme
+            const allowedThemes = [{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }}, {{ end }}'{{ $theme }}'{{ end }}];
+            let currentTheme = localStorage.getItem('userSelectedTheme');
+            
+            // Edge case: If no themes are available, disable functionality
+            if (allowedThemes.length === 0) {
+                console.error('No themes available for selection');
+                return;
+            }
+            
+            // Security: Validate and sanitize theme selection
+            if (!currentTheme || !allowedThemes.includes(currentTheme) || !/^[a-zA-Z0-9_-]+$/.test(currentTheme)) {
+                currentTheme = '{{ index .Data.AvailableThemes 0 }}';
+                if (localStorage.getItem('userSelectedTheme')) {
+                    localStorage.removeItem('userSelectedTheme'); // Remove invalid theme
+                }
+            }
+            
+            // Set the current theme radio button as checked (safe because currentTheme is validated)
+            // Use requestAnimationFrame to ensure DOM is ready
+            requestAnimationFrame(() => {
+                const currentThemeRadio = document.querySelector(`input[name="selectedTheme"][value="${CSS.escape(currentTheme)}"]`);
+                if (currentThemeRadio) {
+                    currentThemeRadio.checked = true;
+                }
+            });
+            
+            // Show modal
+            settingsButton.addEventListener('click', function() {
+                settingsModal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            });
+            
+            // Hide modal
+            function hideModal() {
+                settingsModal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+            
+            closeButton.addEventListener('click', hideModal);
+            
+            // Close modal when clicking background
+            settingsModal.addEventListener('click', function(e) {
+                if (e.target === settingsModal) {
+                    hideModal();
+                }
+            });
+            
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && settingsModal.style.display === 'flex') {
+                    hideModal();
+                }
+            });
+            
+            // Apply theme selection
+            applyButton.addEventListener('click', function() {
+                const selectedTheme = document.querySelector('input[name="selectedTheme"]:checked');
+                if (selectedTheme) {
+                    const themeValue = selectedTheme.value;
+                    
+                    // Security: Validate theme before saving
+                    if (allowedThemes.includes(themeValue) && /^[a-zA-Z0-9_-]+$/.test(themeValue)) {
+                        try {
+                            localStorage.setItem('userSelectedTheme', themeValue);
+                            
+                            // Apply theme immediately by reloading the page
+                            location.reload();
+                        } catch (error) {
+                            console.error('Error saving theme preference:', error);
+                            // Show user-friendly error (could add a toast notification here)
+                        }
+                    } else {
+                        console.error('Invalid theme selection');
+                    }
+                }
+            });
+        });
+    </script>
+    {{ end }}
+    
     <!-- Immediate favicon loading after page load -->
     
+
+    {{ if .Data.AllowPublicThemeSelection }}
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="settings-modal" style="display: none;">
+        <div class="settings-modal-content">
+            <div class="settings-modal-header">
+                <h3>Settings</h3>
+                <button id="closeSettingsModal" class="settings-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="settings-modal-body">
+                <div class="setting-section">
+                    <label>Theme</label>
+                    <div class="theme-options">
+                        {{ range .Data.AvailableThemes }}
+                        <label class="theme-option">
+                            <input type="radio" name="selectedTheme" value="{{ . }}">
+                            <span class="theme-name">{{ title . }}</span>
+                        </label>
+                        {{ end }}
+                    </div>
+                </div>
+            </div>
+            <div class="settings-modal-footer">
+                <button id="applySettings" class="apply-button">Apply</button>
+            </div>
+        </div>
+    </div>
+    {{ end }}
 
     {{ if .Data.TrackingCode }}
     {{ .Data.TrackingCode | safeHTML }}
