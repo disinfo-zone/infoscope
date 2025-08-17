@@ -252,29 +252,19 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		"body_text_length":      {strconv.Itoa(settings.BodyTextLength), "int"},
 	}
 
-	// Security: Validate theme selection settings
-	if settings.AllowPublicThemeSelection {
-		// Validate available themes list
-		validatedThemes := s.validatePublicThemes(settings.PublicAvailableThemes)
-		updates["allow_public_theme_selection"] = struct {
-			value string
-			type_ string
-		}{strconv.FormatBool(settings.AllowPublicThemeSelection), "bool"}
-		updates["public_available_themes"] = struct {
-			value string
-			type_ string
-		}{validatedThemes, "string"}
-	} else {
-		// When disabled, clear the themes list for security
-		updates["allow_public_theme_selection"] = struct {
-			value string
-			type_ string
-		}{"false", "bool"}
-		updates["public_available_themes"] = struct {
-			value string
-			type_ string
-		}{"", "string"}
-	}
+	// Always save the theme selection setting from form submission
+	updates["allow_public_theme_selection"] = struct {
+		value string
+		type_ string
+	}{strconv.FormatBool(settings.AllowPublicThemeSelection), "bool"}
+
+	// Always save the selected themes (regardless of whether feature is enabled)
+	// This allows admins to pre-configure themes before enabling the feature
+	validatedThemes := s.validatePublicThemes(settings.PublicAvailableThemes)
+	updates["public_available_themes"] = struct {
+		value string
+		type_ string
+	}{validatedThemes, "string"}
 
 	for key, setting := range updates {
 		if _, err := stmt.ExecContext(ctx, key, setting.value, setting.type_); err != nil {
@@ -471,7 +461,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		// If no valid themes selected, default to all available themes
+		// If no specific themes selected but public theme selection is enabled,
+		// default to all available themes (maintains backward compatibility)
 		if len(availableThemes) == 0 {
 			availableThemes = allAvailableThemes
 		}

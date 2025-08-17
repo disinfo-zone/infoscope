@@ -210,6 +210,19 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 			}
 			return strings.ToUpper(s[:1]) + s[1:]
 		},
+		// contains checks if a comma-separated string contains a value
+		"contains": func(haystack, needle string) bool {
+			if haystack == "" {
+				return false
+			}
+			parts := strings.Split(haystack, ",")
+			for _, part := range parts {
+				if strings.TrimSpace(part) == needle {
+					return true
+				}
+			}
+			return false
+		},
 	}
 }
 

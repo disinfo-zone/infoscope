@@ -470,13 +470,23 @@ function bindSettingsForm() {
       const fieldMapping = {
         'show_blog_name': 'showBlogName',
         'show_body_text': 'showBodyText',
-        'body_text_length': 'bodyTextLength'
+        'body_text_length': 'bodyTextLength',
+        'allow_public_theme_selection': 'allowPublicThemeSelection'
       };
 
+      // Handle multiple checkbox values for public available themes
+      const publicAvailableThemes = [];
       for (const [key, value] of formData.entries()) {
-        if (key === 'image' || key === 'favicon' || key === 'footerImage' || key === 'metaImage') continue;
+        if (key === 'public_available_themes') {
+          publicAvailableThemes.push(value);
+        }
+      }
+      settings.publicAvailableThemes = publicAvailableThemes.join(',');
+
+      for (const [key, value] of formData.entries()) {
+        if (key === 'image' || key === 'favicon' || key === 'footerImage' || key === 'metaImage' || key === 'public_available_themes') continue;
         const jsonKey = fieldMapping[key] || key;
-        if (key === 'show_blog_name' || key === 'show_body_text') {
+        if (key === 'show_blog_name' || key === 'show_body_text' || key === 'allow_public_theme_selection') {
           settings[jsonKey] = true;
         } else if (key === 'maxPosts' || key === 'updateInterval' || key === 'body_text_length' || key === 'backupIntervalHours' || key === 'backupRetentionDays') {
           settings[jsonKey] = parseInt(value, 10) || 0;
@@ -487,6 +497,7 @@ function bindSettingsForm() {
 
       if (!formData.has('show_blog_name')) settings['showBlogName'] = false;
       if (!formData.has('show_body_text')) settings['showBodyText'] = false;
+      if (!formData.has('allow_public_theme_selection')) settings['allowPublicThemeSelection'] = false;
       // Auto backup checkbox
       settings['backupEnabled'] = !!formData.get('backupEnabled');
 

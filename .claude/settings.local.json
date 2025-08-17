@@ -18,7 +18,11 @@
       "Bash(xcopy:*)",
       "Bash(cp:*)",
       "Bash(rm:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(find:*)",
+      "Bash(sqlite3:*)",
+      "Bash(.infoscope.exe -port 8080)",
+      "Bash(./infoscope:*)"
     ],
     "deny": []
   }

@@ -4,7 +4,7 @@
 .theme-toggle {
   position: fixed;
   top: 1.5rem;
-  right: 1.5rem;
+  right: 1.5rem; /* Keep on right */
   width: 2rem;
   height: 2rem;
   border: 1px solid var(--color-border);
@@ -516,7 +516,7 @@ h1 {
 .settings-button {
   position: fixed;
   top: 1.5rem;
-  right: 1.5rem;
+  left: 1.5rem; /* Move to top-left corner */
   width: 2.5rem;
   height: 2.5rem;
   border: 1px solid var(--color-border);
@@ -569,15 +569,16 @@ h1 {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: var(--z-modal);
   opacity: 0;
   visibility: hidden;
-  transition: all var(--transition-normal) var(--transition-ease);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: var(--spacing-lg);
 }
 
 .settings-modal[style*="flex"] {
@@ -588,18 +589,22 @@ h1 {
 .settings-modal-content {
   background: var(--color-bg-primary);
   border: 1px solid var(--color-border);
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-lg);
-  max-width: 500px;
-  width: 90%;
-  max-height: 80vh;
+  border-radius: 18px;
+  box-shadow: 
+    0 24px 64px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  max-width: 400px;
+  width: 100%;
+  max-height: 90vh;
   overflow: hidden;
-  transform: translateY(-20px);
-  transition: transform var(--transition-normal) var(--transition-ease);
+  transform: scale(0.96) translateY(24px);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
 }
 
 .settings-modal[style*="flex"] .settings-modal-content {
-  transform: translateY(0);
+  transform: scale(1) translateY(0);
 }
 
 .settings-modal-header {
@@ -608,42 +613,47 @@ h1 {
   align-items: center;
   padding: var(--spacing-xl);
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
+  background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 100%);
+  border-radius: 18px 18px 0 0;
 }
 
 .settings-modal-header h3 {
   margin: 0;
   font-family: var(--font-family-primary);
-  font-size: var(--font-size-large);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   letter-spacing: -0.01em;
 }
 
 .settings-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  font-size: 1.2rem;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: var(--spacing-xs);
-  border-radius: var(--border-radius-sm);
-  transition: all var(--transition-normal) var(--transition-ease);
+  padding: 0;
+  border-radius: 12px;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 36px;
+  height: 36px;
+  font-family: var(--font-family-primary);
+  line-height: 1;
 }
 
 .settings-close:hover {
   color: var(--color-text-primary);
-  background: var(--color-bg-tertiary);
+  background: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  transform: var(--hover-lift) scale(1.05);
 }
 
 .settings-close:focus {
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.3);
 }
 
 .settings-modal-body {
@@ -662,37 +672,103 @@ h1 {
 
 .setting-section > label {
   display: block;
-  font-family: var(--font-family-secondary);
-  font-size: var(--font-size-small);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
   margin-bottom: var(--spacing-md);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: -0.01em;
+}
+
+.theme-select {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-family-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  padding-right: calc(var(--spacing-lg) + 36px);
+  position: relative;
+}
+
+.theme-select:hover {
+  border-color: var(--color-accent-primary);
+  background-color: var(--color-bg-tertiary);
+  transform: var(--hover-lift);
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-select:focus {
+  outline: none;
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 0 4px rgba(var(--color-accent-primary-rgb), 0.2);
+  transform: var(--hover-lift);
+}
+
+.theme-select::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: var(--spacing-md);
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--color-text-muted);
+  pointer-events: none;
+}
+
+.setting-section {
+  position: relative;
 }
 
 .theme-options {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
 }
 
 .theme-option {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
   padding: var(--spacing-md);
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius-md);
   cursor: pointer;
   transition: all var(--transition-normal) var(--transition-ease);
   background: var(--color-bg-secondary);
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-option::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left var(--transition-slow) var(--transition-ease);
 }
 
 .theme-option:hover {
   border-color: var(--color-accent-primary);
   background: var(--color-bg-tertiary);
   transform: var(--hover-lift);
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-option:hover::before {
+  left: 100%;
 }
 
 .theme-option input[type="radio"] {
@@ -711,38 +787,54 @@ h1 {
 .settings-modal-footer {
   padding: var(--spacing-xl);
   border-top: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
+  background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-primary) 100%);
   display: flex;
   justify-content: flex-end;
   gap: var(--spacing-md);
+  border-radius: 0 0 18px 18px;
 }
 
 .apply-button {
-  background: var(--color-accent-primary);
-  color: var(--color-bg-primary);
-  border: 1px solid var(--color-accent-primary);
+  background: linear-gradient(135deg, var(--color-accent-primary) 0%, var(--color-accent-hover) 100%);
+  color: white;
+  border: none;
   padding: var(--spacing-md) var(--spacing-xl);
-  border-radius: var(--border-radius-md);
+  border-radius: 16px;
   cursor: pointer;
-  font-family: var(--font-family-secondary);
-  font-size: var(--font-size-small);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: all var(--transition-normal) var(--transition-ease);
-  min-width: 100px;
+  letter-spacing: -0.01em;
+  transition: all 0.2s ease;
+  min-width: 120px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(var(--color-accent-primary-rgb), 0.3);
+}
+
+.apply-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left var(--transition-slow) var(--transition-ease);
 }
 
 .apply-button:hover {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
-  transform: var(--hover-lift);
-  box-shadow: var(--shadow-md);
+  transform: var(--hover-lift) translateY(-2px);
+  box-shadow: 0 8px 20px rgba(var(--color-accent-primary-rgb), 0.4);
+}
+
+.apply-button:hover::before {
+  left: 100%;
 }
 
 .apply-button:focus {
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-primary-rgb), 0.3);
 }
 
 .apply-button:active {
@@ -753,7 +845,7 @@ h1 {
 @media (max-width: 768px) {
   .settings-button {
     top: 1rem;
-    right: 1rem;
+    left: 1rem; /* Keep on top-left on mobile */
     width: 2.25rem;
     height: 2.25rem;
   }
