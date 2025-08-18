@@ -94,6 +94,14 @@
   /* Reading-specific variables */
   --reading-line-length: 75ch; /* optimal reading line length */
   --entry-vertical-rhythm: 1.125rem;
+  
+  /* Focus ring for accessibility */
+  --focus-ring: 0 0 0 3px rgba(139, 90, 43, 0.2);
+  --focus-ring-dark: 0 0 0 3px rgba(212, 152, 90, 0.2);
+  
+  /* Hover animations */
+  --hover-lift: translateY(-1px);
+  --active-scale: scale(0.96);
 }
 
 /* Dark mode support for all components */
@@ -115,6 +123,9 @@
     --color-error: #ff6b6b; /* lighter red for dark mode */
     --color-success: #4ecdc4; /* teal for dark mode */
     --color-accent-primary-rgb: 212, 152, 90;
+    
+    /* Dark mode focus ring */
+    --focus-ring: var(--focus-ring-dark);
   }
 }
 
@@ -136,4 +147,7 @@
   --color-error: #ff6b6b; /* lighter red for dark mode */
   --color-success: #4ecdc4; /* teal for dark mode */
   --color-accent-primary-rgb: 212, 152, 90;
+  
+  /* Dark mode focus ring */
+  --focus-ring: var(--focus-ring-dark);
 }

@@ -227,6 +227,10 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 }
 
 func (s *Server) extractWebContent(forceUpdate bool) error {
+	return s.extractWebContentWithFilters(forceUpdate, nil)
+}
+
+func (s *Server) extractWebContentWithFilters(forceUpdate bool, pathFilter func(string) bool) error {
 	if !s.config.ProductionMode {
 		s.logger.Printf("Checking web content (force update: %v)...", forceUpdate)
 	}
@@ -250,6 +254,11 @@ func (s *Server) extractWebContent(forceUpdate bool) error {
 			return err
 		}
 		if path == "." { // Skip the root of embed.FS
+			return nil
+		}
+
+		// Apply path filter if provided
+		if pathFilter != nil && !pathFilter(path) {
 			return nil
 		}
 
@@ -336,6 +345,14 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 		// Avoid forcing updates on every restart so that user-uploaded assets under web/static persist.
 		if err := s.extractWebContent(false); err != nil {
 			return nil, fmt.Errorf("failed to extract web content: %w", err)
+		}
+	} else {
+		// Even when template updates are disabled, always update admin theme files
+		adminThemeFilter := func(path string) bool {
+			return strings.HasPrefix(path, "static/css/themes/") && strings.Contains(path, "/admin.css")
+		}
+		if err := s.extractWebContentWithFilters(false, adminThemeFilter); err != nil {
+			s.logger.Printf("Warning: failed to update admin theme files: %v", err)
 		}
 	}
 

@@ -73,6 +73,14 @@
   --opacity-disabled: 0.5;
   --opacity-hover: 0.75;
   --opacity-focus: 0.1;
+  
+  /* Focus ring for accessibility */
+  --focus-ring: 0 0 0 3px rgba(211, 84, 0, 0.2);
+  --focus-ring-dark: 0 0 0 3px rgba(243, 156, 18, 0.2);
+  
+  /* Hover animations */
+  --hover-lift: translateY(-1px);
+  --active-scale: scale(0.96);
 }
 
 /* Light mode - Warm, paper-inspired palette */
@@ -139,6 +147,9 @@
     --shadow-entry: 0 1px 3px rgba(0, 0, 0, 0.15);
     --shadow-entry-hover: 0 4px 16px rgba(0, 0, 0, 0.25);
     --shadow-paper: 0 2px 8px rgba(0, 0, 0, 0.2);
+    
+    /* Dark mode focus ring */
+    --focus-ring: var(--focus-ring-dark);
   }
 }
 
@@ -171,6 +182,9 @@
   --shadow-entry: 0 1px 3px rgba(0, 0, 0, 0.15);
   --shadow-entry-hover: 0 4px 16px rgba(0, 0, 0, 0.25);
   --shadow-paper: 0 2px 8px rgba(0, 0, 0, 0.2);
+  
+  /* Dark mode focus ring */
+  --focus-ring: var(--focus-ring-dark);
 }
 
 /* Manual light mode override */
