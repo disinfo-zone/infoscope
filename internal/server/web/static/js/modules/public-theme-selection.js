@@ -72,25 +72,7 @@ function initializeThemeSelection() {
         return;
     }
     
-    // Apply stored theme immediately on page load
-    if (currentTheme) {
-        const themePrefix = `/static/css/themes/${CSS.escape(currentTheme)}/`;
-        const publicCSSLink = document.getElementById('themePublicCSS');
-        const uxCSSLink = document.getElementById('themeUxCSS');
-        
-        if (publicCSSLink) {
-            publicCSSLink.href = themePrefix + 'public.css';
-        }
-        if (uxCSSLink) {
-            uxCSSLink.href = themePrefix + 'ux-enhancements.css';
-        }
-        
-        // Load variables CSS too
-        const existingVariablesLink = document.querySelector('link[href*="/variables.css"]');
-        if (existingVariablesLink) {
-            existingVariablesLink.href = themePrefix + 'variables.css';
-        }
-    }
+    // Theme is now applied in the template, no need to apply it here on page load
     
     // Use requestAnimationFrame to ensure DOM is ready
     requestAnimationFrame(() => {
@@ -212,33 +194,7 @@ window.addEventListener('pageshow', function(event) {
     }
 });
 
-// Apply theme immediately if available, even before full DOM ready
-function applyStoredThemeEarly() {
-    try {
-        const storedTheme = localStorage.getItem('userSelectedTheme');
-        if (storedTheme && /^[a-zA-Z0-9_-]+$/.test(storedTheme)) {
-            const themePrefix = `/static/css/themes/${CSS.escape(storedTheme)}/`;
-            const publicCSSLink = document.getElementById('themePublicCSS');
-            const uxCSSLink = document.getElementById('themeUxCSS');
-            const variablesLink = document.querySelector('link[href*="/variables.css"]');
-            
-            if (publicCSSLink) {
-                publicCSSLink.href = themePrefix + 'public.css';
-            }
-            if (uxCSSLink) {
-                uxCSSLink.href = themePrefix + 'ux-enhancements.css';
-            }
-            if (variablesLink) {
-                variablesLink.href = themePrefix + 'variables.css';
-            }
-        }
-    } catch (error) {
-        // Silently handle localStorage errors
-    }
-}
-
-// Apply theme as early as possible
-applyStoredThemeEarly();
+// Theme application is now handled in the HTML template to prevent flash
 
 // Initialize only once when DOM is ready
 if (document.readyState === 'loading') {
