@@ -1,6 +1,10 @@
 /* Public page styles — Aurora (Reworked Minimal) */
 
 /* Solid, calm backdrop */
+html {
+  background: var(--color-bg-primary) !important;
+}
+
 body {
   margin: 0;
   padding: var(--spacing-xl) var(--spacing-md) var(--spacing-md);

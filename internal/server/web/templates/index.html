@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color: var(--color-bg-primary, #0f1419); color: var(--color-text-primary, #e0e0e0);">
+<script>
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+    document.documentElement.style.backgroundColor = 'var(--color-bg-primary, #ffffff)';
+    document.documentElement.style.color = 'var(--color-text-primary, #333333)';
+}
+</script>
 <head>
     <title>{{ .Data.Title }}</title>
     <meta charset="utf-8">
@@ -31,82 +37,22 @@
     <link rel="icon" type="image/x-icon" href="/static/images/{{ index .Data.Settings "favicon_url" }}">
     <link rel="alternate" type="application/rss+xml" title="{{ .Data.Title }} Feed" href="/rss.xml" />
     
-    <!-- External CSS -->
+    <!-- CSS files with theme data attributes for early loading -->
     <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "variables.css" }}" id="themeVariablesCSS">
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "public.css" }}" id="themePublicCSS">
     <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "ux-enhancements.css" }}" id="themeUxCSS">
     
     {{ if .Data.AllowPublicThemeSelection }}
-    <!-- Theme switching script - must run before page render -->
-    <script>
-        // Check for user's theme preference and update CSS links before page loads
-        (function() {
-            let userTheme;
-            try {
-                userTheme = localStorage.getItem('userSelectedTheme');
-            } catch (error) {
-                console.warn('localStorage access blocked:', error);
-                return; // Exit gracefully if localStorage is not available
-            }
-            
-            if (userTheme) {
-                // Security: Validate theme name against allowed themes list
-                const allowedThemes = [{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }}, {{ end }}'{{ $theme }}'{{ end }}];
-                
-                // Edge case: If no themes available, clear localStorage and exit
-                if (allowedThemes.length === 0) {
-                    try {
-                        localStorage.removeItem('userSelectedTheme');
-                    } catch (error) {
-                        // Ignore localStorage errors during cleanup
-                    }
-                    return;
-                }
-                
-                // Only proceed if theme is in allowed list and contains only safe characters
-                if (allowedThemes.includes(userTheme) && /^[a-zA-Z0-9_-]+$/.test(userTheme)) {
-                    const variablesLink = document.getElementById('themeVariablesCSS');
-                    const publicLink = document.getElementById('themePublicCSS');
-                    const uxLink = document.getElementById('themeUxCSS');
-                    
-                    // Use encodeURIComponent for additional safety
-                    const safeTheme = encodeURIComponent(userTheme);
-                    try {
-                        // Apply theme changes atomically to prevent visual glitches
-                        const tempLinks = {
-                            variables: variablesLink ? variablesLink.cloneNode() : null,
-                            public: publicLink ? publicLink.cloneNode() : null,
-                            ux: uxLink ? uxLink.cloneNode() : null
-                        };
-                        
-                        if (tempLinks.variables) tempLinks.variables.href = `/static/css/themes/${safeTheme}/variables.css`;
-                        if (tempLinks.public) tempLinks.public.href = `/static/css/themes/${safeTheme}/public.css`;
-                        if (tempLinks.ux) tempLinks.ux.href = `/static/css/themes/${safeTheme}/ux-enhancements.css`;
-                        
-                        // Apply all changes at once
-                        if (variablesLink && tempLinks.variables) variablesLink.href = tempLinks.variables.href;
-                        if (publicLink && tempLinks.public) publicLink.href = tempLinks.public.href;
-                        if (uxLink && tempLinks.ux) uxLink.href = tempLinks.ux.href;
-                    } catch (error) {
-                        console.error('Error applying theme:', error);
-                        try {
-                            localStorage.removeItem('userSelectedTheme');
-                        } catch (storageError) {
-                            // Ignore localStorage errors during cleanup
-                        }
-                    }
-                } else {
-                    // Invalid theme, remove from localStorage
-                    try {
-                        localStorage.removeItem('userSelectedTheme');
-                    } catch (error) {
-                        // Ignore localStorage errors during cleanup
-                    }
-                }
-            }
-        })();
+    <!-- Theme data for CSP-compliant early loading -->
+    <script id="theme-data" type="application/json">
+    {
+        "allowedThemes": [{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }}, {{ end }}"{{ $theme }}"{{ end }}],
+        "defaultTheme": "{{ index .Data.Settings "theme" }}"
+    }
     </script>
+    <!-- Early theme loader (must be first external script) -->
+    <script src="/static/js/modules/early-theme-loader.js"></script>
     {{ end }}
     
     <!-- Preload critical favicons for faster loading -->
@@ -119,6 +65,22 @@
     <style>
         /* Set CSS variable for footer image height; theme CSS uses it */
         :root { --footer-image-height: {{ .Data.FooterImageHeight }}; }
+        
+        /* Prevent FOUC by setting system-appropriate background immediately */
+        html, body {
+            background-color: var(--color-bg-primary, #ffffff);
+            color: var(--color-text-primary, #333333);
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Dark mode users get dark background immediately */
+        @media (prefers-color-scheme: dark) {
+            html, body {
+                background-color: var(--color-bg-primary, #0f1419);
+                color: var(--color-text-primary, #e0e0e0);
+            }
+        }
     </style>
 </head>
 <body>

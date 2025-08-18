@@ -1,5 +1,9 @@
 /* Sage Theme Public Page - Literary elegance meets modern readability */
 
+html {
+  background: var(--color-bg-primary) !important;
+}
+
 body {
   margin: 0;
   padding: var(--spacing-xl) var(--spacing-lg) var(--spacing-lg);

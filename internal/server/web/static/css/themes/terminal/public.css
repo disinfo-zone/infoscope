@@ -75,6 +75,10 @@
 }
 
 /* Global base styles with smooth theme transitions */
+html {
+  background: var(--color-bg-primary) !important;
+}
+
 body {
   margin: 0;
   padding: var(--spacing-xl) var(--spacing-md) var(--spacing-md);

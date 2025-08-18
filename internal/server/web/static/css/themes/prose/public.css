@@ -76,6 +76,10 @@
 }
 
 /* Global base styles - Book-like elegance */
+html {
+  background: var(--color-bg-primary) !important;
+}
+
 body {
   margin: 0;
   padding: var(--spacing-xxl) var(--spacing-lg) var(--spacing-lg);
@@ -695,11 +699,12 @@ h1 {
   appearance: none;
   padding-right: calc(var(--spacing-lg) + 36px);
   position: relative;
+  color-scheme: light dark;
 }
 
 .theme-select:hover {
   border-color: var(--color-accent-primary);
-  background-color: var(--color-bg-tertiary);
+  background-color: var(--color-bg-secondary);
   transform: var(--hover-lift);
   box-shadow: var(--shadow-sm);
 }
