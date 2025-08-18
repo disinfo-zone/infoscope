@@ -51,7 +51,7 @@
   /* Z-index layers */
   --z-base: 1;
   --z-dropdown: 100;
-  --z-modal: 999;
+  --z-modal: 10000;
   --z-sidebar: 1000;
   --z-menu-toggle: 1001;
   

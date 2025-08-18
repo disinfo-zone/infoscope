@@ -25,10 +25,10 @@ class ThemeSwitcher {
         button.setAttribute('aria-label', 'Toggle theme');
         button.setAttribute('title', 'Toggle light/dark mode');
         
-        // Add elegant icons
+        // Add simple ASCII icons
         button.innerHTML = `
-            <span class="sun-icon">☀</span>
-            <span class="moon-icon">☾</span>
+            <span class="sun-icon">○</span>
+            <span class="moon-icon">●</span>
         `;
         
         document.body.appendChild(button);

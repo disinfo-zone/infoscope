@@ -210,6 +210,19 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 			}
 			return strings.ToUpper(s[:1]) + s[1:]
 		},
+		// contains checks if a comma-separated string contains a value
+		"contains": func(haystack, needle string) bool {
+			if haystack == "" {
+				return false
+			}
+			parts := strings.Split(haystack, ",")
+			for _, part := range parts {
+				if strings.TrimSpace(part) == needle {
+					return true
+				}
+			}
+			return false
+		},
 	}
 }
 
@@ -615,6 +628,70 @@ func (s *Server) getAvailableThemes() []string {
 	themes := make([]string, len(s.cachedThemes))
 	copy(themes, s.cachedThemes)
 	return themes
+}
+
+// isValidThemeName validates theme names for security
+func (s *Server) isValidThemeName(theme string) bool {
+	// Theme names must contain only alphanumeric characters, hyphens, and underscores
+	// This prevents directory traversal and other injection attacks
+	if theme == "" {
+		return false
+	}
+	
+	// Must be 1-50 characters
+	if len(theme) < 1 || len(theme) > 50 {
+		return false
+	}
+	
+	// Only allow safe characters
+	for _, char := range theme {
+		if !((char >= 'a' && char <= 'z') || 
+			 (char >= 'A' && char <= 'Z') || 
+			 (char >= '0' && char <= '9') || 
+			 char == '-' || char == '_') {
+			return false
+		}
+	}
+	
+	// Prevent special directory names
+	if theme == "." || theme == ".." {
+		return false
+	}
+	
+	return true
+}
+
+// containsString checks if a string slice contains a specific string
+func (s *Server) containsString(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// validatePublicThemes validates and sanitizes the comma-separated theme list
+func (s *Server) validatePublicThemes(themesString string) string {
+	if themesString == "" {
+		return ""
+	}
+	
+	availableThemes := s.getAvailableThemes()
+	themes := strings.Split(themesString, ",")
+	var validThemes []string
+	
+	for _, theme := range themes {
+		trimmed := strings.TrimSpace(theme)
+		if trimmed != "" && s.isValidThemeName(trimmed) && s.containsString(availableThemes, trimmed) {
+			// Avoid duplicates
+			if !s.containsString(validThemes, trimmed) {
+				validThemes = append(validThemes, trimmed)
+			}
+		}
+	}
+	
+	return strings.Join(validThemes, ",")
 }
 
 // refreshThemes rescans the file system and updates the cache

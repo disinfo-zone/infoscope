@@ -171,6 +171,24 @@
                 </button>
                 <div id="templatesUpdateStatus" class="status"></div>
             </div>
+            
+            <!-- Public Theme Selection -->
+            <div class="setting-group">
+                <label>AVAILABLE THEMES FOR USERS</label>
+                <div class="help-text">
+                    Select which themes users can choose from on the public pages. Only visible when "Allow Public Theme Selection" is enabled.
+                </div>
+                <div class="checkbox-group" id="availableThemesGroup">
+                    {{ $availableThemes := getAvailableThemes }}
+                    {{ $selectedThemes := index .Data.Settings "public_available_themes" }}
+                    {{ range $theme := $availableThemes }}
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="public_available_themes" value="{{ $theme }}" {{ if or (eq $selectedThemes "") (contains $selectedThemes $theme) }}checked{{ end }}>
+                        {{ title $theme }}
+                    </label>
+                    {{ end }}
+                </div>
+            </div>
             <div class="setting-group">
                 <label for="timezone">TIMEZONE</label>
                 <select id="timezone" name="timezone" class="timezone-select">
@@ -259,6 +277,17 @@
                         </label>
                         <div class="help-text">
                             Display a preview of the entry content below the title.
+                        </div>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <label class="checkbox-label" for="allowPublicThemeSelection">
+                            <input type="checkbox" id="allowPublicThemeSelection" name="allow_public_theme_selection" value="true"
+                                   {{ if eq (index .Data.Settings "allow_public_theme_selection") "true" }}checked{{ end }}>
+                            Allow Public Theme Selection
+                        </label>
+                        <div class="help-text">
+                            Let visitors choose their preferred theme via a settings menu on the public pages.
                         </div>
                     </div>
                 </div>
@@ -443,20 +472,41 @@ function initializeSettingsForm() {
             const fieldMapping = {
                 'show_blog_name': 'showBlogName',
                 'show_body_text': 'showBodyText',
-                'body_text_length': 'bodyTextLength'
+                'body_text_length': 'bodyTextLength',
+                'allow_public_theme_selection': 'allowPublicThemeSelection'
             };
             
+            // Handle multiple checkbox values for themes
+            const publicAvailableThemes = [];
             for (let [key, value] of formData.entries()) {
-                if (key !== 'image' && key !== 'favicon' && key !== 'footerImage' && key !== 'metaImage') {
+                if (key === 'public_available_themes') {
+                    publicAvailableThemes.push(value);
+                }
+            }
+            settings.publicAvailableThemes = publicAvailableThemes.join(',');
+            
+            // Debug logging for themes
+            console.log('Found themes in formData:', publicAvailableThemes);
+            console.log('Themes string being saved:', settings.publicAvailableThemes);
+            
+            // Handle checkboxes first (checked = true, unchecked = false)
+            settings['showBlogName'] = formData.has('show_blog_name');
+            settings['showBodyText'] = formData.has('show_body_text');
+            settings['allowPublicThemeSelection'] = formData.has('allow_public_theme_selection');
+            
+            // Debug logging
+            console.log('allow_public_theme_selection checkbox:', formData.has('allow_public_theme_selection'));
+            console.log('Final allowPublicThemeSelection value:', settings['allowPublicThemeSelection']);
+            
+            // Handle other form fields
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'image' && key !== 'favicon' && key !== 'footerImage' && key !== 'metaImage' && key !== 'public_available_themes' && 
+                    key !== 'show_blog_name' && key !== 'show_body_text' && key !== 'allow_public_theme_selection') {
                     // Map field name if needed
                     const jsonKey = fieldMapping[key] || key;
                     
-                    // Handle checkbox values (convert to boolean)
-                    if (key === 'show_blog_name' || key === 'show_body_text') {
-                        settings[jsonKey] = true; // Checkbox is checked if present in formData
-                    }
                     // Handle numeric values
-                    else if (key === 'maxPosts' || key === 'updateInterval' || key === 'body_text_length') {
+                    if (key === 'maxPosts' || key === 'updateInterval' || key === 'body_text_length') {
                         settings[jsonKey] = parseInt(value, 10) || 0;
                     }
                     // Handle string values
@@ -464,14 +514,6 @@ function initializeSettingsForm() {
                         settings[jsonKey] = value;
                     }
                 }
-            }
-            
-            // Handle unchecked checkboxes (they won't be in formData)
-            if (!formData.has('show_blog_name')) {
-                settings['showBlogName'] = false;
-            }
-            if (!formData.has('show_body_text')) {
-                settings['showBodyText'] = false;
             }
             
             // Override with uploaded filenames
@@ -488,6 +530,9 @@ function initializeSettingsForm() {
                 },
                 body: JSON.stringify(settings)
             });
+            
+            // Debug: log the JSON being sent
+            console.log('JSON being sent to server:', JSON.stringify(settings, null, 2));
             
             if (response.ok) {
                 showNotification('Settings saved successfully!', 'success');
@@ -2310,6 +2355,31 @@ function reorderAssignedFilters() {
 window.editFilter = editFilter;
 window.deleteFilter = deleteFilter;
 window.showCreateFilterModal = showCreateFilterModal;
+
+// Initialize theme selection checkboxes based on saved settings
+document.addEventListener('DOMContentLoaded', function() {
+    // Set the correct theme checkboxes based on saved settings
+    const savedThemes = '{{ index .Data.Settings "public_available_themes" }}';
+    if (savedThemes && savedThemes.trim() !== '') {
+        // Uncheck all theme checkboxes first
+        document.querySelectorAll('input[name="public_available_themes"]').forEach(cb => {
+            cb.checked = false;
+        });
+        
+        // Check only the saved themes
+        const themesArray = savedThemes.split(',');
+        themesArray.forEach(theme => {
+            const trimmedTheme = theme.trim();
+            // Security: Validate theme name before using in selector
+            if (trimmedTheme && /^[a-zA-Z0-9_-]+$/.test(trimmedTheme)) {
+                const checkbox = document.querySelector(`input[name="public_available_themes"][value="${CSS.escape(trimmedTheme)}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            }
+        });
+    }
+});
 </script>
 
 <!-- Create Filter Group Modal removed -->

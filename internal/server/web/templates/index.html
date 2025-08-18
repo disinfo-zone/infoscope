@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color: var(--color-bg-primary, #0f1419); color: var(--color-text-primary, #e0e0e0);">
+<script>
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+    document.documentElement.style.backgroundColor = 'var(--color-bg-primary, #ffffff)';
+    document.documentElement.style.color = 'var(--color-text-primary, #333333)';
+}
+</script>
 <head>
     <title>{{ .Data.Title }}</title>
     <meta charset="utf-8">
@@ -31,11 +37,23 @@
     <link rel="icon" type="image/x-icon" href="/static/images/{{ index .Data.Settings "favicon_url" }}">
     <link rel="alternate" type="application/rss+xml" title="{{ .Data.Title }} Feed" href="/rss.xml" />
     
-    <!-- External CSS -->
-    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "variables.css" }}">
+    <!-- CSS files with theme data attributes for early loading -->
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "variables.css" }}" id="themeVariablesCSS">
     <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "public.css" }}">
-    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "ux-enhancements.css" }}">
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "public.css" }}" id="themePublicCSS">
+    <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "ux-enhancements.css" }}" id="themeUxCSS">
+    
+    {{ if .Data.AllowPublicThemeSelection }}
+    <!-- Theme data for CSP-compliant early loading -->
+    <script id="theme-data" type="application/json">
+    {
+        "allowedThemes": [{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }}, {{ end }}"{{ $theme }}"{{ end }}],
+        "defaultTheme": "{{ index .Data.Settings "theme" }}"
+    }
+    </script>
+    <!-- Early theme loader (must be first external script) -->
+    <script src="/static/js/modules/early-theme-loader.js"></script>
+    {{ end }}
     
     <!-- Preload critical favicons for faster loading -->
     {{ range $index, $entry := .Data.Entries }}
@@ -47,12 +65,37 @@
     <style>
         /* Set CSS variable for footer image height; theme CSS uses it */
         :root { --footer-image-height: {{ .Data.FooterImageHeight }}; }
+        
+        /* Prevent FOUC by setting system-appropriate background immediately */
+        html, body {
+            background-color: var(--color-bg-primary, #ffffff);
+            color: var(--color-text-primary, #333333);
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Dark mode users get dark background immediately */
+        @media (prefers-color-scheme: dark) {
+            html, body {
+                background-color: var(--color-bg-primary, #0f1419);
+                color: var(--color-text-primary, #e0e0e0);
+            }
+        }
     </style>
 </head>
 <body>
     <h1>{{ .Data.Title }}</h1>
     {{ if and .Data.HeaderLinkURL .Data.HeaderLinkText }}
     <a href="{{ .Data.HeaderLinkURL }}" class="header-link return">{{ .Data.HeaderLinkText }}</a>
+    {{ end }}
+    
+    {{ if .Data.AllowPublicThemeSelection }}
+    <button id="settingsButton" class="settings-button" aria-label="Settings" title="Settings" data-available-themes="{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }},{{ end }}{{ $theme }}{{ end }}">
+        <svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m18.6-2.4l-5.7 5.7m-5.7-5.7L1.6 9.6M22.4 14.4l-5.7-5.7m-5.7 5.7L4.6 14.4"></path>
+        </svg>
+    </button>
     {{ end }}
 
     <div class="feed">
@@ -90,8 +133,38 @@
     </div>    <!-- External JavaScript -->
     <script type="module" src="/static/js/main.js"></script>
     
+    {{ if .Data.AllowPublicThemeSelection }}
+    <!-- Theme Selection JavaScript -->
+    <script src="/static/js/modules/public-theme-selection.js"></script>
+    {{ end }}
+    
     <!-- Immediate favicon loading after page load -->
     
+
+    {{ if .Data.AllowPublicThemeSelection }}
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="settings-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" aria-hidden="true">
+        <div class="settings-modal-content">
+            <div class="settings-modal-header">
+                <h3 id="settingsModalTitle">Settings</h3>
+                <button id="closeSettingsModal" class="settings-close" aria-label="Close settings dialog">&times;</button>
+            </div>
+            <div class="settings-modal-body">
+                <div class="setting-section">
+                    <label for="themeSelect">Theme</label>
+                    <select id="themeSelect" class="theme-select">
+                        {{ range .Data.AvailableThemes }}
+                        <option value="{{ . }}">{{ title . }}</option>
+                        {{ end }}
+                    </select>
+                </div>
+            </div>
+            <div class="settings-modal-footer">
+                <button id="applySettings" class="apply-button">Apply</button>
+            </div>
+        </div>
+    </div>
+    {{ end }}
 
     {{ if .Data.TrackingCode }}
     {{ .Data.TrackingCode | safeHTML }}

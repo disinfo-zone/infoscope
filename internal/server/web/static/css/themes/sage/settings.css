@@ -347,7 +347,8 @@
   font-family: var(--font-family-mono); 
   font-size: 0.85rem; 
   color: var(--color-text-primary); 
-  word-break: break-all; 
+  word-break: break-word; 
+  overflow-wrap: break-word; 
 }
 
 .backup-meta { 
@@ -358,6 +359,40 @@
 .backup-actions-inline { 
   display: flex; 
   gap: 0.5rem; 
+}
+
+/* Mobile responsive backup layout */
+@media (max-width: 768px) {
+  .backup-row {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 0.5rem;
+    padding: 1rem 0.5rem;
+  }
+  
+  .backup-name {
+    font-size: 0.9rem;
+    font-weight: var(--font-weight-medium);
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  .backup-meta {
+    font-size: 0.75rem;
+    opacity: 0.8;
+  }
+  
+  .backup-actions-inline {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .backup-actions-inline .backup-button {
+    font-size: 0.7rem;
+    padding: 0.5rem 0.75rem;
+  }
 }
 
 .status.loading, .backup-status.loading { 

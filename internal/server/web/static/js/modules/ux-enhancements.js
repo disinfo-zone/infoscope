@@ -49,6 +49,9 @@ function addFormValidationFeedback() {
   document.addEventListener('input', (e) => {
     const input = e.target;
     if (!input.matches('input, textarea, select')) return;
+    
+    // Skip validation indicators for theme selector
+    if (input.id === 'themeSelect') return;
 
     // Remove existing validation classes
     input.classList.remove('valid', 'invalid');

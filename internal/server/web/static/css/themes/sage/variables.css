@@ -73,7 +73,7 @@
   /* Z-index layers */
   --z-base: 1;
   --z-dropdown: 100;
-  --z-modal: 999;
+  --z-modal: 10000;
   --z-sidebar: 1000;
   --z-menu-toggle: 1001;
 }
@@ -98,7 +98,7 @@
 
 /* Dark mode support for all components */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     /* Dark mode color overrides */
     --color-bg-primary: #1a1915; /* dark warm background */
     --color-bg-secondary: #242018; /* darker panels */
@@ -116,4 +116,24 @@
     --color-success: #4ecdc4; /* teal for dark mode */
     --color-accent-primary-rgb: 212, 152, 90;
   }
+}
+
+/* Manual dark mode override */
+:root[data-theme="dark"] {
+  /* Dark mode color overrides */
+  --color-bg-primary: #1a1915; /* dark warm background */
+  --color-bg-secondary: #242018; /* darker panels */
+  --color-bg-tertiary: #2d2722; /* form inputs */
+  --color-text-primary: #e5e3db; /* light warm text */
+  --color-text-secondary: #f9f7f2; /* headings */
+  --color-text-muted: #a1a197; /* muted text */
+  --color-text-faded: #7a7970; /* faded text */
+  --color-text-dots: #3d3d37; /* dots */
+  --color-accent-primary: #d4985a; /* warm copper */
+  --color-accent-hover: #b8804a; /* deeper copper */
+  --color-border: #3d3931; /* dark warm borders */
+  --color-border-focus: #d4985a; /* copper focus */
+  --color-error: #ff6b6b; /* lighter red for dark mode */
+  --color-success: #4ecdc4; /* teal for dark mode */
+  --color-accent-primary-rgb: 212, 152, 90;
 }
