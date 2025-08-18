@@ -347,12 +347,15 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 			return nil, fmt.Errorf("failed to extract web content: %w", err)
 		}
 	} else {
-		// Even when template updates are disabled, always update admin theme files
-		adminThemeFilter := func(path string) bool {
-			return strings.HasPrefix(path, "static/css/themes/") && strings.Contains(path, "/admin.css")
+		// Even when template updates are disabled, always update critical theme files
+		criticalThemeFilter := func(path string) bool {
+			return strings.HasPrefix(path, "static/css/themes/") && 
+				   (strings.Contains(path, "/admin.css") || 
+					strings.Contains(path, "/public.css") || 
+					strings.Contains(path, "/variables.css"))
 		}
-		if err := s.extractWebContentWithFilters(false, adminThemeFilter); err != nil {
-			s.logger.Printf("Warning: failed to update admin theme files: %v", err)
+		if err := s.extractWebContentWithFilters(false, criticalThemeFilter); err != nil {
+			s.logger.Printf("Warning: failed to update critical theme files: %v", err)
 		}
 	}
 

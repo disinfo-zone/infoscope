@@ -495,9 +495,10 @@ function bindSettingsForm() {
         }
       }
 
-      if (!formData.has('show_blog_name')) settings['showBlogName'] = false;
-      if (!formData.has('show_body_text')) settings['showBodyText'] = false;
-      if (!formData.has('allow_public_theme_selection')) settings['allowPublicThemeSelection'] = false;
+      // Handle checkbox values - checkboxes are only included in formData when checked
+      settings['showBlogName'] = formData.has('show_blog_name');
+      settings['showBodyText'] = formData.has('show_body_text');
+      settings['allowPublicThemeSelection'] = formData.has('allow_public_theme_selection');
       // Auto backup checkbox
       settings['backupEnabled'] = !!formData.get('backupEnabled');
 
