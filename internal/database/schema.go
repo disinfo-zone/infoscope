@@ -445,6 +445,9 @@ func insertDefaultSettings(db *sql.DB) error {
 		"theme":        "terminal",
 		"public_theme": "terminal",
 		"admin_theme":  "terminal",
+		// Public theme selection
+		"allow_public_theme_selection": "false",
+		"public_available_themes":      "aurora,latex,prose,sage,terminal",
 		// Auto-backup defaults
 		"backup_enabled":        "false",
 		"backup_interval_hours": "24",
