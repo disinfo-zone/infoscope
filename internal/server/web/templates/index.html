@@ -36,7 +36,7 @@
     <meta name="theme-default" content="{{ $publicTheme }}">
     <meta name="theme-allowed" content="{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }},{{ end }}{{ $theme }}{{ end }}">
     <!-- Resolve and load exactly one public theme before base.css -->
-    <script src="/static/js/modules/early-theme-loader.js"></script>
+    <script src="/static/js/modules/early-theme-loader.js" data-cfasync="false"></script>
     <noscript>
         <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "variables.css" }}" id="themeVariablesCSS">
         <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "public.css" }}" id="themePublicCSS">
