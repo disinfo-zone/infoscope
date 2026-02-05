@@ -46,3 +46,8 @@ dist/
 infoscope
 infoscope.exe
 infoscope_test.exe
+
+# Node / Playwright
+node_modules/
+test-results/
+playwright-report/

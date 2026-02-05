@@ -9,6 +9,23 @@ import { showNotification } from './ux-enhancements.js';
 
 function getEl(id) { return document.getElementById(id); }
 
+function escapeHTML(value) {
+  const div = document.createElement('div');
+  div.textContent = value == null ? '' : String(value);
+  return div.innerHTML;
+}
+
+function normalizeClassToken(value, fallback = '') {
+  const token = String(value || '').toLowerCase();
+  return /^[a-z0-9_-]+$/.test(token) ? token : fallback;
+}
+
+function normalizeNumericId(value, fallback = '') {
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return String(parsed);
+}
+
 function getCurrentImageFilenameFor(inputId) {
   const input = getEl(inputId);
   if (!input) return '';
@@ -38,6 +55,41 @@ function getCurrentThemeFromDOM() {
     }
   }
   return '';
+}
+
+function repopulateThemeSelect(select, themes) {
+  if (!select || !Array.isArray(themes) || themes.length === 0) {
+    return;
+  }
+
+  const currentValue = select.value;
+  select.innerHTML = '';
+
+  themes.forEach((theme) => {
+    const option = document.createElement('option');
+    option.value = theme;
+    option.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
+    select.appendChild(option);
+  });
+
+  if (themes.includes(currentValue)) {
+    select.value = currentValue;
+  } else {
+    select.value = themes[0];
+  }
+}
+
+function updateThemeSelects(publicSelect, adminSelect, result) {
+  const fallbackThemes = Array.isArray(result?.themes) ? result.themes : [];
+  const publicThemes = Array.isArray(result?.publicThemes) && result.publicThemes.length > 0
+    ? result.publicThemes
+    : fallbackThemes;
+  const adminThemes = Array.isArray(result?.adminThemes) && result.adminThemes.length > 0
+    ? result.adminThemes
+    : publicThemes;
+
+  repopulateThemeSelect(publicSelect, publicThemes);
+  repopulateThemeSelect(adminSelect, adminThemes);
 }
 
 async function editGroup(groupId) {
@@ -150,7 +202,11 @@ async function deleteGroup(groupId) {
     const group = result.data || result;
     const info = getEl('deleteGroupInfo');
     if (info) {
-      info.innerHTML = `<h5>${group.name}</h5><div class="description">Action: <span class="action-badge ${group.action}">${group.action.toUpperCase()}</span> | Priority: <span class="priority-badge">P${group.priority}</span></div>`;
+      const safeName = escapeHTML(group.name || '');
+      const safeActionClass = normalizeClassToken(group.action, 'keep');
+      const safeActionLabel = escapeHTML(String(group.action || '').toUpperCase());
+      const safePriority = Number.isFinite(Number(group.priority)) ? Number(group.priority) : 0;
+      info.innerHTML = `<h5>${safeName}</h5><div class="description">Action: <span class="action-badge ${safeActionClass}">${safeActionLabel}</span> | Priority: <span class="priority-badge">P${safePriority}</span></div>`;
     }
     currentDeletingGroupId = groupId;
     getEl('deleteGroupModal')?.classList.add('show');
@@ -213,23 +269,27 @@ async function loadFiltersForAssignment(groupId) {
 function createAssignmentItem(filter, isAssigned, operator = 'AND', position = 0) {
   const item = document.createElement('div');
   item.className = 'filter-assignment-item';
-  item.dataset.filterId = filter.id;
+  const safeFilterID = normalizeNumericId(filter.id);
+  const safeGroupID = normalizeNumericId(currentEditingGroupId);
+  item.dataset.filterId = safeFilterID;
+  const safeFilterName = escapeHTML(filter.name || '');
+  const safeFilterPattern = escapeHTML(filter.pattern || '');
   const operatorHTML = isAssigned && position > 0 ? `
     <div class="logic-operator-section">
-      <select class="assignment-operator" data-filter-id="${filter.id}">
+      <select class="assignment-operator" data-filter-id="${safeFilterID}">
         <option value="AND" ${operator === 'AND' ? 'selected' : ''}>AND</option>
         <option value="OR" ${operator === 'OR' ? 'selected' : ''}>OR</option>
       </select>
     </div>
   ` : '';
   const actionsHTML = isAssigned
-    ? `<button class="assignment-btn" data-action="remove-filter-from-group" data-filter-id="${filter.id}">Remove</button>`
-    : `<button class="assignment-btn primary" data-action="add-filter-to-group" data-filter-id="${filter.id}" data-group-id="${currentEditingGroupId}">Add</button>`;
+    ? `<button class="assignment-btn" data-action="remove-filter-from-group" data-filter-id="${safeFilterID}">Remove</button>`
+    : `<button class="assignment-btn primary" data-action="add-filter-to-group" data-filter-id="${safeFilterID}" data-group-id="${safeGroupID}">Add</button>`;
   item.innerHTML = `
     ${operatorHTML}
     <div class="assignment-info">
-      <div class="assignment-name">${filter.name}</div>
-      <div class="assignment-pattern">${filter.pattern}</div>
+      <div class="assignment-name">${safeFilterName}</div>
+      <div class="assignment-pattern">${safeFilterPattern}</div>
     </div>
     <div class="assignment-actions">${actionsHTML}</div>
   `;
@@ -365,11 +425,15 @@ async function deleteFilter(filterId) {
     const filter = result.data || result;
     const info = getEl('deleteFilterInfo');
     if (info) {
+      const safeName = escapeHTML(filter.name || '');
+      const safePattern = escapeHTML(filter.pattern || '');
+      const safePatternTypeClass = normalizeClassToken(filter.pattern_type, 'keyword');
+      const safePatternTypeLabel = escapeHTML(String(filter.pattern_type || '').toUpperCase());
       info.innerHTML = `
-        <h5>${filter.name}</h5>
-        <div class="pattern">${filter.pattern}</div>
+        <h5>${safeName}</h5>
+        <div class="pattern">${safePattern}</div>
         <div class="filter-meta">
-          <span class="type-badge ${filter.pattern_type}">${(filter.pattern_type || '').toUpperCase()}</span>
+          <span class="type-badge ${safePatternTypeClass}">${safePatternTypeLabel}</span>
           ${filter.case_sensitive ? '<span class="feature-badge">Case Sensitive</span>' : ''}
         </div>`;
     }
@@ -696,14 +760,16 @@ function bindBackup() {
       files.forEach(f => {
         const row = document.createElement('div');
         row.className = 'backup-row';
-        const date = new Date(f.modified);
+        const safeFileName = escapeHTML(f.name || '');
+        const safeDate = escapeHTML(new Date(f.modified).toLocaleString());
+        const safeSizeKB = escapeHTML((Number(f.size || 0) / 1024).toFixed(1));
         row.innerHTML = `
-          <div class="backup-name">${f.name}</div>
-          <div class="backup-meta">${date.toLocaleString()} • ${(f.size/1024).toFixed(1)} KB</div>
+          <div class="backup-name">${safeFileName}</div>
+          <div class="backup-meta">${safeDate} • ${safeSizeKB} KB</div>
           <div class="backup-actions-inline">
-            <button class="backup-button" data-restore-file="${f.name}">RESTORE</button>
-            <button class="backup-button" data-download-file="${f.name}">DOWNLOAD</button>
-            <button class="backup-button danger" data-delete-file="${f.name}">DELETE</button>
+            <button class="backup-button" data-restore-file="${safeFileName}">RESTORE</button>
+            <button class="backup-button" data-download-file="${safeFileName}">DOWNLOAD</button>
+            <button class="backup-button danger" data-delete-file="${safeFileName}">DELETE</button>
           </div>`;
         listContainer.appendChild(row);
       });
@@ -745,10 +811,11 @@ function bindBackup() {
       // Styled caution modal
       const modal = document.createElement('div');
       modal.className = 'backup-confirm-modal';
+      const safeName = escapeHTML(name);
       modal.innerHTML = `
         <div class="backup-confirm-content">
           <h3>Confirm Delete</h3>
-          <p>Are you sure you want to delete <strong>${name}</strong>? This action cannot be undone.</p>
+          <p>Are you sure you want to delete <strong>${safeName}</strong>? This action cannot be undone.</p>
           <div class="backup-confirm-actions">
             <button type="button" class="btn btn-cancel">Cancel</button>
             <button type="button" class="btn btn-danger">Delete</button>
@@ -823,30 +890,10 @@ function bindThemeScanning() {
             statusDiv.textContent = result.message;
           }
           
-          // Update the theme dropdowns with new themes
+          // Update theme dropdowns with separate public/admin eligible lists
           const publicSelect = getEl('publicTheme');
           const adminSelect = getEl('adminTheme');
-          
-          if (publicSelect && adminSelect && result.themes) {
-            const currentPublic = publicSelect.value;
-            const currentAdmin = adminSelect.value;
-            
-            // Clear and repopulate dropdowns
-            [publicSelect, adminSelect].forEach(select => {
-              const currentValue = select.value;
-              select.innerHTML = '';
-              
-              result.themes.forEach(theme => {
-                const option = document.createElement('option');
-                option.value = theme;
-                option.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
-                if (theme === currentValue) {
-                  option.selected = true;
-                }
-                select.appendChild(option);
-              });
-            });
-          }
+          updateThemeSelects(publicSelect, adminSelect, result);
           
           showNotification(result.message, 'success');
           
@@ -978,27 +1025,10 @@ async function performTemplateUpdate(updateButton, statusDiv) {
         statusDiv.textContent = result.message;
       }
       
-      // Update the theme dropdowns if themes were updated
+      // Update theme dropdowns with separate public/admin eligible lists.
       const publicSelect = getEl('publicTheme');
       const adminSelect = getEl('adminTheme');
-      
-      if (publicSelect && adminSelect && result.themes) {
-        // Clear and repopulate dropdowns
-        [publicSelect, adminSelect].forEach(select => {
-          const currentValue = select.value;
-          select.innerHTML = '';
-          
-          result.themes.forEach(theme => {
-            const option = document.createElement('option');
-            option.value = theme;
-            option.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
-            if (theme === currentValue) {
-              option.selected = true;
-            }
-            select.appendChild(option);
-          });
-        });
-      }
+      updateThemeSelects(publicSelect, adminSelect, result);
       
       showNotification(result.message, 'success');
       

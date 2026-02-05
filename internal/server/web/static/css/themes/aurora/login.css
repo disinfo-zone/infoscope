@@ -1,0 +1,4 @@
+/* Aurora login/setup styles currently reuse the stable terminal login layout.
+   Aurora visual identity comes from Aurora variables.css tokens. */
+@import url('../terminal/login.css');
+

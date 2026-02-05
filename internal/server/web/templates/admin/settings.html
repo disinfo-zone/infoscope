@@ -141,7 +141,7 @@
                 <label for="adminTheme">ADMIN THEME</label>
                 <select id="adminTheme" name="adminTheme">
                     {{ $adminTheme := getSetting .Data.Settings "admin_theme" (getSetting .Data.Settings "theme" "terminal") }}
-                    {{ range getAvailableThemes }}
+                    {{ range getAvailableAdminThemes }}
                     <option value="{{ . }}" {{ if eq $adminTheme . }}selected{{ end }}>{{ title . }}</option>
                     {{ end }}
                 </select>

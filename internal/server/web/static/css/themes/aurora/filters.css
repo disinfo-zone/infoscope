@@ -1,0 +1,4 @@
+/* Aurora filter-management styles currently reuse the stable terminal filters layout.
+   Aurora visual identity comes from Aurora variables.css tokens. */
+@import url('../terminal/filters.css');
+

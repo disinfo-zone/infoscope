@@ -188,10 +188,17 @@ export function showNotification(message, type = 'info', duration = null) {
   }
   const notification = document.createElement('div');
   notification.className = `notification notification-${type}`;
-  notification.innerHTML = `
-    <span class="notification-message">${message}</span>
-    <button class="notification-close">×</button>
-  `;
+  const messageEl = document.createElement('span');
+  messageEl.className = 'notification-message';
+  messageEl.textContent = typeof message === 'string' ? message : String(message);
+
+  const closeButton = document.createElement('button');
+  closeButton.className = 'notification-close';
+  closeButton.type = 'button';
+  closeButton.textContent = '×';
+
+  notification.appendChild(messageEl);
+  notification.appendChild(closeButton);
 
   // Add to container or create one
   let container = document.querySelector('.notification-container');
@@ -213,7 +220,7 @@ export function showNotification(message, type = 'info', duration = null) {
   }, duration);
 
   // Manual close
-  notification.querySelector('.notification-close')?.addEventListener('click', () => {
+  closeButton.addEventListener('click', () => {
     clearTimeout(timer);
     notification.classList.remove('visible');
     setTimeout(() => notification.remove(), 300);

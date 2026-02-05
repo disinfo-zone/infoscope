@@ -229,6 +229,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.logger.Printf("Login request received: %s", r.Method)
 	}
 
+	// During first-run onboarding, force all login attempts through /setup.
+	isFirstRun, err := IsFirstRun(s.db)
+	if err != nil {
+		s.logger.Printf("Error checking first run status: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if isFirstRun {
+		http.Redirect(w, r, "/setup", http.StatusSeeOther)
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		// Get CSRF token

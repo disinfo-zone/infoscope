@@ -165,10 +165,13 @@ class FilterManager {
           datalist.id = 'categories-list';
           categoryInput.parentNode.appendChild(datalist);
         }
-        
-        datalist.innerHTML = data.categories.map(cat => 
-          `<option value="${cat}"></option>`
-        ).join('');
+
+        datalist.textContent = '';
+        data.categories.forEach((cat) => {
+          const option = document.createElement('option');
+          option.value = cat;
+          datalist.appendChild(option);
+        });
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -194,20 +197,25 @@ class FilterManager {
       'feed_category': 'Category',
       'feed_tags': 'Tags'
     };
-    
+    const safeFilterID = this.normalizeNumericId(filter.id);
+    const rawTargetType = typeof filter.target_type === 'string' ? filter.target_type : '';
+    const safeTargetLabel = this.escapeHtml(targetLabels[rawTargetType] || rawTargetType);
+    const safePatternTypeClass = this.normalizeClassToken(filter.pattern_type, 'keyword');
+    const safePatternTypeLabel = this.escapeHtml(filter.pattern_type || '');
+
     return `
-      <div class="filter-card" data-filter-id="${filter.id}">
+      <div class="filter-card" data-filter-id="${safeFilterID}">
         <div class="filter-header">
           <h4 class="filter-name">${this.escapeHtml(filter.name)}</h4>
           <div class="filter-actions">
-            <button class="btn btn-small btn-outline" data-action="edit-filter" data-filter-id="${filter.id}">Edit</button>
-            <button class="btn btn-small btn-danger" data-action="delete-filter" data-filter-id="${filter.id}">Delete</button>
+            <button class="btn btn-small btn-outline" data-action="edit-filter" data-filter-id="${safeFilterID}">Edit</button>
+            <button class="btn btn-small btn-danger" data-action="delete-filter" data-filter-id="${safeFilterID}">Delete</button>
           </div>
         </div>
         <div class="filter-details">
           <div class="detail-row">
             <span class="detail-label">Target:</span>
-            <span class="target-badge">${targetLabels[filter.target_type] || filter.target_type}</span>
+            <span class="target-badge">${safeTargetLabel}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Pattern:</span>
@@ -215,7 +223,7 @@ class FilterManager {
           </div>
           <div class="detail-row">
             <span class="detail-label">Type:</span>
-            <span class="type-badge ${filter.pattern_type}">${filter.pattern_type}</span>
+            <span class="type-badge ${safePatternTypeClass}">${safePatternTypeLabel}</span>
             ${filter.case_sensitive ? '<span class="case-badge">Case Sensitive</span>' : ''}
           </div>
         </div>
@@ -236,9 +244,10 @@ class FilterManager {
 
     // Initialize drag-and-drop for each group's filter list
     groups.forEach(group => {
-      const groupElement = container.querySelector(`[data-group-id="${group.id}"]`);
+      const safeGroupID = this.normalizeNumericId(group.id);
+      const groupElement = safeGroupID ? container.querySelector(`[data-group-id="${safeGroupID}"]`) : null;
       if (groupElement && group.rules && group.rules.length > 1) {
-        this.initializeGroupDragDrop(groupElement, group.id);
+        this.initializeGroupDragDrop(groupElement, safeGroupID);
       }
     });
   }
@@ -246,57 +255,67 @@ class FilterManager {
   renderGroupCard(group) {
     const ruleCount = group.rules ? group.rules.length : 0;
     const statusClass = group.is_active ? 'status-active' : 'status-inactive';
-    
-    const rulesHtml = group.rules && group.rules.length > 0 
-      ? `<div class="filter-list" data-group-id="${group.id}">
-          ${group.rules.map((rule, index) => `
-            <div class="filter-rule draggable-item" data-filter-id="${rule.filter_id}" data-order="${index}">
+    const safeGroupID = this.normalizeNumericId(group.id);
+    const safeActionClass = this.normalizeClassToken(group.action, 'keep');
+    const safeActionLabel = this.escapeHtml(group.action || 'keep');
+    const safePriority = Number.isFinite(Number(group.priority)) ? Number(group.priority) : 0;
+
+    const rulesMarkup = (group.rules || []).map((rule, index) => {
+      const safeRuleFilterID = this.normalizeNumericId(rule.filter_id || (rule.filter && rule.filter.id));
+      const selectedOperator = (rule.operator === 'OR') ? 'OR' : 'AND';
+      const safeRulePatternType = this.escapeHtml(rule.filter?.pattern_type || '');
+
+      return `
+            <div class="filter-rule draggable-item" data-filter-id="${safeRuleFilterID}" data-order="${index}">
               <div class="rule-drag-handle" title="Drag to reorder">⋮⋮</div>
               ${index > 0 ? `
                 <div class="rule-operator">
-                  <select class="operator-select" data-group-id="${group.id}" data-filter-id="${rule.filter_id}">
-                    <option value="AND" ${((rule.operator || 'AND') === 'AND') ? 'selected' : ''}>AND</option>
-                    <option value="OR" ${((rule.operator || 'AND') === 'OR') ? 'selected' : ''}>OR</option>
+                  <select class="operator-select" data-group-id="${safeGroupID}" data-filter-id="${safeRuleFilterID}">
+                    <option value="AND" ${(selectedOperator === 'AND') ? 'selected' : ''}>AND</option>
+                    <option value="OR" ${(selectedOperator === 'OR') ? 'selected' : ''}>OR</option>
                   </select>
                 </div>
               ` : '<div class="rule-operator-spacer"></div>'}
               <div class="rule-info">
                 <div class="rule-name">${this.escapeHtml(rule.filter?.name || '')}</div>
-                <div class="rule-pattern">${this.escapeHtml(rule.filter?.pattern || '')} <span class="rule-type">(${rule.filter?.pattern_type || ''})</span></div>
+                <div class="rule-pattern">${this.escapeHtml(rule.filter?.pattern || '')} <span class="rule-type">(${safeRulePatternType})</span></div>
               </div>
               <div class="rule-actions">
-                <button class="btn btn-small btn-outline" data-action="remove-filter-from-group" data-group-id="${group.id}" data-filter-id="${rule.filter_id}">Remove</button>
+                <button class="btn btn-small btn-outline" data-action="remove-filter-from-group" data-group-id="${safeGroupID}" data-filter-id="${safeRuleFilterID}">Remove</button>
               </div>
             </div>
-          `).join('')}
-        </div>`
+      `;
+    }).join('');
+
+    const rulesHtml = group.rules && group.rules.length > 0
+      ? `<div class="filter-list" data-group-id="${safeGroupID}">${rulesMarkup}</div>`
       : '<p class="no-filters">No filters in this group. Add filters to get started.</p>';
     
     // Add "Add Filter" button to group content
     const addFilterButton = `
       <div class="group-add-filter">
-        <button class="btn btn-small btn-primary" data-action="add-filter-to-group" data-group-id="${group.id}">
+        <button class="btn btn-small btn-primary" data-action="add-filter-to-group" data-group-id="${safeGroupID}">
           <span class="icon">+</span> Add Filter
         </button>
       </div>
     `;
     
     return `
-      <div class="filter-group expanded" data-group-id="${group.id}">
+      <div class="filter-group expanded" data-group-id="${safeGroupID}">
         <div class="filter-group-header" data-role="group-header">
           <div class="group-title-section">
             <span class="status-indicator ${statusClass}"></span>
             <h4 class="filter-group-title">${this.escapeHtml(group.name)}</h4>
             <div class="group-meta">
-              <span class="action-badge ${group.action}">${group.action}</span>
-              <span class="priority-text">Priority: ${group.priority}</span>
+              <span class="action-badge ${safeActionClass}">${safeActionLabel}</span>
+              <span class="priority-text">Priority: ${safePriority}</span>
               <span class="filter-count">${ruleCount} filters</span>
             </div>
           </div>
           <div class="group-actions">
-            <button class="btn btn-small btn-outline" data-action="toggle-group" data-group-id="${group.id}" data-is-active="${group.is_active}">${group.is_active ? 'Disable' : 'Enable'}</button>
-            <button class="btn btn-small btn-outline" data-action="edit-group" data-group-id="${group.id}">Edit</button>
-            <button class="btn btn-small btn-danger" data-action="delete-group" data-group-id="${group.id}">Delete</button>
+            <button class="btn btn-small btn-outline" data-action="toggle-group" data-group-id="${safeGroupID}" data-is-active="${group.is_active}">${group.is_active ? 'Disable' : 'Enable'}</button>
+            <button class="btn btn-small btn-outline" data-action="edit-group" data-group-id="${safeGroupID}">Edit</button>
+            <button class="btn btn-small btn-danger" data-action="delete-group" data-group-id="${safeGroupID}">Delete</button>
           </div>
         </div>
         <div class="filter-group-content">
@@ -426,26 +445,31 @@ class FilterManager {
     // Remove existing modal if present
     const existingModal = document.getElementById('add-filter-modal');
     if (existingModal) existingModal.remove();
+    const safeGroupName = this.escapeHtml(groupName || '');
     
     const modalHtml = `
       <div id="add-filter-modal" class="modal">
         <div class="modal-content">
           <div class="modal-header">
-            <h3>Add Filter to "${this.escapeHtml(groupName)}"</h3>
+            <h3>Add Filter to "${safeGroupName}"</h3>
             <button class="modal-close" id="add-filter-modal-close">&times;</button>
           </div>
           <div class="form-group">
             <label for="available-filters">Select filters to add:</label>
             <div class="filter-selection-list">
-              ${availableFilters.map(filter => `
+              ${availableFilters.map((filter) => {
+                const safeFilterID = this.normalizeNumericId(filter.id);
+                const safePatternType = this.escapeHtml(filter.pattern_type || '');
+                return `
                 <label class="filter-option">
-                  <input type="checkbox" value="${filter.id}" data-filter-name="${this.escapeHtml(filter.name)}">
+                  <input type="checkbox" value="${safeFilterID}" data-filter-name="${this.escapeHtml(filter.name)}">
                   <div class="filter-option-details">
                     <div class="filter-option-name">${this.escapeHtml(filter.name)}</div>
-                    <div class="filter-option-pattern">${this.escapeHtml(filter.pattern)} (${filter.pattern_type})</div>
+                    <div class="filter-option-pattern">${this.escapeHtml(filter.pattern)} (${safePatternType})</div>
                   </div>
                 </label>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           </div>
           <div class="modal-actions">
@@ -503,11 +527,17 @@ class FilterManager {
       const currentRules = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
       
       // Create new rules for selected filters
-      const newRules = Array.from(checkboxes).map((checkbox, index) => ({
-        filter_id: parseInt(checkbox.value),
-        operator: 'AND',
-        position: currentRules.length + index
-      }));
+      const newRules = Array.from(checkboxes)
+        .map((checkbox, index) => ({
+          filter_id: Number.parseInt(checkbox.value, 10),
+          operator: 'AND',
+          position: currentRules.length + index
+        }))
+        .filter((rule) => Number.isFinite(rule.filter_id));
+      if (newRules.length === 0) {
+        this.showError('Selected filters are invalid');
+        return;
+      }
       
       // Combine existing and new rules
       const allRules = [
@@ -851,6 +881,17 @@ class FilterManager {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  normalizeClassToken(value, fallback = '') {
+    const token = String(value || '').toLowerCase();
+    return /^[a-z0-9_-]+$/.test(token) ? token : fallback;
+  }
+
+  normalizeNumericId(value, fallback = '') {
+    const parsed = Number.parseInt(String(value), 10);
+    if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+    return String(parsed);
   }
 }
 

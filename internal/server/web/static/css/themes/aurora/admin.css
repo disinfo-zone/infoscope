@@ -1,0 +1,4 @@
+/* Aurora admin styles currently reuse the stable terminal admin layout.
+   Aurora visual identity comes from Aurora variables.css tokens. */
+@import url('../terminal/admin.css');
+

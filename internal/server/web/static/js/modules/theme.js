@@ -43,13 +43,24 @@ class ThemeSwitcher {
         // Listen for system theme changes
         if (window.matchMedia) {
             const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-            mediaQuery.addListener(() => {
+            const onThemeChange = () => {
                 // Only auto-switch if user hasn't manually set a preference
-                if (!localStorage.getItem(this.storageKey)) {
+                let hasStoredPreference = false;
+                try {
+                    hasStoredPreference = !!localStorage.getItem(this.storageKey);
+                } catch (_) {
+                    hasStoredPreference = true;
+                }
+                if (!hasStoredPreference) {
                     this.currentTheme = this.getSystemTheme();
                     this.applyTheme(this.currentTheme);
                 }
-            });
+            };
+            if (typeof mediaQuery.addEventListener === 'function') {
+                mediaQuery.addEventListener('change', onThemeChange);
+            } else if (typeof mediaQuery.addListener === 'function') {
+                mediaQuery.addListener(onThemeChange);
+            }
         }
     }
 

@@ -1,0 +1,4 @@
+/* Aurora settings-page styles currently reuse the stable terminal settings layout.
+   Aurora visual identity comes from Aurora variables.css tokens. */
+@import url('../terminal/settings.css');
+

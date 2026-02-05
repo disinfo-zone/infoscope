@@ -1,0 +1,11 @@
+{
+  "name": "infoscope",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test:e2e:theme": "playwright test tests/public-theme-initial-paint.spec.js --reporter=line"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.1"
+  }
+}

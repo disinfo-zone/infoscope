@@ -1,11 +1,11 @@
 /**
  * Early Theme Loader - CSP Compliant Version
- * Applies user theme immediately to prevent flash, works with strict CSP
+ * Resolves a single public theme before first paint to prevent flash
  */
 
 (function() {
     'use strict';
-    
+
     // Get theme configuration from meta tags (CSP-safe)
     const allowedMeta = document.querySelector('meta[name="theme-allowed"]');
     const defaultMeta = document.querySelector('meta[name="theme-default"]');
@@ -13,48 +13,67 @@
         return; // No theme configuration available
     }
 
+    const themeNamePattern = /^[a-zA-Z0-9_-]+$/;
     const allowedThemes = (allowedMeta.content || '')
         .split(',')
         .map((t) => t.trim())
-        .filter(Boolean);
-    const defaultTheme = (defaultMeta.content || '').trim();
-    if (allowedThemes.length === 0 || !defaultTheme) {
+        .filter((t) => t && themeNamePattern.test(t));
+    if (allowedThemes.length === 0) {
         return;
     }
-    
-    // Get user's stored theme preference
-    let userTheme = null;
+
+    let defaultTheme = (defaultMeta.content || '').trim();
+    if (!themeNamePattern.test(defaultTheme) || !allowedThemes.includes(defaultTheme)) {
+        defaultTheme = allowedThemes[0];
+    }
+
+    let resolvedTheme = defaultTheme;
+
+    // Get user's stored theme preference.
     try {
         const storedTheme = localStorage.getItem('userSelectedTheme');
-        if (storedTheme && allowedThemes.includes(storedTheme) && /^[a-zA-Z0-9_-]+$/.test(storedTheme)) {
-            userTheme = storedTheme;
+        if (storedTheme && allowedThemes.includes(storedTheme) && themeNamePattern.test(storedTheme)) {
+            resolvedTheme = storedTheme;
         } else if (storedTheme) {
-            // Invalid theme, clean up
+            // Invalid theme, clean up.
             localStorage.removeItem('userSelectedTheme');
         }
     } catch (error) {
-        // localStorage not available
+        // localStorage not available.
     }
-    
-    // If user has a valid theme preference and it's different from current, switch immediately
-    if (userTheme && userTheme !== defaultTheme) {
-        const links = {
-            variables: document.getElementById('themeVariablesCSS'),
-            public: document.getElementById('themePublicCSS'),
-            ux: document.getElementById('themeUxCSS')
-        };
-        
-        // Update CSS links to user's theme
-        const themePrefix = `/static/css/themes/${encodeURIComponent(userTheme)}/`;
-        
-        if (links.variables) {
-            links.variables.href = themePrefix + 'variables.css';
+
+    const themePrefix = `/static/css/themes/${encodeURIComponent(resolvedTheme)}/`;
+
+    function upsertThemeLink(id, fileName) {
+        const href = themePrefix + fileName;
+        let link = document.getElementById(id);
+
+        if (!link) {
+            link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.id = id;
+            link.href = href;
+
+            const baseCSS = document.getElementById('baseCSS');
+            if (baseCSS && baseCSS.parentNode) {
+                baseCSS.parentNode.insertBefore(link, baseCSS);
+            } else if (document.head) {
+                document.head.appendChild(link);
+            }
+            return;
         }
-        if (links.public) {
-            links.public.href = themePrefix + 'public.css';
+
+        if (link.getAttribute('href') !== href) {
+            link.setAttribute('href', href);
         }
-        if (links.ux) {
-            links.ux.href = themePrefix + 'ux-enhancements.css';
-        }
+    }
+
+    // Ensure exactly one resolved theme stylesheet set is active.
+    upsertThemeLink('themeVariablesCSS', 'variables.css');
+    upsertThemeLink('themePublicCSS', 'public.css');
+    upsertThemeLink('themeUxCSS', 'ux-enhancements.css');
+
+    if (document.documentElement) {
+        document.documentElement.setAttribute('data-active-public-theme', resolvedTheme);
     }
 })();

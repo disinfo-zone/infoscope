@@ -28,6 +28,17 @@ var rawContent embed.FS
 // webContent holds the virtual filesystem for web assets.
 var webContent fs.FS
 
+var adminThemeRequiredCSSFiles = []string{
+	"variables.css",
+	"admin.css",
+	"ux-enhancements.css",
+	"dashboard.css",
+	"feeds.css",
+	"filters.css",
+	"settings.css",
+	"login.css",
+}
+
 func init() {
 	var err error
 	webContent, err = fs.Sub(rawContent, "web")
@@ -61,9 +72,10 @@ type Server struct {
 	templateCache map[string]*template.Template
 	backupStop    chan struct{}
 	// Theme caching with thread safety
-	themesMutex     sync.RWMutex
-	cachedThemes    []string
-	themesLastScan  time.Time
+	themesMutex       sync.RWMutex
+	cachedThemes      []string
+	cachedThemeAssets map[string]map[string]struct{}
+	themesLastScan    time.Time
 }
 
 // securityHeaders wraps a handler to add standard security headers and a CSP
@@ -149,6 +161,24 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 		return name
 	}
 
+	resolveThemeCSSPathForTheme := func(themeName, file string) string {
+		cssFile := strings.TrimPrefix(strings.TrimSpace(file), "/")
+		if !s.isValidThemeAssetName(cssFile) {
+			return "/static/css/themes/terminal/variables.css"
+		}
+
+		resolvedTheme := strings.ToLower(strings.TrimSpace(themeName))
+		if resolvedTheme == "" || !s.themeAssetExists(resolvedTheme, cssFile) {
+			resolvedTheme = "terminal"
+		}
+
+		return "/static/css/themes/" + resolvedTheme + "/" + cssFile
+	}
+
+	resolveThemeCSSPathForKey := func(settings map[string]string, key string, file string) string {
+		return resolveThemeCSSPathForTheme(sanitizeThemeForKey(settings, key), file)
+	}
+
 	return template.FuncMap{
 		"formatTimeInZone": func(tz string, t time.Time) string {
 			loc, err := time.LoadLocation(tz)
@@ -183,7 +213,7 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 		},
 		// themeCSS builds a theme-aware CSS path, e.g., /static/css/themes/<theme>/<file>
 		"themeCSS": func(settings map[string]string, file string) string {
-			return "/static/css/themes/" + sanitizeTheme(settings) + "/" + strings.TrimPrefix(file, "/")
+			return resolveThemeCSSPathForTheme(sanitizeTheme(settings), file)
 		},
 		// themeNameFor resolves theme using a specific settings key with fallback to legacy "theme"
 		"themeNameFor": func(settings map[string]string, key string) string {
@@ -191,18 +221,22 @@ func (s *Server) registerTemplateFuncs() template.FuncMap {
 		},
 		// themeCSSFor builds a CSS path using a specific theme key (e.g., "public_theme" or "admin_theme")
 		"themeCSSFor": func(settings map[string]string, key string, file string) string {
-			return "/static/css/themes/" + sanitizeThemeForKey(settings, key) + "/" + strings.TrimPrefix(file, "/")
+			return resolveThemeCSSPathForKey(settings, key, file)
 		},
 		// Convenience wrappers
 		"themeCSSPublic": func(settings map[string]string, file string) string {
-			return "/static/css/themes/" + sanitizeThemeForKey(settings, "public_theme") + "/" + strings.TrimPrefix(file, "/")
+			return resolveThemeCSSPathForKey(settings, "public_theme", file)
 		},
 		"themeCSSAdmin": func(settings map[string]string, file string) string {
-			return "/static/css/themes/" + sanitizeThemeForKey(settings, "admin_theme") + "/" + strings.TrimPrefix(file, "/")
+			return resolveThemeCSSPathForKey(settings, "admin_theme", file)
 		},
 		// getAvailableThemes returns cached list of available theme names for use in dropdowns
 		"getAvailableThemes": func() []string {
 			return s.getAvailableThemes()
+		},
+		// getAvailableAdminThemes returns themes that contain required admin CSS files
+		"getAvailableAdminThemes": func() []string {
+			return s.getAvailableAdminThemes()
 		},
 		// title capitalizes the first letter of a string
 		"title": func(s string) string {
@@ -348,11 +382,27 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 		}
 	} else {
 		// Even when template updates are disabled, always update critical theme files
+		criticalThemeFiles := map[string]struct{}{
+			"admin.css":           {},
+			"public.css":          {},
+			"variables.css":       {},
+			"ux-enhancements.css": {},
+			"dashboard.css":       {},
+			"feeds.css":           {},
+			"filters.css":         {},
+			"settings.css":        {},
+			"login.css":           {},
+		}
 		criticalThemeFilter := func(path string) bool {
-			return strings.HasPrefix(path, "static/css/themes/") && 
-				   (strings.Contains(path, "/admin.css") || 
-					strings.Contains(path, "/public.css") || 
-					strings.Contains(path, "/variables.css"))
+			if !strings.HasPrefix(path, "static/css/themes/") {
+				return false
+			}
+			for cssFile := range criticalThemeFiles {
+				if strings.HasSuffix(path, "/"+cssFile) {
+					return true
+				}
+			}
+			return false
 		}
 		if err := s.extractWebContentWithFilters(false, criticalThemeFilter); err != nil {
 			s.logger.Printf("Warning: failed to update critical theme files: %v", err)
@@ -368,7 +418,7 @@ func NewServer(db *sql.DB, logger *log.Logger, feedService *feed.Service, config
 	if !s.config.ProductionMode {
 		s.logger.Printf("Successfully loaded and cached %d templates.", len(s.templateCache))
 	}
-	
+
 	// Initialize theme cache on startup
 	s.refreshThemes()
 
@@ -541,7 +591,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 // This is called once at startup and when explicitly requested via API
 func (s *Server) scanAvailableThemes() []string {
 	themesDir := filepath.Join(s.config.WebPath, "static", "css", "themes")
-	
+
 	// Check if themes directory exists
 	if _, err := os.Stat(themesDir); os.IsNotExist(err) {
 		if !s.config.ProductionMode {
@@ -549,22 +599,22 @@ func (s *Server) scanAvailableThemes() []string {
 		}
 		return []string{"terminal"}
 	}
-	
+
 	entries, err := os.ReadDir(themesDir)
 	if err != nil {
 		s.logger.Printf("Error reading themes directory: %v", err)
 		return []string{"terminal"}
 	}
-	
+
 	var themes []string
 	allowed := regexp.MustCompile(`^[a-z0-9_-]+$`)
-	
+
 	for _, entry := range entries {
 		// Security: Skip non-directories and symbolic links
 		if !entry.IsDir() {
 			continue
 		}
-		
+
 		// Additional security: Check if it's a symlink by getting file info
 		info, err := entry.Info()
 		if err != nil {
@@ -574,9 +624,9 @@ func (s *Server) scanAvailableThemes() []string {
 			s.logger.Printf("Skipping symbolic link in themes directory: %s", entry.Name())
 			continue
 		}
-		
+
 		name := strings.ToLower(entry.Name())
-		
+
 		// Security: Strict validation of theme names
 		if !allowed.MatchString(name) {
 			if !s.config.ProductionMode {
@@ -584,16 +634,16 @@ func (s *Server) scanAvailableThemes() []string {
 			}
 			continue
 		}
-		
+
 		// Additional security: Prevent path traversal
 		if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
 			s.logger.Printf("Skipping potentially dangerous theme name: %s", name)
 			continue
 		}
-		
+
 		// Verify this is a valid theme directory by checking if it has at least one CSS file
 		themeDir := filepath.Join(themesDir, name)
-		
+
 		// Security: Ensure the constructed path is still within themes directory
 		absThemesDir, err := filepath.Abs(themesDir)
 		if err != nil {
@@ -607,7 +657,7 @@ func (s *Server) scanAvailableThemes() []string {
 			s.logger.Printf("Skipping theme outside of themes directory: %s", name)
 			continue
 		}
-		
+
 		// Check for CSS files
 		themeCSSFiles, err := filepath.Glob(filepath.Join(themeDir, "*.css"))
 		if err != nil || len(themeCSSFiles) == 0 {
@@ -616,10 +666,10 @@ func (s *Server) scanAvailableThemes() []string {
 			}
 			continue
 		}
-		
+
 		themes = append(themes, name)
 	}
-	
+
 	// Ensure "terminal" is always available as fallback
 	terminalExists := false
 	for _, theme := range themes {
@@ -631,11 +681,11 @@ func (s *Server) scanAvailableThemes() []string {
 	if !terminalExists {
 		themes = append([]string{"terminal"}, themes...)
 	}
-	
+
 	if !s.config.ProductionMode {
 		s.logger.Printf("Detected %d themes: %v", len(themes), themes)
 	}
-	
+
 	return themes
 }
 
@@ -644,7 +694,7 @@ func (s *Server) scanAvailableThemes() []string {
 func (s *Server) getAvailableThemes() []string {
 	s.themesMutex.RLock()
 	defer s.themesMutex.RUnlock()
-	
+
 	// Return a copy to prevent modification of cached data
 	themes := make([]string, len(s.cachedThemes))
 	copy(themes, s.cachedThemes)
@@ -658,28 +708,137 @@ func (s *Server) isValidThemeName(theme string) bool {
 	if theme == "" {
 		return false
 	}
-	
+
 	// Must be 1-50 characters
 	if len(theme) < 1 || len(theme) > 50 {
 		return false
 	}
-	
+
 	// Only allow safe characters
 	for _, char := range theme {
-		if !((char >= 'a' && char <= 'z') || 
-			 (char >= 'A' && char <= 'Z') || 
-			 (char >= '0' && char <= '9') || 
-			 char == '-' || char == '_') {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' || char == '_') {
 			return false
 		}
 	}
-	
+
 	// Prevent special directory names
 	if theme == "." || theme == ".." {
 		return false
 	}
-	
+
 	return true
+}
+
+func (s *Server) isValidThemeAssetName(file string) bool {
+	if file == "" {
+		return false
+	}
+	if strings.Contains(file, "..") || strings.Contains(file, "/") || strings.Contains(file, "\\") {
+		return false
+	}
+	if !strings.HasSuffix(strings.ToLower(file), ".css") {
+		return false
+	}
+	for _, char := range file {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' || char == '_' || char == '.') {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) themeAssetExists(theme string, file string) bool {
+	normalizedTheme := strings.ToLower(strings.TrimSpace(theme))
+	normalizedFile := strings.TrimPrefix(strings.TrimSpace(file), "/")
+
+	if !s.isValidThemeName(normalizedTheme) || !s.isValidThemeAssetName(normalizedFile) {
+		return false
+	}
+
+	s.themesMutex.RLock()
+	if filesByTheme, ok := s.cachedThemeAssets[normalizedTheme]; ok {
+		_, exists := filesByTheme[strings.ToLower(normalizedFile)]
+		s.themesMutex.RUnlock()
+		return exists
+	}
+	s.themesMutex.RUnlock()
+
+	themeFilePath := filepath.Join(s.config.WebPath, "static", "css", "themes", normalizedTheme, normalizedFile)
+	info, err := os.Stat(themeFilePath)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
+func (s *Server) themeSupportsFiles(theme string, requiredFiles []string) bool {
+	for _, cssFile := range requiredFiles {
+		if !s.themeAssetExists(theme, cssFile) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) getAvailableAdminThemes() []string {
+	allThemes := s.getAvailableThemes()
+	adminThemes := make([]string, 0, len(allThemes))
+	for _, theme := range allThemes {
+		if s.themeSupportsFiles(theme, adminThemeRequiredCSSFiles) {
+			adminThemes = append(adminThemes, theme)
+		}
+	}
+
+	if len(adminThemes) == 0 {
+		return []string{"terminal"}
+	}
+	return adminThemes
+}
+
+func (s *Server) buildThemeAssetIndex(themes []string) map[string]map[string]struct{} {
+	assetsByTheme := make(map[string]map[string]struct{}, len(themes))
+	themesDir := filepath.Join(s.config.WebPath, "static", "css", "themes")
+
+	for _, theme := range themes {
+		normalizedTheme := strings.ToLower(strings.TrimSpace(theme))
+		if !s.isValidThemeName(normalizedTheme) {
+			continue
+		}
+
+		themeDir := filepath.Join(themesDir, normalizedTheme)
+		entries, err := os.ReadDir(themeDir)
+		if err != nil {
+			continue
+		}
+
+		cssFiles := make(map[string]struct{})
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			name := strings.ToLower(entry.Name())
+			if s.isValidThemeAssetName(name) {
+				cssFiles[name] = struct{}{}
+			}
+		}
+		assetsByTheme[normalizedTheme] = cssFiles
+	}
+
+	return assetsByTheme
+}
+
+func (s *Server) sanitizeAdminThemeSelection(candidate string) string {
+	normalized := strings.ToLower(strings.TrimSpace(candidate))
+	if normalized != "" && s.containsString(s.getAvailableAdminThemes(), normalized) {
+		return normalized
+	}
+	return "terminal"
 }
 
 // containsString checks if a string slice contains a specific string
@@ -697,11 +856,11 @@ func (s *Server) validatePublicThemes(themesString string) string {
 	if themesString == "" {
 		return ""
 	}
-	
+
 	availableThemes := s.getAvailableThemes()
 	themes := strings.Split(themesString, ",")
 	var validThemes []string
-	
+
 	for _, theme := range themes {
 		trimmed := strings.TrimSpace(theme)
 		if trimmed != "" && s.isValidThemeName(trimmed) && s.containsString(availableThemes, trimmed) {
@@ -711,7 +870,7 @@ func (s *Server) validatePublicThemes(themesString string) string {
 			}
 		}
 	}
-	
+
 	return strings.Join(validThemes, ",")
 }
 
@@ -719,16 +878,18 @@ func (s *Server) validatePublicThemes(themesString string) string {
 // This can be called via API endpoint without restarting the server
 func (s *Server) refreshThemes() []string {
 	newThemes := s.scanAvailableThemes()
-	
+	themeAssets := s.buildThemeAssetIndex(newThemes)
+
 	s.themesMutex.Lock()
 	s.cachedThemes = newThemes
+	s.cachedThemeAssets = themeAssets
 	s.themesLastScan = time.Now()
 	s.themesMutex.Unlock()
-	
+
 	if !s.config.ProductionMode {
 		s.logger.Printf("Theme cache refreshed with %d themes", len(newThemes))
 	}
-	
+
 	return newThemes
 }
 

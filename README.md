@@ -243,6 +243,7 @@ This policy applies to both initial setup and password changes.
 - **Setup page fails to render or actions no-op after upgrade**: Ensure `/app/web` is updated. If template updates are disabled (`-no-template-updates` or `INFOSCOPE_NO_TEMPLATE_UPDATES=true`), run once with `-force-template-updates` or temporarily disable the flag. You can also remove the `/app/web` volume so Infoscope re-extracts embedded assets on next start.
 - **Admin UI buttons do nothing** (e.g., Delete Feed): This almost always indicates stale or missing web assets under `/app/web`. Refresh templates as above and confirm the container user has write permissions to that volume.
 - **UI test harness**: Visit `/static/tests/public-theme-harness.html` to validate public theme selection and `runtime.css` behavior. Set a Footer Image Height in admin settings, reload the page, and confirm the computed height readout updates.
+- **Automated first-paint theme smoke test**: Run `npm run test:e2e:theme` to assert the selected public theme CSS set is loaded exactly once and inserted before `base.css` on initial page paint.
 
 ## Entry Filtering System
 

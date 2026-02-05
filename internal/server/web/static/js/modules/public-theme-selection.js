@@ -161,9 +161,9 @@ function initializeThemeSelection() {
             } catch (error) {
                 console.warn('localStorage access blocked, theme will not persist:', error);
             }
-            
+
             // Apply theme CSS changes
-            const themePrefix = `/static/css/themes/${CSS.escape(sanitizedTheme)}/`;
+            const themePrefix = `/static/css/themes/${encodeURIComponent(sanitizedTheme)}/`;
             const publicCSSLink = document.getElementById('themePublicCSS');
             const uxCSSLink = document.getElementById('themeUxCSS');
             
@@ -188,7 +188,12 @@ function initializeThemeSelection() {
 // Handle browser back/forward button
 window.addEventListener('pageshow', function(event) {
     // Re-initialize on page show to handle browser back/forward
-    if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+    const navEntries = (window.performance && typeof window.performance.getEntriesByType === 'function')
+        ? window.performance.getEntriesByType('navigation')
+        : null;
+    const isBackForward = !!(navEntries && navEntries[0] && navEntries[0].type === 'back_forward');
+    const legacyBackForward = !!(window.performance && window.performance.navigation && window.performance.navigation.type === 2);
+    if (event.persisted || isBackForward || legacyBackForward) {
         initializeThemeSelection();
     }
 });

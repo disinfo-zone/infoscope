@@ -12,6 +12,7 @@ import (
 	"infoscope/internal/database"
 	"infoscope/internal/feed"
 	"infoscope/internal/rss"
+	securitynet "infoscope/internal/security/netutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -219,6 +220,7 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 	if err != nil {
 		return fmt.Errorf("invalid tracking code: %w", err)
 	}
+	validatedAdminTheme := s.sanitizeAdminThemeSelection(settings.AdminTheme)
 
 	updates := map[string]struct {
 		value string
@@ -242,7 +244,7 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 		// Theme settings: maintain legacy "theme" for compatibility; prefer new keys
 		"theme":        {settings.Theme, "string"},
 		"public_theme": {settings.PublicTheme, "string"},
-		"admin_theme":  {settings.AdminTheme, "string"},
+		"admin_theme":  {validatedAdminTheme, "string"},
 		// Auto-backup configuration
 		"backup_enabled":        {strconv.FormatBool(settings.BackupEnabled), "bool"},
 		"backup_interval_hours": {strconv.Itoa(settings.BackupIntervalHours), "int"},
@@ -447,7 +449,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	var availableThemes []string
 	if allowThemeSelection {
 		allAvailableThemes := s.getAvailableThemes()
-		
+
 		// Get the selected themes for public use and validate them
 		if settings["public_available_themes"] != "" {
 			themes := strings.Split(settings["public_available_themes"], ",")
@@ -567,29 +569,32 @@ func (s *Server) handleThemeRefresh(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	if !s.csrf.Validate(w, r) {
 		return
 	}
-	
+
 	// Refresh the theme cache
 	themes := s.refreshThemes()
-	
+	adminThemes := s.getAvailableAdminThemes()
+
 	// Return the updated theme list as JSON
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]interface{}{
-		"success": true,
-		"message": fmt.Sprintf("Theme cache refreshed successfully. Found %d themes.", len(themes)),
-		"themes":  themes,
-		"count":   len(themes),
+		"success":      true,
+		"message":      fmt.Sprintf("Theme cache refreshed successfully. Found %d themes.", len(themes)),
+		"themes":       themes,
+		"publicThemes": themes,
+		"adminThemes":  adminThemes,
+		"count":        len(themes),
 	}
-	
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		s.logger.Printf("Error encoding theme refresh response: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	
+
 	if !s.config.ProductionMode {
 		s.logger.Printf("Theme cache refreshed via API. Found themes: %v", themes)
 	}
@@ -601,11 +606,11 @@ func (s *Server) handleTemplateUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	if !s.csrf.Validate(w, r) {
 		return
 	}
-	
+
 	// Force extract web content (including themes)
 	if err := s.extractWebContent(true); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -617,25 +622,28 @@ func (s *Server) handleTemplateUpdate(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(response)
 		return
 	}
-	
+
 	// Refresh themes after extraction
 	themes := s.refreshThemes()
-	
+	adminThemes := s.getAvailableAdminThemes()
+
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]interface{}{
-		"success": true,
-		"message": fmt.Sprintf("Templates and themes updated successfully. Found %d themes.", len(themes)),
-		"themes":  themes,
-		"count":   len(themes),
+		"success":      true,
+		"message":      fmt.Sprintf("Templates and themes updated successfully. Found %d themes.", len(themes)),
+		"themes":       themes,
+		"publicThemes": themes,
+		"adminThemes":  adminThemes,
+		"count":        len(themes),
 	}
-	
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		s.logger.Printf("Error encoding template update response: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	
+
 	if !s.config.ProductionMode {
 		s.logger.Printf("Templates updated via API. Found themes: %v", themes)
 	}
@@ -1171,7 +1179,7 @@ func validateURL(urlStr string) error {
 	// SSRF hardening: block private/reserved address ranges
 	host := u.Hostname()
 	if ip := net.ParseIP(host); ip != nil {
-		if isPrivateIP(ip) {
+		if securitynet.IsPrivateIP(ip) {
 			return fmt.Errorf("URLs pointing to private/reserved addresses are not allowed")
 		}
 	} else {
@@ -1181,7 +1189,7 @@ func validateURL(urlStr string) error {
 		addrs, err := net.DefaultResolver.LookupIP(dnsCtx, "ip", host)
 		if err == nil {
 			for _, a := range addrs {
-				if isPrivateIP(a) {
+				if securitynet.IsPrivateIP(a) {
 					return fmt.Errorf("resolved address is private/reserved and not allowed")
 				}
 			}
@@ -1201,30 +1209,6 @@ func isAllowedParent(tagName string) bool {
 	default:
 		return false
 	}
-}
-
-// isPrivateIP returns true if the IP is in a private, loopback, link-local or reserved range
-func isPrivateIP(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return true
-	}
-	privateCIDRs := []string{
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"127.0.0.0/8",
-		"169.254.0.0/16",
-		"::1/128",
-		"fc00::/7",
-		"fe80::/10",
-	}
-	for _, cidr := range privateCIDRs {
-		_, network, err := net.ParseCIDR(cidr)
-		if err == nil && network.Contains(ip) {
-			return true
-		}
-	}
-	return false
 }
 
 // handleFiltersPage renders the filters management page

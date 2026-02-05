@@ -1,0 +1,4 @@
+/* Aurora feed-management styles currently reuse the stable terminal feed layout.
+   Aurora visual identity comes from Aurora variables.css tokens. */
+@import url('../terminal/feeds.css');
+
