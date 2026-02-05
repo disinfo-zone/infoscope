@@ -350,14 +350,14 @@ class FilterManager {
     }
     
     modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    this.updateBodyModalState();
   }
 
   hideFilterModal() {
     const modal = document.getElementById('filter-modal');
     if (modal) {
       modal.classList.remove('show');
-      document.body.style.overflow = '';
+      this.updateBodyModalState();
       this.currentFilter = null;
     }
   }
@@ -381,14 +381,14 @@ class FilterManager {
     }
     
     modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    this.updateBodyModalState();
   }
 
   hideGroupModal() {
     const modal = document.getElementById('group-modal');
     if (modal) {
       modal.classList.remove('show');
-      document.body.style.overflow = '';
+      this.updateBodyModalState();
       this.currentGroup = null;
     }
   }
@@ -460,7 +460,7 @@ class FilterManager {
     
     const modal = document.getElementById('add-filter-modal');
     modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    this.updateBodyModalState();
     
     // Bind events
     document.getElementById('add-filter-modal-close').addEventListener('click', () => this.hideAddFilterModal());
@@ -477,9 +477,14 @@ class FilterManager {
     const modal = document.getElementById('add-filter-modal');
     if (modal) {
       modal.classList.remove('show');
-      document.body.style.overflow = '';
+      this.updateBodyModalState();
       setTimeout(() => modal.remove(), 300);
     }
+  }
+
+  updateBodyModalState() {
+    const hasOpenModal = !!document.querySelector('.modal.show');
+    document.body.classList.toggle('modal-open', hasOpenModal);
   }
 
   async addSelectedFiltersToGroup(groupId) {

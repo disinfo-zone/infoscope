@@ -25,6 +25,7 @@ While curation is public, reader privacy is paramount. Infoscope has no required
 - Secure session handling for admin access
 - SQLite database with proper SQL injection prevention
 - Configurable production mode with enhanced security
+- Strict Content Security Policy (CSP) that blocks inline scripts and styles; tracking code must be external (`<script src="...">`) or safe media tags
 
 ### Minimalist Interface
 The interface is intentionally simple in keeping with the guiding ethos. It is a clean, distraction-free retro design with a focus on content discovery. This means:
@@ -62,6 +63,15 @@ git clone https://github.com/disinfo-zone/infoscope.git
 cd infoscope
 go build ./cmd/infoscope
 ```
+### SQLite Driver and CGO
+
+Infoscope defaults to the `go-sqlite3` driver when CGO is enabled (best performance). If CGO is disabled or a C compiler is not available, it will automatically fall back to the pure-Go `modernc.org/sqlite` driver.
+
+To force the CGO build (recommended for production performance):
+```bash
+CGO_ENABLED=1 go build ./cmd/infoscope
+```
+If you see an error like `C compiler "gcc" not found`, install a C toolchain (e.g., gcc/clang) or rely on the pure-Go fallback.
 To run on linux:
 ```
 # Run in development mode
@@ -199,6 +209,7 @@ Production mode: Enforces HTTPS-only features including strict CSRF protection
    - Update interval
    - Header/footer customization
    - Analytics/tracking code integration
+   - Separate public/admin themes and optional public theme selector
    - **Enhanced Entry Display:**
      - Show blog/feed names as prefixes to entry titles
      - Display entry body text previews below titles (50-1000 characters)
@@ -206,6 +217,7 @@ Production mode: Enforces HTTPS-only features including strict CSRF protection
 4. Manage feeds:
    - Add/remove feeds
    - Preview feed content before adding
+   - Delete feeds from the Edit modal (requires updated `/app/web` assets)
 5. **Entry Filtering System:**
    - Create custom filters to automatically keep or discard entries based on title patterns
    - Support for both keyword matching and regular expressions
@@ -215,6 +227,22 @@ Production mode: Enforces HTTPS-only features including strict CSRF protection
 6. Backup/restore:
    - Export settings and feed lists
    - Import configuration from backup
+
+### Password Requirements
+
+Admin passwords must be at least 12 characters long and include:
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+- At least one special character (!@#$%^&* etc.)
+
+This policy applies to both initial setup and password changes.
+
+### Troubleshooting
+
+- **Setup page fails to render or actions no-op after upgrade**: Ensure `/app/web` is updated. If template updates are disabled (`-no-template-updates` or `INFOSCOPE_NO_TEMPLATE_UPDATES=true`), run once with `-force-template-updates` or temporarily disable the flag. You can also remove the `/app/web` volume so Infoscope re-extracts embedded assets on next start.
+- **Admin UI buttons do nothing** (e.g., Delete Feed): This almost always indicates stale or missing web assets under `/app/web`. Refresh templates as above and confirm the container user has write permissions to that volume.
+- **UI test harness**: Visit `/static/tests/public-theme-harness.html` to validate public theme selection and `runtime.css` behavior. Set a Footer Image Height in admin settings, reload the page, and confirm the computed height readout updates.
 
 ## Entry Filtering System
 

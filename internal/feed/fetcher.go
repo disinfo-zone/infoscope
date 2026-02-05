@@ -199,13 +199,18 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 				return result
 			}
 		} else {
-			if addrs, err := net.LookupIP(host); err == nil {
+			dnsCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			if addrs, err := net.DefaultResolver.LookupIP(dnsCtx, "ip", host); err == nil {
 				for _, a := range addrs {
 					if securitynet.IsPrivateIP(a) && !a.IsLoopback() {
 						result.Error = fmt.Errorf("destination resolves to private/reserved address")
 						return result
 					}
 				}
+			} else if dnsCtx.Err() == context.DeadlineExceeded {
+				result.Error = fmt.Errorf("dns lookup timed out")
+				return result
 			}
 		}
 	}
@@ -313,10 +318,20 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 			continue
 		}
 
+		rawLink := item.Link
+		if strings.TrimSpace(rawLink) == "" {
+			rawLink = item.GUID
+		}
+		entryURL, err := sanitizeEntryURL(rawLink, parsedFeed.Link, feed.URL)
+		if err != nil {
+			f.logger.Printf("Skipping entry with invalid URL in feed %s: %v", feed.URL, err)
+			continue
+		}
+
 		entry := Entry{
 			FeedID:      feed.ID,
 			Title:       item.Title,
-			URL:         item.Link,
+			URL:         entryURL,
 			Content:     item.Description,
 			GUID:        item.GUID,
 			PublishedAt: *pubDate,

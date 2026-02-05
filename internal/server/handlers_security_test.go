@@ -354,3 +354,17 @@ func TestValidateTrackingCode_UmamiAttributesPreserved(t *testing.T) {
 		t.Errorf("Expected data-domains attribute to be preserved, got: %s", result)
 	}
 }
+
+func TestValidateTrackingCodeAttributeQuoting(t *testing.T) {
+	input := `<script src="https://example.com/script.js" data-site="alpha"></script>`
+	result, err := validateTrackingCode(input)
+	if err != nil {
+		t.Fatalf("Unexpected error validating script: %v", err)
+	}
+	if strings.Contains(result, `")`) {
+		t.Errorf("Expected sanitized output to avoid stray \") sequences, got: %s", result)
+	}
+	if !strings.Contains(result, `data-site="alpha"`) {
+		t.Errorf("Expected data-site attribute to be preserved, got: %s", result)
+	}
+}

@@ -7,13 +7,16 @@ const messages = [
 
 let currentIndex = 0;
 const terminal = document.getElementById('terminal');
+const terminalOutput = document.querySelector('.terminal-output');
 
 function updateTerminal() {
   if (!terminal) return;
   terminal.innerHTML = messages[currentIndex].split('\n').join('<br>');
   currentIndex = (currentIndex + 1) % messages.length;
-  terminal.style.opacity = 0;
-  setTimeout(() => terminal.style.opacity = 0.4, 100);
+  if (terminalOutput) {
+    terminalOutput.classList.add('is-hidden');
+    setTimeout(() => terminalOutput.classList.remove('is-hidden'), 100);
+  }
 }
 
 updateTerminal();
@@ -32,11 +35,11 @@ let messageIndex = 0;
 
 setInterval(() => {
   if (!messageElement) return;
-  messageElement.style.opacity = 0;
+  messageElement.classList.add('is-hidden');
   setTimeout(() => {
     messageIndex = (messageIndex + 1) % alternateMessages.length;
     messageElement.textContent = alternateMessages[messageIndex];
-    messageElement.style.opacity = 0.8;
+    messageElement.classList.remove('is-hidden');
   }, 500);
 }, 5000);
 

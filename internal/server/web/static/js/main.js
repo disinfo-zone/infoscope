@@ -16,8 +16,6 @@ window.showNotification = showNotification;
  */
 function initializeCommon() {
   // Add any common initialization here
-  console.log('Infoscope v0.3.0 - Template system initialized');
-
   // Delegate click handling for tracked links
   document.addEventListener('click', (event) => {
     const target = event.target.closest('a.tracked-link');

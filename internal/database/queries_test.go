@@ -7,8 +7,6 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 
 // setupTestQueriesDB initializes an in-memory SQLite database using NewDB (which handles schema)

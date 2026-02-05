@@ -6,21 +6,21 @@
 (function() {
     'use strict';
     
-    // Get theme configuration from JSON script tag
-    const themeDataElement = document.getElementById('theme-data');
-    if (!themeDataElement) {
+    // Get theme configuration from meta tags (CSP-safe)
+    const allowedMeta = document.querySelector('meta[name="theme-allowed"]');
+    const defaultMeta = document.querySelector('meta[name="theme-default"]');
+    if (!allowedMeta || !defaultMeta) {
         return; // No theme configuration available
     }
-    
-    let themeConfig;
-    try {
-        themeConfig = JSON.parse(themeDataElement.textContent);
-    } catch (error) {
-        console.warn('Failed to parse theme configuration:', error);
+
+    const allowedThemes = (allowedMeta.content || '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+    const defaultTheme = (defaultMeta.content || '').trim();
+    if (allowedThemes.length === 0 || !defaultTheme) {
         return;
     }
-    
-    const { allowedThemes, defaultTheme } = themeConfig;
     
     // Get user's stored theme preference
     let userTheme = null;

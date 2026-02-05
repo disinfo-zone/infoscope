@@ -4,6 +4,11 @@
 .ripple {
   position: absolute;
   border-radius: 50%;
+  width: 200%;
+  height: 200%;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0);
   background: rgba(255, 255, 255, 0.3);
   pointer-events: none;
   animation: ripple-animation 0.6s linear;
@@ -12,7 +17,7 @@
 
 @keyframes ripple-animation {
   to {
-    transform: scale(2);
+    transform: translate(-50%, -50%) scale(2);
     opacity: 0;
   }
 }

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Public Theme + runtime.css Harness</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-default" content="terminal">
+  <meta name="theme-allowed" content="aurora,latex,prose,sage,terminal">
+
+  <link rel="stylesheet" href="/static/css/themes/terminal/variables.css" id="themeVariablesCSS">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/runtime.css">
+  <link rel="stylesheet" href="/static/css/themes/terminal/public.css" id="themePublicCSS">
+  <link rel="stylesheet" href="/static/css/themes/terminal/ux-enhancements.css" id="themeUxCSS">
+  <link rel="stylesheet" href="/static/css/tests/public-theme-harness.css">
+
+  <script src="/static/js/modules/early-theme-loader.js"></script>
+</head>
+<body>
+  <main class="harness">
+    <header class="harness-header">
+      <h1>Public Theme + runtime.css Harness</h1>
+      <p>
+        Use this page to validate public theme selection and runtime CSS variables.
+        Set <strong>Footer Image Height</strong> in admin settings, reload this page, and verify the readout below.
+      </p>
+    </header>
+
+    <section class="harness-panel">
+      <h2>Theme Selection</h2>
+      <p>
+        Open the settings modal, switch themes, and confirm the CSS links update.
+        Theme choice should persist in localStorage.
+      </p>
+      <button id="settingsButton"
+              class="settings-button"
+              aria-label="Settings"
+              title="Settings"
+              data-default-theme="terminal"
+              data-available-themes="aurora,latex,prose,sage,terminal">
+        <svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m18.6-2.4l-5.7 5.7m-5.7-5.7L1.6 9.6M22.4 14.4l-5.7-5.7m-5.7 5.7L4.6 14.4"></path>
+        </svg>
+      </button>
+    </section>
+
+    <section class="harness-panel">
+      <h2>runtime.css</h2>
+      <p>
+        The block below uses <code>--footer-image-height</code> from <code>/static/runtime.css</code>.
+        Its computed height is shown under the block.
+      </p>
+      <div class="runtime-height-box" aria-hidden="true"></div>
+      <div id="runtimeHeightReadout" class="runtime-height-readout"></div>
+    </section>
+  </main>
+
+  <div id="settingsModal" class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" aria-hidden="true">
+    <div class="settings-modal-content">
+      <div class="settings-modal-header">
+        <h3 id="settingsModalTitle">Settings</h3>
+        <button id="closeSettingsModal" class="settings-close" aria-label="Close settings dialog">&times;</button>
+      </div>
+      <div class="settings-modal-body">
+        <div class="setting-section">
+          <label for="themeSelect">Theme</label>
+          <select id="themeSelect" class="theme-select">
+            <option value="aurora">Aurora</option>
+            <option value="latex">Latex</option>
+            <option value="prose">Prose</option>
+            <option value="sage">Sage</option>
+            <option value="terminal">Terminal</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-modal-footer">
+        <button id="applySettings" class="apply-button">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/js/modules/public-theme-harness.js"></script>
+  <script src="/static/js/modules/public-theme-selection.js"></script>
+</body>
+</html>

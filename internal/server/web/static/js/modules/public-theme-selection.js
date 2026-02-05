@@ -15,13 +15,11 @@ function initializeThemeSelection() {
     const settingsModal = document.getElementById('settingsModal');
     const closeButton = document.getElementById('closeSettingsModal');
     const applyButton = document.getElementById('applySettings');
-    
-    // Debug logging
-    console.log('Theme selection initialization started');
-    console.log('Settings button found:', !!settingsButton);
-    console.log('Settings modal found:', !!settingsModal);
-    console.log('Close button found:', !!closeButton);
-    console.log('Apply button found:', !!applyButton);
+    const openClass = 'is-open';
+    const updateBodyModalState = () => {
+        const hasOpenModal = !!document.querySelector('.settings-modal.is-open');
+        document.body.classList.toggle('modal-open', hasOpenModal);
+    };
     
     // Safety check: Ensure all required elements exist
     if (!settingsButton || !settingsModal || !closeButton || !applyButton) {
@@ -38,7 +36,7 @@ function initializeThemeSelection() {
     // Get available themes from data attribute on settings button
     const themesString = settingsButton.getAttribute('data-available-themes') || '';
     const allowedThemes = themesString ? themesString.split(',') : [];
-    console.log('Available themes:', allowedThemes);
+    const defaultTheme = (settingsButton.getAttribute('data-default-theme') || '').trim();
     let currentTheme;
     try {
         currentTheme = localStorage.getItem('userSelectedTheme');
@@ -52,11 +50,13 @@ function initializeThemeSelection() {
         console.error('No themes available for selection');
         return;
     }
-    console.log('Themes available, continuing initialization...');
-    
     // Security: Validate and sanitize theme selection
     if (!currentTheme || !allowedThemes.includes(currentTheme) || !/^[a-zA-Z0-9_-]+$/.test(currentTheme)) {
-        currentTheme = allowedThemes.length > 0 ? allowedThemes[0] : null;
+        if (defaultTheme && allowedThemes.includes(defaultTheme)) {
+            currentTheme = defaultTheme;
+        } else {
+            currentTheme = allowedThemes.length > 0 ? allowedThemes[0] : null;
+        }
         try {
             if (localStorage.getItem('userSelectedTheme')) {
                 localStorage.removeItem('userSelectedTheme'); // Remove invalid theme
@@ -84,10 +84,9 @@ function initializeThemeSelection() {
     
     // Show modal
     settingsButton.addEventListener('click', function() {
-        console.log('Settings button clicked!');
-        settingsModal.style.display = 'flex';
+        settingsModal.classList.add(openClass);
         settingsModal.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
+        updateBodyModalState();
         
         // Focus management for accessibility
         const themeSelect = settingsModal.querySelector('#themeSelect');
@@ -98,9 +97,9 @@ function initializeThemeSelection() {
     
     // Hide modal
     function hideModal() {
-        settingsModal.style.display = 'none';
+        settingsModal.classList.remove(openClass);
         settingsModal.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
+        updateBodyModalState();
         
         // Return focus to the settings button for accessibility
         settingsButton.focus();
@@ -117,7 +116,7 @@ function initializeThemeSelection() {
     
     // Handle keyboard navigation and focus trap
     document.addEventListener('keydown', function(e) {
-        if (settingsModal.style.display === 'flex') {
+        if (settingsModal.classList.contains(openClass)) {
             if (e.key === 'Escape') {
                 hideModal();
                 return;

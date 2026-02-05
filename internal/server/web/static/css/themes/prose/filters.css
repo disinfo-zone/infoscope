@@ -414,8 +414,18 @@
   border: 2px dashed var(--color-accent-primary);
   border-radius: var(--border-radius-md);
   opacity: 0.5;
-  height: 60px;
+  height: auto;
+  min-height: 60px;
   margin-bottom: var(--spacing-sm);
+}
+
+.drag-placeholder * {
+  visibility: hidden;
+}
+
+.reorder-animate {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
 }
 
 .filter-list.drag-active {

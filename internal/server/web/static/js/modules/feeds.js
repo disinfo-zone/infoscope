@@ -28,6 +28,24 @@ class FeedsManager {
         e.preventDefault();
         this.hideEditModal();
       }
+
+      const deleteBtn = e.target.closest('#deleteFromEdit');
+      if (deleteBtn) {
+        e.preventDefault();
+        this.showDeleteModal();
+      }
+
+      const confirmBtn = e.target.closest('#confirmDelete');
+      if (confirmBtn) {
+        e.preventDefault();
+        this.confirmDelete();
+      }
+
+      const cancelDeleteBtn = e.target.closest('#cancelDelete');
+      if (cancelDeleteBtn) {
+        e.preventDefault();
+        this.hideDeleteModal();
+      }
     });
   }
 
@@ -71,9 +89,9 @@ class FeedsManager {
     // ESC key to close modals
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        const activeModal = document.querySelector('.modal.show');
-        if (activeModal) {
-          this.hideModal(activeModal);
+        const openModals = document.querySelectorAll('.modal.show');
+        if (openModals.length > 0) {
+          this.hideModal(openModals[openModals.length - 1]);
         }
       }
     });
@@ -399,7 +417,8 @@ class FeedsManager {
     if (!suggestions) return;
 
     if (value.length < 2) {
-      suggestions.style.display = 'none';
+      suggestions.innerHTML = '';
+      suggestions.classList.remove('is-open');
       return;
     }
 
@@ -408,7 +427,8 @@ class FeedsManager {
     );
 
     if (matches.length === 0) {
-      suggestions.style.display = 'none';
+      suggestions.innerHTML = '';
+      suggestions.classList.remove('is-open');
       return;
     }
 
@@ -419,7 +439,7 @@ class FeedsManager {
         </div>
       `).join('');
     
-    suggestions.style.display = 'block';
+    suggestions.classList.add('is-open');
   }
 
   selectCategory(category) {
@@ -427,13 +447,15 @@ class FeedsManager {
     const suggestions = document.getElementById('categorySuggestions');
     
     if (input) input.value = category;
-    if (suggestions) suggestions.style.display = 'none';
+    if (suggestions) {
+      suggestions.innerHTML = '';
+      suggestions.classList.remove('is-open');
+    }
   }
 
   showError(message, container) {
     if (container) {
       container.textContent = message;
-      container.style.display = 'block';
     } else {
       showNotification(message, 'error');
     }
@@ -442,14 +464,18 @@ class FeedsManager {
   clearError(container) {
     if (container) {
       container.textContent = '';
-      container.style.display = 'none';
     }
+  }
+
+  updateBodyModalState() {
+    const hasOpenModal = !!document.querySelector('.modal.show');
+    document.body.classList.toggle('modal-open', hasOpenModal);
   }
 
   hideModal(modal) {
     if (modal) {
       modal.classList.remove('show');
-      document.body.style.overflow = '';
+      this.updateBodyModalState();
     }
   }
 
@@ -465,6 +491,65 @@ class FeedsManager {
     this.hideModal(modal);
   }
 
+  showDeleteModal() {
+    if (!this.currentFeedId) {
+      showNotification('No feed selected for deletion', 'error');
+      return;
+    }
+
+    const title = document.getElementById('editTitle')?.value?.trim();
+    const url = document.getElementById('editUrl')?.value?.trim();
+    const messageEl = document.getElementById('deleteMessage');
+
+    let message = 'Are you sure you want to delete this feed? This will remove the feed and all associated entries.';
+    if (title || url) {
+      const label = title || url;
+      message = `Are you sure you want to delete "${label}"? This will remove the feed and all associated entries.`;
+    }
+    if (messageEl) {
+      messageEl.textContent = message;
+    }
+
+    const modal = document.getElementById('deleteModal');
+    if (modal) {
+      modal.classList.add('show');
+      this.updateBodyModalState();
+      if (typeof addFocusTrap === 'function') {
+        addFocusTrap(modal);
+      }
+    }
+  }
+
+  async confirmDelete() {
+    if (!this.currentFeedId) {
+      showNotification('No feed selected for deletion', 'error');
+      return;
+    }
+
+    const confirmBtn = document.getElementById('confirmDelete');
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+    }
+
+    try {
+      await csrf.fetch(`/admin/api/feeds/${this.currentFeedId}`, {
+        method: 'DELETE'
+      });
+
+      showNotification('Feed deleted successfully', 'success', 6000);
+      this.hideDeleteModal();
+      this.hideEditModal();
+      location.assign(window.location.pathname + window.location.search);
+    } catch (error) {
+      console.error('Error deleting feed:', error);
+      showNotification(`Delete failed: ${error.message}`, 'error');
+    } finally {
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+      }
+    }
+  }
+
   escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -474,7 +559,6 @@ class FeedsManager {
 
 // Global functions for onclick handlers in templates
 window.showEditModal = async function(feedId) {
-  console.log('showEditModal called with feedId:', feedId);
   if (!window.feedsManager) {
     console.error('feedsManager not found');
     return;
@@ -485,8 +569,6 @@ window.showEditModal = async function(feedId) {
     if (!response.ok) throw new Error('Failed to load feed data');
     
     const feed = await response.json();
-    console.log('Feed data loaded:', feed);
-    
     // Populate form
     document.getElementById('editFeedId').value = feedId;
     document.getElementById('editTitle').value = feed.title || '';
@@ -502,7 +584,11 @@ window.showEditModal = async function(feedId) {
     // Show modal
     const modal = document.getElementById('editModal');
     modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    if (window.feedsManager && typeof window.feedsManager.updateBodyModalState === 'function') {
+      window.feedsManager.updateBodyModalState();
+    } else {
+      document.body.classList.add('modal-open');
+    }
     
     // Add focus trap if available
     if (typeof addFocusTrap === 'function') {

@@ -7,8 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // internal/database/schema.go
@@ -200,7 +198,7 @@ func NewDB(dbPath string, cfg Config) (*DB, error) {
 	dsn := fmt.Sprintf("%s?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=ON&_synchronous=NORMAL",
 		dbPath)
 
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open(SQLiteDriver, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %w", err)
 	}
@@ -308,6 +306,11 @@ func createSchema(db *sql.DB) error {
 	// Initialize default settings
 	if err := insertDefaultSettings(db); err != nil {
 		return fmt.Errorf("error inserting default settings: %w", err)
+	}
+
+	// Re-enable foreign key enforcement for the connection
+	if _, err := db.Exec(`PRAGMA foreign_keys=ON;`); err != nil {
+		return fmt.Errorf("error enabling foreign keys: %w", err)
 	}
 
 	return nil

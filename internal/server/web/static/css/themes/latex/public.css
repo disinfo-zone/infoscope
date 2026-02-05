@@ -1,4 +1,4 @@
-/* LaTeX2 Theme - Enhanced Public Interface with Auto Dark/Light Mode */
+﻿/* LaTeX2 Theme - Enhanced Public Interface with Auto Dark/Light Mode */
 
 /* Base layout with improved spacing */
 html {
@@ -603,9 +603,10 @@ select:focus {
   padding: var(--spacing-lg);
 }
 
-.settings-modal[style*="flex"] {
+.settings-modal.is-open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .settings-modal-content {
@@ -626,7 +627,7 @@ select:focus {
   position: relative;
 }
 
-.settings-modal[style*="flex"] .settings-modal-content {
+.settings-modal.is-open .settings-modal-content {
   transform: scale(1) translateY(0);
 }
 

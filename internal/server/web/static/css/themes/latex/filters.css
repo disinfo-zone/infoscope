@@ -398,6 +398,34 @@
   transform: var(--hover-lift);
 }
 
+/* Drag and Drop States */
+.filter-rule.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: var(--shadow-lg);
+}
+
+.drag-placeholder {
+  background: transparent;
+  border: 2px dashed var(--color-accent-primary);
+  border-radius: var(--border-radius-md);
+  opacity: 0.5;
+  height: auto;
+  min-height: 60px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.drag-placeholder * {
+  visibility: hidden;
+}
+
+.reorder-animate {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
+}
+
 /* Enhanced Drag Handle */
 .rule-drag-handle {
   color: var(--color-text-muted);

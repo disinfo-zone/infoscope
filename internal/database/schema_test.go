@@ -3,8 +3,6 @@ package database
 import (
 	"path/filepath"
 	"testing"
-
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 
 func TestNewDB_SuccessAndTableCreation(t *testing.T) {

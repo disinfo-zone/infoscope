@@ -20,10 +20,13 @@ export const csrf = {
    */
   getHeaders() {
     const token = this.getToken();
-    return {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': token || ''
+    const headers = {
+      'Content-Type': 'application/json'
     };
+    if (token) {
+      headers['X-CSRF-Token'] = token;
+    }
+    return headers;
   },
 
   /**
@@ -45,7 +48,30 @@ export const csrf = {
 
     const response = await fetch(url, finalOptions);
     if (!response.ok) {
-      throw new Error(`Request failed: ${response.status}`);
+      let message = `Request failed: ${response.status}`;
+      try {
+        const bodyText = await response.text();
+        if (bodyText) {
+          // Try JSON first, fallback to trimmed text
+          let parsed;
+          try {
+            parsed = JSON.parse(bodyText);
+          } catch (_) {
+            parsed = null;
+          }
+          if (parsed && typeof parsed === 'object') {
+            message = parsed.message || parsed.error || message;
+          } else {
+            const trimmed = bodyText.replace(/\s+/g, ' ').trim();
+            if (trimmed) {
+              message = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+            }
+          }
+        }
+      } catch (_) {
+        // Ignore body parsing failures
+      }
+      throw new Error(message);
     }
     return response;
   }

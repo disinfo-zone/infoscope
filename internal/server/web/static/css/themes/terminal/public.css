@@ -1,4 +1,4 @@
-/* Terminal-2 Public Page Styles - Enhanced with Light/Dark Mode Support */
+﻿/* Terminal-2 Public Page Styles - Enhanced with Light/Dark Mode Support */
 
 /* Theme Toggle Button - Subtle and Mobile-Friendly */
 .theme-toggle {
@@ -555,9 +555,10 @@ h1 {
   padding: var(--spacing-lg);
 }
 
-.settings-modal[style*="flex"] {
+.settings-modal.is-open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .settings-modal-content {
@@ -578,7 +579,7 @@ h1 {
   position: relative;
 }
 
-.settings-modal[style*="flex"] .settings-modal-content {
+.settings-modal.is-open .settings-modal-content {
   transform: scale(1) translateY(0);
 }
 

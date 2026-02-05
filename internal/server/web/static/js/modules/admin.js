@@ -103,12 +103,15 @@ export function showError(message, container) {
   if (!container) return;
   
   container.textContent = message;
-  container.style.display = 'block';
+  container.classList.remove('status-success');
+  container.classList.add('status-error');
+  container.hidden = false;
   
   // Clear error after 5 seconds
   setTimeout(() => {
     container.textContent = '';
-    container.style.display = 'none';
+    container.classList.remove('status-error');
+    container.hidden = true;
   }, 5000);
 }
 
@@ -121,13 +124,15 @@ export function showSuccess(message, container) {
   if (!container) return;
   
   container.textContent = message;
-  container.style.color = 'var(--color-success)';
-  container.style.display = 'block';
+  container.classList.remove('status-error');
+  container.classList.add('status-success');
+  container.hidden = false;
   
   // Clear message after 3 seconds
   setTimeout(() => {
     container.textContent = '';
-    container.style.display = 'none';
+    container.classList.remove('status-success');
+    container.hidden = true;
   }, 3000);
 }
 

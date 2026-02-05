@@ -53,13 +53,17 @@ func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
 			return nil, fmt.Errorf("%w: URL resolves to private/reserved address", ErrInvalidURL)
 		}
 	} else {
-		addrs, err := net.LookupIP(host)
+		dnsCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		addrs, err := net.DefaultResolver.LookupIP(dnsCtx, "ip", host)
 		if err == nil {
 			for _, a := range addrs {
 				if securitynet.IsPrivateIP(a) && !a.IsLoopback() {
 					return nil, fmt.Errorf("%w: URL resolves to private/reserved address", ErrInvalidURL)
 				}
 			}
+		} else if dnsCtx.Err() == context.DeadlineExceeded {
+			return nil, ErrTimeout
 		}
 	}
 
@@ -87,7 +91,8 @@ func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
 	// Try to fetch and parse feed
 	// gofeed uses http.DefaultClient internally unless we override Fetcher.
 	// Since we already perform network checks and will explicitly fetch via client,
-	// keep using ParseURLWithContext but rely on external reachability checks on error.
+	// ensure the parser uses our client settings.
+	fp.Client = client
 	feed, err := fp.ParseURLWithContext(feedURL, ctx)
 	if err != nil {
 		// Try to determine if it's a timeout or invalid feed
@@ -124,7 +129,13 @@ func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
 	if len(feed.Items) > 0 {
 		item := feed.Items[0]
 		result.SampleItemTitle = item.Title
-		result.SampleItemURL = item.Link
+		rawLink := item.Link
+		if rawLink == "" {
+			rawLink = item.GUID
+		}
+		if sanitized, err := sanitizeEntryURL(rawLink, feed.Link, feedURL); err == nil {
+			result.SampleItemURL = sanitized
+		}
 		if item.PublishedParsed != nil {
 			result.SampleItemPublished = item.PublishedParsed.Format(time.RFC1123Z)
 		}

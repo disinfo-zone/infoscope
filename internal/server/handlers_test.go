@@ -1,20 +1,21 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"infoscope/internal/auth"
 	"infoscope/internal/database"
 	"infoscope/internal/favicon"
 	"infoscope/internal/feed"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type testServer struct {
@@ -82,9 +83,6 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-// TODO: HTTP handler tests are currently disabled because Server doesn't expose its HTTP handler
-// The Server type needs to either implement http.Handler or provide a method to access the router
-
 // Basic test that verifies the test setup works
 func TestServerCreation(t *testing.T) {
 	ts := newTestServer(t)
@@ -102,4 +100,126 @@ func TestServerCreation(t *testing.T) {
 	if ts.feedService == nil {
 		t.Error("Failed to create feed service")
 	}
+}
+
+func TestIndexRedirectsToSetupOnFirstRun(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close(t)
+
+	handler := ts.server.Routes()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected %d, got %d", http.StatusSeeOther, rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/setup" {
+		t.Fatalf("expected redirect to /setup, got %q", loc)
+	}
+}
+
+func TestClickEndpointDoesNotRequireCSRF(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close(t)
+
+	res, err := ts.db.Exec("INSERT INTO feeds (url, title) VALUES (?, ?)", "http://example.com/feed", "Example Feed")
+	if err != nil {
+		t.Fatalf("failed to insert feed: %v", err)
+	}
+	feedID, _ := res.LastInsertId()
+
+	entryRes, err := ts.db.Exec("INSERT INTO entries (feed_id, title, url, published_at) VALUES (?, ?, ?, ?)",
+		feedID, "Entry", "http://example.com/entry", time.Now())
+	if err != nil {
+		t.Fatalf("failed to insert entry: %v", err)
+	}
+	entryID, _ := entryRes.LastInsertId()
+
+	handler := ts.server.Routes()
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/click?id=%d", entryID), nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var clicks int
+	if err := ts.db.QueryRow("SELECT click_count FROM clicks WHERE entry_id = ?", entryID).Scan(&clicks); err != nil {
+		t.Fatalf("failed to read click count: %v", err)
+	}
+	if clicks != 1 {
+		t.Fatalf("expected click_count 1, got %d", clicks)
+	}
+}
+
+func TestFeedAPIDeleteRequiresCSRF(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close(t)
+
+	session := createAdminSession(t, ts)
+
+	res, err := ts.db.Exec("INSERT INTO feeds (url, title) VALUES (?, ?)", "http://example.com/delete", "Delete Feed")
+	if err != nil {
+		t.Fatalf("failed to insert feed: %v", err)
+	}
+	feedID, _ := res.LastInsertId()
+
+	handler := ts.server.Routes()
+
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/admin/api/feeds/%d", feedID), nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: session.ID})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected %d, got %d", http.StatusForbidden, rr.Code)
+	}
+
+	reqWithCSRF := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/admin/api/feeds/%d", feedID), nil)
+	reqWithCSRF.AddCookie(&http.Cookie{Name: "session", Value: session.ID})
+	addCSRFToken(t, ts, reqWithCSRF)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, reqWithCSRF)
+
+	if rr2.Code != http.StatusNoContent {
+		t.Fatalf("expected %d, got %d", http.StatusNoContent, rr2.Code)
+	}
+}
+
+func addCSRFToken(t *testing.T, ts *testServer, req *http.Request) {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	token := ts.server.csrf.Token(rr, req)
+	resp := rr.Result()
+	var csrfCookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == ts.server.csrf.config.Cookie {
+			csrfCookie = c
+			break
+		}
+	}
+	if csrfCookie == nil {
+		t.Fatalf("csrf cookie not set")
+	}
+	req.AddCookie(csrfCookie)
+	req.Header.Set(ts.server.csrf.config.Header, token)
+}
+
+func createAdminSession(t *testing.T, ts *testServer) *auth.Session {
+	t.Helper()
+	const username = "admin"
+	const password = "Str0ng!Passw0rd123"
+
+	if err := ts.server.auth.CreateUser(ts.db.DB, username, password); err != nil {
+		t.Fatalf("failed to create admin user: %v", err)
+	}
+	session, err := ts.server.auth.Authenticate(ts.db.DB, username, password)
+	if err != nil {
+		t.Fatalf("failed to authenticate admin user: %v", err)
+	}
+	return session
 }

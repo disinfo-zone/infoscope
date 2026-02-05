@@ -10,7 +10,6 @@ export function initializeUXEnhancements() {
   addClickRippleEffect();
   addFormValidationFeedback();
   addLoadingStates();
-  addTooltips();
   addScrollEnhancements();
   addKeyboardShortcuts();
 }
@@ -24,14 +23,6 @@ function addClickRippleEffect() {
     if (!button || button.disabled) return;
 
     const ripple = document.createElement('span');
-    const rect = button.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height);
-    const x = e.clientX - rect.left - size / 2;
-    const y = e.clientY - rect.top - size / 2;
-
-    ripple.style.width = ripple.style.height = size + 'px';
-    ripple.style.left = x + 'px';
-    ripple.style.top = y + 'px';
     ripple.classList.add('ripple');
 
     button.appendChild(ripple);
@@ -67,7 +58,7 @@ function addFormValidationFeedback() {
     if (!indicator) {
       indicator = document.createElement('span');
       indicator.className = 'validation-indicator';
-      input.parentNode.style.position = 'relative';
+      input.parentNode?.classList.add('validation-wrapper');
       input.parentNode.appendChild(indicator);
     }
 
@@ -115,65 +106,6 @@ function addLoadingStates() {
       }
     });
   };
-}
-
-/**
- * Add tooltips to elements with title attributes
- */
-function addTooltips() {
-  let tooltip = null;
-
-  document.addEventListener('mouseenter', (e) => {
-    const element = e.target.closest('[title], [data-tooltip]');
-    if (!element) return;
-
-    const text = element.getAttribute('title') || element.getAttribute('data-tooltip');
-    if (!text) return;
-
-    // Remove title to prevent browser tooltip
-    if (element.hasAttribute('title')) {
-      element.setAttribute('data-original-title', text);
-      element.removeAttribute('title');
-    }
-
-    tooltip = document.createElement('div');
-    tooltip.className = 'tooltip';
-    tooltip.textContent = text;
-    document.body.appendChild(tooltip);
-
-    const rect = element.getBoundingClientRect();
-    const tooltipRect = tooltip.getBoundingClientRect();
-    
-    tooltip.style.left = (rect.left + rect.width / 2 - tooltipRect.width / 2) + 'px';
-    tooltip.style.top = (rect.top - tooltipRect.height - 8) + 'px';
-
-    // Adjust if tooltip goes off screen
-    if (tooltip.offsetLeft < 0) {
-      tooltip.style.left = '8px';
-    }
-    if (tooltip.offsetLeft + tooltip.offsetWidth > window.innerWidth) {
-      tooltip.style.left = (window.innerWidth - tooltip.offsetWidth - 8) + 'px';
-    }
-
-    setTimeout(() => tooltip?.classList.add('visible'), 10);
-  });
-
-  document.addEventListener('mouseleave', (e) => {
-    const element = e.target.closest('[data-original-title], [data-tooltip]');
-    if (!element) return;
-
-    if (tooltip) {
-      tooltip.remove();
-      tooltip = null;
-    }
-
-    // Restore original title
-    const originalTitle = element.getAttribute('data-original-title');
-    if (originalTitle) {
-      element.setAttribute('title', originalTitle);
-      element.removeAttribute('data-original-title');
-    }
-  });
 }
 
 /**

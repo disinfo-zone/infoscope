@@ -2,6 +2,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"embed"
@@ -86,7 +87,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			csp := strings.Join([]string{
 				"default-src 'self'",
 				"script-src 'self' https:",
-				"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+				"style-src 'self' https://fonts.googleapis.com",
 				"img-src 'self' data: https:",
 				"font-src 'self' data: https://fonts.gstatic.com",
 				"connect-src 'self' https:",
@@ -270,33 +271,32 @@ func (s *Server) extractWebContentWithFilters(forceUpdate bool, pathFilter func(
 		}
 
 		needsUpdate := forceUpdate
+		var embeddedContent []byte
 		if !needsUpdate {
-			localStat, err := os.Stat(localPath)
+			localContent, err := os.ReadFile(localPath)
 			if os.IsNotExist(err) {
 				needsUpdate = true
 			} else if err != nil {
-				return fmt.Errorf("failed to stat local file %s: %w", localPath, err)
+				return fmt.Errorf("failed to read local file %s: %w", localPath, err)
 			} else {
-				embeddedFile, openErr := webContent.Open(path)
-				if openErr != nil {
-					return fmt.Errorf("failed to open embedded file %s: %w", path, openErr)
+				embeddedContent, err = fs.ReadFile(webContent, path)
+				if err != nil {
+					return fmt.Errorf("failed to read embedded file %s: %w", path, err)
 				}
-				defer embeddedFile.Close()
-				embeddedInfo, statErr := embeddedFile.Stat()
-				if statErr != nil {
-					return fmt.Errorf("failed to stat embedded file %s: %w", path, statErr)
-				}
-				if embeddedInfo.Size() != localStat.Size() || embeddedInfo.ModTime().After(localStat.ModTime()) {
+				if !bytes.Equal(localContent, embeddedContent) {
 					needsUpdate = true
 				}
 			}
 		}
 		if needsUpdate {
-			content, readErr := fs.ReadFile(webContent, path)
-			if readErr != nil {
-				return fmt.Errorf("failed to read embedded file %s: %w", path, readErr)
+			if embeddedContent == nil {
+				var readErr error
+				embeddedContent, readErr = fs.ReadFile(webContent, path)
+				if readErr != nil {
+					return fmt.Errorf("failed to read embedded file %s: %w", path, readErr)
+				}
 			}
-			if writeErr := os.WriteFile(localPath, content, 0644); writeErr != nil {
+			if writeErr := os.WriteFile(localPath, embeddedContent, 0644); writeErr != nil {
 				return fmt.Errorf("failed to write file %s: %w", localPath, writeErr)
 			}
 			if !s.config.ProductionMode {
@@ -414,6 +414,7 @@ func (s *Server) Routes() http.Handler {
 	})
 
 	mux.Handle("/static/", http.StripPrefix("/static/", cachedFileServer))
+	mux.HandleFunc("/static/runtime.css", s.handleRuntimeCSS)
 
 	mux.HandleFunc("/setup", s.handleSetup)
 	mux.HandleFunc("/setup/", s.handleSetup)
@@ -483,7 +484,7 @@ func (s *Server) Routes() http.Handler {
 	})
 
 	// Apply CSRF middleware to all routes except static files and safe paths
-	excludePaths := []string{"/healthz", "/healthz/"}
+	excludePaths := []string{"/healthz", "/healthz/", "/click", "/click/"}
 	csrfWrapped := s.csrf.MiddlewareExceptPaths(mux, excludePaths)
 	// Apply gzip compression for text-based responses
 	gzWrapped := gzipMiddleware(csrfWrapped)

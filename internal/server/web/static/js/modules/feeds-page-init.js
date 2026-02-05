@@ -13,11 +13,7 @@ document.addEventListener('click', function(e) {
     }
   }
 
-  if (e.target && e.target.id === 'cancelDelete') {
-    if (window.hideDeleteModal) {
-      window.hideDeleteModal();
-    }
-  }
+  // Delete modal actions are handled by FeedsManager
 });
 
 

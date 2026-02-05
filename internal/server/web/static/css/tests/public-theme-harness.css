@@ -1,0 +1,43 @@
+.harness {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--spacing-xl);
+}
+
+.harness-header h1 {
+  margin-bottom: var(--spacing-sm);
+}
+
+.harness-panel {
+  margin-top: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  border: 1px dashed var(--color-border);
+  background: var(--color-bg-secondary);
+  border-radius: var(--border-radius-md);
+}
+
+.runtime-height-box {
+  width: 100%;
+  min-height: 12px;
+  height: var(--footer-image-height, auto);
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1) 0px,
+    rgba(255, 255, 255, 0.1) 12px,
+    rgba(0, 0, 0, 0.2) 12px,
+    rgba(0, 0, 0, 0.2) 24px
+  );
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+}
+
+.runtime-height-readout {
+  margin-top: var(--spacing-sm);
+  font-family: var(--font-family-mono, monospace);
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.settings-button {
+  margin-top: var(--spacing-md);
+}

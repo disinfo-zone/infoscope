@@ -159,8 +159,8 @@ func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request, feedID
 		return
 	}
 
-	// Delete the feed
-	_, err := s.db.ExecContext(r.Context(), "DELETE FROM feeds WHERE id = ?", feedID)
+	// Delete the feed and associated data
+	err := s.feedService.DeleteFeed(feedID)
 	if err != nil {
 		s.logger.Printf("Error deleting feed %d: %v", feedID, err)
 		s.writeJSONError(w, "Failed to delete feed", http.StatusInternalServerError)

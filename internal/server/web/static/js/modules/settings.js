@@ -510,6 +510,14 @@ function bindSettingsForm() {
       // Determine if theme changed
       const selectedPublicTheme = (formData.get('publicTheme') || '').toString().trim().toLowerCase();
       const selectedAdminTheme = (formData.get('adminTheme') || '').toString().trim().toLowerCase();
+      if (selectedPublicTheme) {
+        // Keep legacy theme in sync for custom templates that still read "theme"
+        settings.publicTheme = selectedPublicTheme;
+        settings.theme = selectedPublicTheme;
+      }
+      if (selectedAdminTheme) {
+        settings.adminTheme = selectedAdminTheme;
+      }
 
       // Save settings
       const saveRes = await csrf.fetch('/admin/settings', {
@@ -542,8 +550,16 @@ function bindPasswordForm() {
       showNotification('New passwords do not match.', 'error');
       return;
     }
-    if (newPassword.length < 8) {
-      showNotification('New password must be at least 8 characters long.', 'error');
+    if (newPassword.length < 12) {
+      showNotification('New password must be at least 12 characters long.', 'error');
+      return;
+    }
+    const hasUpper = /[A-Z]/.test(newPassword);
+    const hasLower = /[a-z]/.test(newPassword);
+    const hasDigit = /\d/.test(newPassword);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+    if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
+      showNotification('New password must include uppercase, lowercase, number, and special character.', 'error');
       return;
     }
     try {
@@ -572,7 +588,6 @@ function bindImageInputs() {
       if (!file) {
         if (preview) {
           preview.classList.add('hidden');
-          preview.style.removeProperty('display');
         }
         if (status) { status.className = 'image-upload-status'; status.textContent = ''; }
         return;
@@ -606,7 +621,6 @@ function bindImageInputs() {
       hidden.value = file.name;
       if (preview) {
         preview.classList.remove('hidden');
-        preview.style.removeProperty('display');
         const img = preview.querySelector('img');
         if (img) {
           const reader = new FileReader();
@@ -868,17 +882,13 @@ function bindTemplateUpdates() {
   
   if (updateButton) {
     updateButton.addEventListener('click', async () => {
-      console.log('Template update button clicked');
       // Show custom confirmation dialog
       showTemplateUpdateConfirmation(() => performTemplateUpdate(updateButton, statusDiv));
     });
-  } else {
-    console.log('Template update button not found');
   }
 }
 
 function showTemplateUpdateConfirmation(onConfirm) {
-  console.log('Creating template update confirmation modal');
   // Create modal container
   const modal = document.createElement('div');
   modal.className = 'template-update-confirm-modal';

@@ -400,7 +400,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
-	csrfToken := s.csrf.Token(w, r)
 	settings, err := s.getSettings(r.Context())
 	if err != nil {
 		s.logger.Printf("Error getting settings: %v", err)
@@ -469,7 +468,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := IndexData{
-		BaseTemplateData:          BaseTemplateData{CSRFToken: csrfToken},
+		BaseTemplateData:          BaseTemplateData{},
 		Title:                     settings["site_title"],
 		Entries:                   entries,
 		HeaderLinkURL:             settings["header_link_url"],
@@ -487,7 +486,14 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if !s.config.ProductionMode {
 		s.logger.Printf("Rendering template with data: %+v", data)
 	}
-	if err := s.renderTemplate(w, r, "index.html", data); err != nil {
+	wrapped := struct {
+		Data      IndexData
+		CSRFToken string
+	}{
+		Data:      data,
+		CSRFToken: "",
+	}
+	if err := s.renderTemplate(w, r, "index.html", wrapped); err != nil {
 		s.logger.Printf("Error rendering template: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -987,7 +993,7 @@ func sanitizeScriptTag(n *htmlparser.Node, buf *strings.Builder) {
 		buf.WriteString(html.EscapeString(a.key))
 		buf.WriteString("=\"")
 		buf.WriteString(html.EscapeString(a.val))
-		buf.WriteString("\")")
+		buf.WriteString("\"")
 	}
 
 	buf.WriteString("></script>")
@@ -1170,13 +1176,17 @@ func validateURL(urlStr string) error {
 		}
 	} else {
 		// Resolve DNS and ensure all answers are public
-		addrs, err := net.LookupIP(host)
+		dnsCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		addrs, err := net.DefaultResolver.LookupIP(dnsCtx, "ip", host)
 		if err == nil {
 			for _, a := range addrs {
 				if isPrivateIP(a) {
 					return fmt.Errorf("resolved address is private/reserved and not allowed")
 				}
 			}
+		} else if dnsCtx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("dns lookup timed out")
 		}
 	}
 

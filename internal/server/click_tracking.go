@@ -28,10 +28,6 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.csrf.Validate(w, r) {
-		return
-	}
-
 	entryID := r.URL.Query().Get("id")
 	if entryID == "" {
 		http.Error(w, "Missing entry ID", http.StatusBadRequest)

@@ -6,15 +6,13 @@ import (
 	"time"
 
 	"infoscope/internal/database" // Assuming schema is accessible here
-
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 
 // setupTestDBForAuth initializes an in-memory SQLite database for auth tests.
 func setupTestDBForAuth(t *testing.T) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open(database.SQLiteDriver, ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open in-memory database: %v", err)
 	}
@@ -157,7 +155,7 @@ func TestSession_IsExpired(t *testing.T) {
 		},
 		{
 			name:      "session expiring in a moment",
-			session:   Session{ExpiresAt: now.Add(1 * time.Nanosecond)},
+			session:   Session{ExpiresAt: now.Add(1 * time.Second)},
 			isExpired: false,
 		},
 	}

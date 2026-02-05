@@ -149,6 +149,12 @@ func (s *Service) DeleteFeed(id int64) error {
 	}
 	defer tx.Rollback()
 
+	// Delete tag associations first
+	_, err = tx.Exec("DELETE FROM feed_tags WHERE feed_id = ?", id)
+	if err != nil {
+		return err
+	}
+
 	// Delete entries first
 	_, err = tx.Exec("DELETE FROM entries WHERE feed_id = ?", id)
 	if err != nil {
@@ -157,6 +163,12 @@ func (s *Service) DeleteFeed(id int64) error {
 
 	// Delete feed
 	_, err = tx.Exec("DELETE FROM feeds WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	// Clean up orphaned tags
+	_, err = tx.Exec("DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM feed_tags)")
 	if err != nil {
 		return err
 	}

@@ -18,6 +18,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 /* Headings */
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-text-secondary);
@@ -57,6 +61,10 @@ input, textarea, select {
   border-radius: var(--border-radius-md);
   padding: var(--spacing-sm) var(--spacing-md);
   transition: all var(--transition-normal) ease;
+  position: relative;
+}
+
+.validation-wrapper {
   position: relative;
 }
 
@@ -144,6 +152,14 @@ button:disabled::before {
 }
 
 .error-text {
+  color: var(--color-error);
+}
+
+.status-success {
+  color: var(--color-success);
+}
+
+.status-error {
   color: var(--color-error);
 }
 

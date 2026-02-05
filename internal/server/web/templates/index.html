@@ -1,16 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" style="background-color: var(--color-bg-primary, #0f1419); color: var(--color-text-primary, #e0e0e0);">
-<script>
-if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-    document.documentElement.style.backgroundColor = 'var(--color-bg-primary, #ffffff)';
-    document.documentElement.style.color = 'var(--color-text-primary, #333333)';
-}
-</script>
+<html lang="en">
 <head>
     <title>{{ .Data.Title }}</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ .CSRFToken }}">
+    <meta name="color-scheme" content="light dark">
     
     <!-- Primary Meta Tags -->
     <meta name="title" content="{{ .Data.Title }}">
@@ -18,7 +12,7 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matc
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ .Data.HeaderLinkURL }}">
+    <meta property="og:url" content="{{ if .Data.SiteURL }}{{ .Data.SiteURL }}{{ else }}{{ .Data.HeaderLinkURL }}{{ end }}">
     <meta property="og:title" content="{{ .Data.Title }}">
     <meta property="og:description" content="{{ index .Data.Settings "meta_description" }}">
     {{ if index .Data.Settings "meta_image_url" }}
@@ -27,7 +21,7 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matc
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="{{ .Data.HeaderLinkURL }}">
+    <meta property="twitter:url" content="{{ if .Data.SiteURL }}{{ .Data.SiteURL }}{{ else }}{{ .Data.HeaderLinkURL }}{{ end }}">
     <meta property="twitter:title" content="{{ .Data.Title }}">
     <meta property="twitter:description" content="{{ index .Data.Settings "meta_description" }}">
     {{ if index .Data.Settings "meta_image_url" }}
@@ -40,17 +34,14 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matc
     <!-- CSS files with theme data attributes for early loading -->
     <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "variables.css" }}" id="themeVariablesCSS">
     <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/runtime.css">
     <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "public.css" }}" id="themePublicCSS">
     <link rel="stylesheet" href="{{ themeCSSPublic .Data.Settings "ux-enhancements.css" }}" id="themeUxCSS">
     
     {{ if .Data.AllowPublicThemeSelection }}
-    <!-- Theme data for CSP-compliant early loading -->
-    <script id="theme-data" type="application/json">
-    {
-        "allowedThemes": [{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }}, {{ end }}"{{ $theme }}"{{ end }}],
-        "defaultTheme": "{{ index .Data.Settings "theme" }}"
-    }
-    </script>
+    {{ $publicTheme := themeNameFor .Data.Settings "public_theme" }}
+    <meta name="theme-default" content="{{ $publicTheme }}">
+    <meta name="theme-allowed" content="{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }},{{ end }}{{ $theme }}{{ end }}">
     <!-- Early theme loader (must be first external script) -->
     <script src="/static/js/modules/early-theme-loader.js"></script>
     {{ end }}
@@ -62,26 +53,6 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matc
         {{ end }}
     {{ end }}
     
-    <style>
-        /* Set CSS variable for footer image height; theme CSS uses it */
-        :root { --footer-image-height: {{ .Data.FooterImageHeight }}; }
-        
-        /* Prevent FOUC by setting system-appropriate background immediately */
-        html, body {
-            background-color: var(--color-bg-primary, #ffffff);
-            color: var(--color-text-primary, #333333);
-            margin: 0;
-            padding: 0;
-        }
-        
-        /* Dark mode users get dark background immediately */
-        @media (prefers-color-scheme: dark) {
-            html, body {
-                background-color: var(--color-bg-primary, #0f1419);
-                color: var(--color-text-primary, #e0e0e0);
-            }
-        }
-    </style>
 </head>
 <body>
     <h1>{{ .Data.Title }}</h1>
@@ -90,7 +61,8 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matc
     {{ end }}
     
     {{ if .Data.AllowPublicThemeSelection }}
-    <button id="settingsButton" class="settings-button" aria-label="Settings" title="Settings" data-available-themes="{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }},{{ end }}{{ $theme }}{{ end }}">
+    {{ $publicTheme := themeNameFor .Data.Settings "public_theme" }}
+    <button id="settingsButton" class="settings-button" aria-label="Settings" title="Settings" data-default-theme="{{ $publicTheme }}" data-available-themes="{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }},{{ end }}{{ $theme }}{{ end }}">
         <svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m18.6-2.4l-5.7 5.7m-5.7-5.7L1.6 9.6M22.4 14.4l-5.7-5.7m-5.7 5.7L4.6 14.4"></path>
@@ -143,7 +115,7 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matc
 
     {{ if .Data.AllowPublicThemeSelection }}
     <!-- Settings Modal -->
-    <div id="settingsModal" class="settings-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" aria-hidden="true">
+    <div id="settingsModal" class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" aria-hidden="true">
         <div class="settings-modal-content">
             <div class="settings-modal-header">
                 <h3 id="settingsModalTitle">Settings</h3>

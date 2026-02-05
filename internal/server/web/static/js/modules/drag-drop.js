@@ -25,6 +25,23 @@ export function initializeDragDrop(container, options = {}) {
   let placeholder = null;
   let isDragging = false;
 
+  function stripIDs(element) {
+    if (!element || !element.querySelectorAll) return;
+    if (element.id) {
+      element.removeAttribute('id');
+    }
+    element.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+  }
+
+  function createPlaceholder(item) {
+    const clone = item.cloneNode(true);
+    clone.classList.add('drag-placeholder');
+    clone.classList.remove('dragging');
+    clone.setAttribute('aria-hidden', 'true');
+    stripIDs(clone);
+    return clone;
+  }
+
   // Add drag handles if they don't exist
   addDragHandles(container, config);
 
@@ -71,19 +88,9 @@ export function initializeDragDrop(container, options = {}) {
     draggedIndex = Array.from(container.children).indexOf(item);
 
     // Create placeholder
-    placeholder = document.createElement('div');
-    placeholder.className = 'drag-placeholder';
-    placeholder.style.height = item.offsetHeight + 'px';
-    placeholder.style.border = '2px dashed var(--color-accent-primary)';
-    placeholder.style.borderRadius = 'var(--border-radius-md)';
-    placeholder.style.margin = getComputedStyle(item).margin;
-    placeholder.style.opacity = '0.5';
+    placeholder = createPlaceholder(item);
 
     // Style dragged element
-    item.style.opacity = config.ghostOpacity;
-    item.style.transform = 'rotate(2deg)';
-    item.style.zIndex = '1000';
-    item.style.pointerEvents = 'none';
     item.classList.add('dragging');
 
     // Insert placeholder
@@ -144,10 +151,6 @@ export function initializeDragDrop(container, options = {}) {
     const newIndex = Array.from(container.children).indexOf(placeholder);
     
     // Animate to new position
-    draggedElement.style.transform = '';
-    draggedElement.style.opacity = '';
-    draggedElement.style.zIndex = '';
-    draggedElement.style.pointerEvents = '';
     draggedElement.classList.remove('dragging');
 
     // Replace placeholder with dragged element
@@ -176,15 +179,10 @@ export function initializeDragDrop(container, options = {}) {
  * @param {HTMLElement} element - Element to animate
  */
 export function animateReorder(element) {
-  element.style.transform = 'scale(1.02)';
-  element.style.transition = 'transform 0.2s ease';
-  
+  element.classList.add('reorder-animate');
   setTimeout(() => {
-    element.style.transform = '';
-    setTimeout(() => {
-      element.style.transition = '';
-    }, 200);
-  }, 100);
+    element.classList.remove('reorder-animate');
+  }, 200);
 }
 
 /**

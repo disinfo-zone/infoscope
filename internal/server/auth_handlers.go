@@ -58,6 +58,18 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 		return fmt.Errorf("template %s not found in cache", name)
 	}
 
+	// Public templates should not mint CSRF tokens
+	noCSRFTokens := map[string]bool{
+		"index.html": true,
+		"404.html":   true,
+	}
+	getCSRFToken := func() string {
+		if noCSRFTokens[name] {
+			return ""
+		}
+		return s.csrf.Token(w, r)
+	}
+
 	var wrappedData struct {
 		Data      any
 		CSRFToken string
@@ -82,7 +94,7 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 			CSRFToken string
 		}{
 			Data:      v,
-			CSRFToken: s.csrf.Token(w, r),
+			CSRFToken: getCSRFToken(),
 		}
 	case IndexData:
 		wrappedData = struct {
@@ -90,7 +102,18 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 			CSRFToken string
 		}{
 			Data:      v,
-			CSRFToken: s.csrf.Token(w, r),
+			CSRFToken: getCSRFToken(),
+		}
+	case struct {
+		Data      IndexData
+		CSRFToken string
+	}:
+		wrappedData = struct {
+			Data      any
+			CSRFToken string
+		}{
+			Data:      v.Data,
+			CSRFToken: v.CSRFToken,
 		}
 	default:
 		wrappedData = struct {
@@ -98,7 +121,7 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 			CSRFToken string
 		}{
 			Data:      data,
-			CSRFToken: s.csrf.Token(w, r),
+			CSRFToken: getCSRFToken(),
 		}
 	}
 

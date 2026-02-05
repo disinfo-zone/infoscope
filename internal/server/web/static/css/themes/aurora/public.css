@@ -1,4 +1,4 @@
-/* Public page styles — Aurora (Reworked Minimal) */
+﻿/* Public page styles — Aurora (Reworked Minimal) */
 
 /* Solid, calm backdrop */
 html {
@@ -341,9 +341,10 @@ h1 {
   padding: var(--spacing-lg);
 }
 
-.settings-modal[style*="flex"] {
+.settings-modal.is-open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .settings-modal-content {
@@ -363,7 +364,7 @@ h1 {
   position: relative;
 }
 
-.settings-modal[style*="flex"] .settings-modal-content {
+.settings-modal.is-open .settings-modal-content {
   transform: scale(1) translateY(0);
 }
 

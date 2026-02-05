@@ -15,8 +15,6 @@ import (
 
 	"infoscope/internal/database"
 	"infoscope/internal/favicon"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // Sample XML feed data
@@ -196,10 +194,42 @@ func TestService(t *testing.T) {
 		}
 		feedID, _ := res.LastInsertId()
 
+		otherRes, err := env.db.Exec("INSERT INTO feeds (url, title) VALUES (?, ?)", "http://example.com/keep", "Keep Feed")
+		if err != nil {
+			t.Fatalf("Failed to insert secondary feed for delete test: %v", err)
+		}
+		otherFeedID, _ := otherRes.LastInsertId()
+
 		_, err = env.db.Exec("INSERT INTO entries (feed_id, title, url, published_at) VALUES (?, ?, ?, ?)",
 			feedID, "Entry to delete", "http://example.com/entrytodelete", time.Now())
 		if err != nil {
 			t.Fatalf("Failed to insert entry for delete test: %v", err)
+		}
+
+		// Add tags and associations
+		_, err = env.db.Exec("INSERT INTO tags (name) VALUES (?)", "DeleteTag")
+		if err != nil {
+			t.Fatalf("Failed to insert tag for delete test: %v", err)
+		}
+		_, err = env.db.Exec("INSERT INTO tags (name) VALUES (?)", "KeepTag")
+		if err != nil {
+			t.Fatalf("Failed to insert keep tag for delete test: %v", err)
+		}
+
+		var deleteTagID int64
+		if err := env.db.QueryRow("SELECT id FROM tags WHERE name = ?", "DeleteTag").Scan(&deleteTagID); err != nil {
+			t.Fatalf("Failed to load delete tag id: %v", err)
+		}
+		var keepTagID int64
+		if err := env.db.QueryRow("SELECT id FROM tags WHERE name = ?", "KeepTag").Scan(&keepTagID); err != nil {
+			t.Fatalf("Failed to load keep tag id: %v", err)
+		}
+
+		if _, err := env.db.Exec("INSERT INTO feed_tags (feed_id, tag_id) VALUES (?, ?)", feedID, deleteTagID); err != nil {
+			t.Fatalf("Failed to insert feed tag association: %v", err)
+		}
+		if _, err := env.db.Exec("INSERT INTO feed_tags (feed_id, tag_id) VALUES (?, ?)", otherFeedID, keepTagID); err != nil {
+			t.Fatalf("Failed to insert keep feed tag association: %v", err)
 		}
 
 		err = service.DeleteFeed(feedID)
@@ -216,6 +246,21 @@ func TestService(t *testing.T) {
 		err = env.db.QueryRow("SELECT COUNT(*) FROM entries WHERE feed_id = ?", feedID).Scan(&count)
 		if err != sql.ErrNoRows && count != 0 {
 			t.Errorf("Expected 0 entries after feed deletion, got %d (err: %v)", count, err)
+		}
+
+		err = env.db.QueryRow("SELECT COUNT(*) FROM feed_tags WHERE feed_id = ?", feedID).Scan(&count)
+		if err != sql.ErrNoRows && count != 0 {
+			t.Errorf("Expected 0 feed tag associations after deletion, got %d (err: %v)", count, err)
+		}
+
+		// Orphaned tag should be removed, but the tag used by other feeds should remain
+		err = env.db.QueryRow("SELECT COUNT(*) FROM tags WHERE name = ?", "DeleteTag").Scan(&count)
+		if err != sql.ErrNoRows && count != 0 {
+			t.Errorf("Expected DeleteTag to be removed, got %d (err: %v)", count, err)
+		}
+		err = env.db.QueryRow("SELECT COUNT(*) FROM tags WHERE name = ?", "KeepTag").Scan(&count)
+		if err != nil || count != 1 {
+			t.Errorf("Expected KeepTag to remain, got %d (err: %v)", count, err)
 		}
 	})
 }
@@ -400,4 +445,71 @@ func TestValidateFeedURL(t *testing.T) {
 			t.Errorf("Expected error related to unreachable host, got %v", err)
 		}
 	})
+}
+
+func TestSanitizeEntryURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		raw      string
+		feedLink string
+		feedURL  string
+		want     string
+		wantErr  bool
+	}{
+		{
+			name:    "absolute http",
+			raw:     "http://example.com/post",
+			want:    "http://example.com/post",
+			wantErr: false,
+		},
+		{
+			name:     "relative path uses feed link",
+			raw:      "/post",
+			feedLink: "https://example.com/rss",
+			want:     "https://example.com/post",
+			wantErr:  false,
+		},
+		{
+			name:     "protocol relative uses feed link scheme",
+			raw:      "//cdn.example.com/assets",
+			feedLink: "https://example.com/rss",
+			want:     "https://cdn.example.com/assets",
+			wantErr:  false,
+		},
+		{
+			name:    "relative path falls back to feed url",
+			raw:     "/post",
+			feedURL: "https://feeds.example.com/feed.xml",
+			want:    "https://feeds.example.com/post",
+			wantErr: false,
+		},
+		{
+			name:    "javascript scheme rejected",
+			raw:     "javascript:alert(1)",
+			wantErr: true,
+		},
+		{
+			name:    "empty url rejected",
+			raw:     "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sanitizeEntryURL(tt.raw, tt.feedLink, tt.feedURL)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
+	}
 }

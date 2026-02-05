@@ -57,22 +57,12 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 			settings = make(map[string]string)
 		}
 
-		// Copy the exact structure that works in login handler
-		data := SetupTemplateData{
-			BaseTemplateData: BaseTemplateData{
-				CSRFToken: csrfToken,
-			},
-			Data: struct {
-				Settings map[string]string
-				Error    string
-			}{
-				Settings: settings,
-				Error:    "",
-			},
+		// Use the same data structure as login for consistent template access
+		data := LoginPageRenderData{
+			CSRFToken: csrfToken,
+			Settings:  settings,
+			Error:     "",
 		}
-
-		// Debug log the template data structure
-		s.logger.Printf("Setup template data: %+v", data)
 
 		// Use the refactored renderTemplate
 		if err := s.renderTemplate(w, r, "setup.html", data); err != nil {

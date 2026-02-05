@@ -687,6 +687,10 @@ td {
   box-shadow: var(--shadow-md);
 }
 
+.category-suggestions.is-open {
+  display: block;
+}
+
 .category-suggestion {
   padding: var(--spacing-sm) var(--spacing-md);
   cursor: pointer;
