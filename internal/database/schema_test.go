@@ -1,7 +1,10 @@
 package database
 
 import (
+	"database/sql"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -151,6 +154,115 @@ func TestColumnExists(t *testing.T) {
 				t.Errorf("columnExists(%s, %s) = %v, want %v", tc.tableName, tc.columnName, exists, tc.shouldExist)
 			}
 		})
+	}
+}
+
+func TestMigrateEntryFiltersTargetType(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "legacy_filters.db")
+	dsn := fmt.Sprintf("%s?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=ON&_synchronous=NORMAL", dbPath)
+
+	db, err := sql.Open(SQLiteDriver, dsn)
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	defer db.Close()
+
+	// Recreate the legacy schema: entry_filters with the restrictive target_type
+	// CHECK, plus a filter group + rule referencing a filter via foreign key.
+	legacy := []string{
+		`CREATE TABLE entry_filters (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			pattern TEXT NOT NULL,
+			pattern_type TEXT NOT NULL CHECK(pattern_type IN ('keyword', 'regex')),
+			target_type TEXT NOT NULL DEFAULT 'title' CHECK(target_type IN ('title', 'content', 'feed_tags', 'feed_category')),
+			case_sensitive BOOLEAN NOT NULL DEFAULT 0,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE filter_groups (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			action TEXT NOT NULL CHECK(action IN ('keep', 'discard')),
+			is_active BOOLEAN NOT NULL DEFAULT 1,
+			priority INTEGER NOT NULL DEFAULT 0,
+			apply_to_category TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE filter_group_rules (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			group_id INTEGER NOT NULL,
+			filter_id INTEGER NOT NULL,
+			operator TEXT NOT NULL CHECK(operator IN ('AND', 'OR')) DEFAULT 'AND',
+			position INTEGER NOT NULL DEFAULT 0,
+			FOREIGN KEY (group_id) REFERENCES filter_groups(id) ON DELETE CASCADE,
+			FOREIGN KEY (filter_id) REFERENCES entry_filters(id) ON DELETE CASCADE
+		)`,
+	}
+	for _, stmt := range legacy {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("creating legacy schema: %v", err)
+		}
+	}
+
+	// Seed a filter and a group rule that references it.
+	if _, err := db.Exec(`INSERT INTO entry_filters (id, name, pattern, pattern_type, target_type, case_sensitive) VALUES (1, 'no shorts', '/shorts/', 'keyword', 'title', 0)`); err != nil {
+		t.Fatalf("seeding filter: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO filter_groups (id, name, action) VALUES (1, 'group', 'discard')`); err != nil {
+		t.Fatalf("seeding group: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO filter_group_rules (group_id, filter_id, operator, position) VALUES (1, 1, 'AND', 0)`); err != nil {
+		t.Fatalf("seeding rule: %v", err)
+	}
+
+	// Before migration the legacy CHECK must reject the new 'url' target.
+	if _, err := db.Exec(`INSERT INTO entry_filters (name, pattern, pattern_type, target_type) VALUES ('x', 'y', 'keyword', 'url')`); err == nil {
+		t.Fatal("expected legacy CHECK to reject target_type='url' before migration")
+	}
+
+	// Run the migration.
+	if err := migrateEntryFiltersTargetType(db); err != nil {
+		t.Fatalf("migrateEntryFiltersTargetType: %v", err)
+	}
+
+	// The restrictive CHECK should now be gone.
+	var ddl string
+	if err := db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='entry_filters'").Scan(&ddl); err != nil {
+		t.Fatalf("reading entry_filters ddl: %v", err)
+	}
+	if strings.Contains(ddl, "target_type IN") {
+		t.Errorf("expected restrictive target_type CHECK to be removed, got: %s", ddl)
+	}
+
+	// The existing filter row must be preserved (id and data).
+	var name string
+	if err := db.QueryRow("SELECT name FROM entry_filters WHERE id = 1").Scan(&name); err != nil {
+		t.Fatalf("reading preserved filter: %v", err)
+	}
+	if name != "no shorts" {
+		t.Errorf("preserved filter name = %q, want %q", name, "no shorts")
+	}
+
+	// The referencing rule must survive (the rebuild must not cascade-delete it).
+	var ruleCount int
+	if err := db.QueryRow("SELECT COUNT(*) FROM filter_group_rules WHERE filter_id = 1").Scan(&ruleCount); err != nil {
+		t.Fatalf("counting rules: %v", err)
+	}
+	if ruleCount != 1 {
+		t.Errorf("filter_group_rules count = %d, want 1 (rebuild must not cascade-delete)", ruleCount)
+	}
+
+	// A 'url' target is now accepted.
+	if _, err := db.Exec(`INSERT INTO entry_filters (name, pattern, pattern_type, target_type) VALUES ('no shorts url', '/shorts/', 'keyword', 'url')`); err != nil {
+		t.Errorf("expected target_type='url' to be accepted after migration: %v", err)
+	}
+
+	// Running the migration again must be a no-op.
+	if err := migrateEntryFiltersTargetType(db); err != nil {
+		t.Fatalf("second migrateEntryFiltersTargetType run: %v", err)
 	}
 }
 

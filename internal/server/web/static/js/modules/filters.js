@@ -193,7 +193,8 @@ class FilterManager {
   renderFilterCard(filter) {
     const targetLabels = {
       'title': 'Title',
-      'content': 'Content', 
+      'content': 'Content',
+      'url': 'URL',
       'feed_category': 'Category',
       'feed_tags': 'Tags'
     };

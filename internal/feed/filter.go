@@ -209,6 +209,8 @@ func (fe *FilterEngine) evaluateFilter(filter *database.EntryFilter, entry *data
 		targetText = entry.Title
 	case "content":
 		targetText = entry.Content
+	case "url":
+		targetText = entry.URL
 	case "feed_category":
 		targetText = feedCategory
 	case "feed_tags":
@@ -331,12 +333,14 @@ func ValidateRegexPattern(pattern string, caseSensitive bool) error {
 
 // TestFilter tests a filter against sample text
 func (fe *FilterEngine) TestFilter(filter *database.EntryFilter, testText string) (bool, error) {
-	// Create a mock entry for testing
+	// Create a mock entry for testing. The test text stands in for whichever
+	// entry-level field the filter targets (title, content or url).
 	mockEntry := &database.Entry{
 		Title:   testText,
 		Content: testText,
+		URL:     testText,
 	}
-	
+
 	// For testing, we assume the test text represents the target content
 	var feedCategory string
 	var feedTags []string

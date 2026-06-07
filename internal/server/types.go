@@ -45,6 +45,12 @@ type IndexData struct {
 	SiteURL                   string
 	AllowPublicThemeSelection bool
 	AvailableThemes           []string
+	// Public taxonomy filtering (issue #80)
+	Categories       []string // All categories available to filter by
+	Tags             []string // All tags available to filter by
+	SelectedCategory string   // Currently active category filter ("" = none)
+	SelectedTag      string   // Currently active tag filter ("" = none)
+	RSSURL           string   // RSS link reflecting the active filter (e.g. /rss.xml?tag=x)
 }
 
 type BaseTemplateData struct {

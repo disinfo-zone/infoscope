@@ -17,8 +17,14 @@ class ThemeSwitcher {
     }
 
     createToggleButton() {
-        // Check if button already exists
-        if (document.querySelector('.theme-toggle')) return;
+        // Adopt an existing toggle if the page provides one (e.g. inside the public
+        // hamburger menu) instead of creating a floating button. Otherwise create
+        // the standalone floating toggle used on admin pages.
+        const existing = document.querySelector('.theme-toggle');
+        if (existing) {
+            this.toggleButton = existing;
+            return;
+        }
 
         const button = document.createElement('button');
         button.className = 'theme-toggle';

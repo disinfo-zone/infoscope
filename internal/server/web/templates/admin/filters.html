@@ -22,6 +22,7 @@
             <select id="test-target">
                 <option value="title">Title</option>
                 <option value="content">Content</option>
+                <option value="url">Entry URL</option>
                 <option value="feed_category">Feed Category</option>
                 <option value="feed_tags">Feed Tags</option>
             </select>
@@ -69,10 +70,11 @@
                 <select id="filter-target" name="target_type" required>
                     <option value="title">Entry Title</option>
                     <option value="content">Entry Content/Preview</option>
+                    <option value="url">Entry URL</option>
                     <option value="feed_category">Feed Category</option>
                     <option value="feed_tags">Feed Tags</option>
                 </select>
-                <small class="form-help">Choose what content to filter against</small>
+                <small class="form-help">Choose what content to filter against (e.g. discard entries whose URL contains "/shorts/")</small>
             </div>
             
             <div class="form-group">

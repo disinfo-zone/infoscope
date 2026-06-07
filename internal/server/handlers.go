@@ -53,16 +53,40 @@ func (s *Server) getRecentEntries(ctx context.Context, limit int) ([]EntryView, 
 }
 
 func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, settings map[string]string) ([]EntryView, error) {
+	return s.getRecentEntriesFiltered(ctx, limit, settings, "", "")
+}
+
+// getRecentEntriesFiltered returns recent entries, optionally restricted to feeds
+// in a given category and/or carrying a given tag. An empty category/tag means
+// "no restriction". Admin entry filters are still applied on top of these.
+func (s *Server) getRecentEntriesFiltered(ctx context.Context, limit int, settings map[string]string, category, tag string) ([]EntryView, error) {
 	if !s.config.ProductionMode {
-		s.logger.Printf("Getting recent entries with limit: %d", limit)
+		s.logger.Printf("Getting recent entries with limit: %d (category=%q, tag=%q)", limit, category, tag)
 	}
 
 	// Get a larger set initially to account for filtering
 	// We'll fetch more entries and then filter them down
 	fetchLimit := limit * 3 // Fetch 3x more to account for potential filtering
 
-	rows, err := s.db.QueryContext(ctx, `
-        SELECT 
+	// Build the WHERE clause dynamically so the category/tag filters are optional.
+	conditions := []string{"f.status != 'deleted'"}
+	args := []interface{}{}
+	if category != "" {
+		conditions = append(conditions, "f.category = ?")
+		args = append(args, category)
+	}
+	if tag != "" {
+		conditions = append(conditions, `EXISTS (
+            SELECT 1 FROM feed_tags ft2
+            JOIN tags t2 ON ft2.tag_id = t2.id
+            WHERE ft2.feed_id = f.id AND t2.name = ? COLLATE NOCASE
+        )`)
+		args = append(args, tag)
+	}
+	args = append(args, fetchLimit)
+
+	query := `
+        SELECT
             e.id,
             e.feed_id,
             e.title,
@@ -77,11 +101,13 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
         JOIN feeds f ON e.feed_id = f.id
         LEFT JOIN feed_tags ft ON f.id = ft.feed_id
         LEFT JOIN tags t ON ft.tag_id = t.id
-        WHERE f.status != 'deleted' 
+        WHERE ` + strings.Join(conditions, " AND ") + `
         GROUP BY e.id, e.feed_id, e.title, e.url, e.favicon_url, e.published_at, e.content, f.title, f.category
         ORDER BY e.published_at DESC
         LIMIT ?
-    `, fetchLimit)
+    `
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query error: %w", err)
 	}
@@ -92,12 +118,16 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 
 	for rows.Next() {
 		var e EntryView
-		var publishedAtStr string // Will hold the "YYYY-MM-DD HH:MM:SS" string from DB
+		// date is datetime(published_at), which is NULL if the stored timestamp is
+		// unparseable; favicon_url is nullable. Scan both as NullString so a single
+		// bad row can't fail the whole query (and take down the homepage/RSS).
+		var publishedAtStr, faviconURL sql.NullString
 		var content, feedTitle, feedCategory, tagsStr sql.NullString
 		var feedID int64
-		if err := rows.Scan(&e.ID, &feedID, &e.Title, &e.URL, &e.FaviconURL, &publishedAtStr, &content, &feedTitle, &feedCategory, &tagsStr); err != nil {
+		if err := rows.Scan(&e.ID, &feedID, &e.Title, &e.URL, &faviconURL, &publishedAtStr, &content, &feedTitle, &feedCategory, &tagsStr); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
+		e.FaviconURL = faviconURL.String
 
 		// Apply filters to the entry
 		if filterEngine != nil {
@@ -132,13 +162,14 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 		}
 
 		// Parse the full timestamp for PublishedAtTime
-		if parsedTime, err := time.Parse("2006-01-02 15:04:05", publishedAtStr); err == nil {
+		if parsedTime, err := time.Parse("2006-01-02 15:04:05", publishedAtStr.String); err == nil {
 			e.PublishedAtTime = parsedTime
 			// For existing e.Date, format as "Jan 02"
 			e.Date = parsedTime.Format("Jan 02")
-		} else {
-			// Log error if parsing fails, PublishedAtTime will be zero, Date will be empty
-			s.logger.Printf("Error parsing date string '%s' for EntryView: %v", publishedAtStr, err)
+		} else if publishedAtStr.Valid && publishedAtStr.String != "" {
+			// Log only genuine parse failures, not the expected NULL/empty case.
+			// PublishedAtTime stays zero and Date empty; the entry is still shown.
+			s.logger.Printf("Error parsing date string '%s' for EntryView: %v", publishedAtStr.String, err)
 		}
 
 		// Set body text and feed title
@@ -176,6 +207,39 @@ func (s *Server) getRecentEntriesWithSettings(ctx context.Context, limit int, se
 	}
 
 	return entries, rows.Err()
+}
+
+// taxonomyQuerySuffix builds the "?category=...&tag=..." query suffix (or "")
+// for the given filters. Shared by the public page and the RSS feed (issue #80).
+func taxonomyQuerySuffix(category, tag string) string {
+	q := url.Values{}
+	if category != "" {
+		q.Set("category", category)
+	}
+	if tag != "" {
+		q.Set("tag", tag)
+	}
+	if enc := q.Encode(); enc != "" {
+		return "?" + enc
+	}
+	return ""
+}
+
+// normalizeSelection returns the canonical value from options matching requested
+// case-insensitively, or "" if there is no match. This keeps a differently-cased
+// or unknown filter param from producing an inconsistent UI (a selected pill with
+// no matching dropdown option and empty results).
+func normalizeSelection(options []string, requested string) string {
+	requested = strings.TrimSpace(requested)
+	if requested == "" {
+		return ""
+	}
+	for _, opt := range options {
+		if strings.EqualFold(opt, requested) {
+			return opt
+		}
+	}
+	return ""
 }
 
 func (s *Server) getFeeds(ctx context.Context) ([]Feed, error) {
@@ -305,11 +369,35 @@ func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	entries, err := s.getRecentEntries(r.Context(), maxPosts)
+	// Taxonomy filters (issue #80): /rss.xml?category=...&tag=... mirrors the
+	// filtered public river so readers can subscribe to a slice of the feed.
+	selectedCategory := strings.TrimSpace(r.URL.Query().Get("category"))
+	selectedTag := strings.TrimSpace(r.URL.Query().Get("tag"))
+
+	entries, err := s.getRecentEntriesFiltered(r.Context(), maxPosts, settings, selectedCategory, selectedTag)
 	if err != nil {
 		s.logger.Printf("Error getting recent entries for RSS feed: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
+	}
+
+	// Reflect the active filter in the feed title and links so each filtered feed
+	// is a distinct, self-describing subscription.
+	querySuffix := taxonomyQuerySuffix(selectedCategory, selectedTag)
+	if selectedCategory != "" || selectedTag != "" {
+		var parts []string
+		if selectedCategory != "" {
+			parts = append(parts, "category: "+selectedCategory)
+		}
+		if selectedTag != "" {
+			parts = append(parts, "tag: "+selectedTag)
+		}
+		siteTitle = siteTitle + " (" + strings.Join(parts, ", ") + ")"
+	}
+
+	channelLink := siteURL
+	if querySuffix != "" {
+		channelLink = strings.TrimRight(siteURL, "/") + "/" + querySuffix
 	}
 
 	now := time.Now()
@@ -318,7 +406,7 @@ func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
 		AtomNS:  "http://www.w3.org/2005/Atom", // Set Atom namespace
 		Channel: rss.Channel{
 			Title:         siteTitle,
-			Link:          siteURL,
+			Link:          channelLink,
 			Description:   metaDescription,
 			Language:      "en-us", // Default, consider making this configurable
 			LastBuildDate: now.Format(time.RFC1123Z),
@@ -329,7 +417,7 @@ func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
 	if selfLinkHref != "" && selfLinkHref[len(selfLinkHref)-1] == '/' {
 		selfLinkHref = selfLinkHref[:len(selfLinkHref)-1] // Remove trailing slash if present
 	}
-	selfLinkHref += "/rss.xml"
+	selfLinkHref += "/rss.xml" + querySuffix
 
 	rssFeed.Channel.SelfLink = rss.AtomLink{
 		Href: selfLinkHref,
@@ -432,12 +520,37 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if !s.config.ProductionMode {
 		s.logger.Printf("Database state: %d feeds, %d entries", feedCount, entryCount)
 	}
-	entries, err := s.getRecentEntriesWithSettings(r.Context(), maxPosts, settings)
+	// Public taxonomy filtering (issue #80): visitors can narrow the river by feed
+	// category and/or tag via query params, e.g. /?category=Photography&tag=english
+	// Categories and tags available for the public filter menu.
+	dbw := s.dbWrapper()
+	categories, err := dbw.GetAllCategories(r.Context())
+	if err != nil {
+		s.logger.Printf("Error getting categories: %v", err)
+		categories = nil
+	}
+	tags, err := dbw.GetAllTagNames(r.Context())
+	if err != nil {
+		s.logger.Printf("Error getting tags: %v", err)
+		tags = nil
+	}
+
+	// Normalize the requested filters against the known values so a bad or
+	// differently-cased param resolves to the canonical value (or is ignored),
+	// keeping the dropdown selection, the active-filter pill and the results
+	// consistent.
+	selectedCategory := normalizeSelection(categories, r.URL.Query().Get("category"))
+	selectedTag := normalizeSelection(tags, r.URL.Query().Get("tag"))
+
+	entries, err := s.getRecentEntriesFiltered(r.Context(), maxPosts, settings, selectedCategory, selectedTag)
 	if err != nil {
 		s.logger.Printf("Error getting entries: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	rssURL := "/rss.xml" + taxonomyQuerySuffix(selectedCategory, selectedTag)
+
 	if !s.config.ProductionMode {
 		s.logger.Printf("Retrieved %d entries", len(entries))
 		if len(entries) > 0 {
@@ -484,6 +597,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		SiteURL:                   settings["site_url"],
 		AllowPublicThemeSelection: allowThemeSelection,
 		AvailableThemes:           availableThemes,
+		Categories:                categories,
+		Tags:                      tags,
+		SelectedCategory:          selectedCategory,
+		SelectedTag:               selectedTag,
+		RSSURL:                    rssURL,
 	}
 	if !s.config.ProductionMode {
 		s.logger.Printf("Rendering template with data: %+v", data)

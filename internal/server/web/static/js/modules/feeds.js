@@ -123,10 +123,12 @@ class FeedsManager {
       }
     });
 
-    // Category autocomplete
+    // Category autocomplete. Show the existing categories as soon as the field
+    // is focused/clicked (not only after typing) so users can pick from the list.
     const categoryInput = document.getElementById('editCategory');
     if (categoryInput) {
-      categoryInput.addEventListener('input', (e) => this.handleCategoryInput(e));
+      categoryInput.addEventListener('input', (e) => this.showCategorySuggestions(e.target.value));
+      categoryInput.addEventListener('focus', (e) => this.showCategorySuggestions(e.target.value));
     }
 
     // Delegate suggestion clicks
@@ -140,6 +142,13 @@ class FeedsManager {
         }
       });
     }
+
+    // Close the category suggestions when clicking outside the field
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.category-input-wrapper')) {
+        this.hideCategorySuggestions();
+      }
+    });
   }
 
   scheduleFeedValidation(url) {
@@ -409,48 +418,40 @@ class FeedsManager {
       `).join('');
   }
 
-  handleCategoryInput(e) {
-    const input = e.target;
-    const value = input.value.toLowerCase();
+  showCategorySuggestions(rawValue) {
     const suggestions = document.getElementById('categorySuggestions');
-    
     if (!suggestions) return;
 
-    if (value.length < 2) {
-      suggestions.innerHTML = '';
-      suggestions.classList.remove('is-open');
-      return;
-    }
-
-    const matches = this.availableCategories.filter(cat => 
-      cat.toLowerCase().includes(value)
-    );
+    // With no input, show every available category; otherwise filter by substring.
+    const value = (rawValue || '').toLowerCase().trim();
+    const matches = value
+      ? this.availableCategories.filter(cat => cat.toLowerCase().includes(value))
+      : this.availableCategories.slice();
 
     if (matches.length === 0) {
-      suggestions.innerHTML = '';
-      suggestions.classList.remove('is-open');
+      this.hideCategorySuggestions();
       return;
     }
 
     suggestions.innerHTML = matches
-      .map(cat => `
-        <div class="category-suggestion" data-category="${this.escapeHtml(cat)}">
-          ${this.escapeHtml(cat)}
-        </div>
-      `).join('');
-    
+      .map(cat => `<div class="category-suggestion" data-category="${this.escapeHtml(cat)}">${this.escapeHtml(cat)}</div>`)
+      .join('');
+
     suggestions.classList.add('is-open');
   }
 
-  selectCategory(category) {
-    const input = document.getElementById('editCategory');
+  hideCategorySuggestions() {
     const suggestions = document.getElementById('categorySuggestions');
-    
-    if (input) input.value = category;
     if (suggestions) {
       suggestions.innerHTML = '';
       suggestions.classList.remove('is-open');
     }
+  }
+
+  selectCategory(category) {
+    const input = document.getElementById('editCategory');
+    if (input) input.value = category;
+    this.hideCategorySuggestions();
   }
 
   showError(message, container) {

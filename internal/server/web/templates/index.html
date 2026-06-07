@@ -29,7 +29,7 @@
     {{ end }}
 
     <link rel="icon" type="image/x-icon" href="/static/images/{{ index .Data.Settings "favicon_url" }}">
-    <link rel="alternate" type="application/rss+xml" title="{{ .Data.Title }} Feed" href="/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="{{ .Data.Title }} Feed" href="{{ if .Data.RSSURL }}{{ .Data.RSSURL }}{{ else }}/rss.xml{{ end }}" />
     
     {{ if .Data.AllowPublicThemeSelection }}
     {{ $publicTheme := themeNameFor .Data.Settings "public_theme" }}
@@ -64,14 +64,83 @@
     <a href="{{ .Data.HeaderLinkURL }}" class="header-link return">{{ .Data.HeaderLinkText }}</a>
     {{ end }}
     
-    {{ if .Data.AllowPublicThemeSelection }}
-    {{ $publicTheme := themeNameFor .Data.Settings "public_theme" }}
-    <button id="settingsButton" class="settings-button" aria-label="Settings" title="Settings" data-default-theme="{{ $publicTheme }}" data-available-themes="{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }},{{ end }}{{ $theme }}{{ end }}">
-        <svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m18.6-2.4l-5.7 5.7m-5.7-5.7L1.6 9.6M22.4 14.4l-5.7-5.7m-5.7 5.7L4.6 14.4"></path>
-        </svg>
-    </button>
+    <!-- Hamburger menu: appearance controls + category/tag filters (issues #80, #81) -->
+    <details class="app-menu" id="appMenu">
+        <summary class="app-menu-toggle" role="button" aria-label="Menu" title="Menu">
+            <svg class="app-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </summary>
+        <div class="app-menu-panel">
+            <section class="app-menu-section">
+                <h2 class="app-menu-heading">Appearance</h2>
+                <div class="app-menu-row">
+                    <span class="app-menu-label">Light / dark</span>
+                    <button type="button" class="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
+                        <span class="sun-icon">○</span>
+                        <span class="moon-icon">●</span>
+                    </button>
+                </div>
+                {{ if .Data.AllowPublicThemeSelection }}
+                <div class="app-menu-field">
+                    <label for="themeSelect" class="app-menu-label">Theme</label>
+                    <select id="themeSelect" class="theme-select" data-default-theme="{{ themeNameFor .Data.Settings "public_theme" }}" data-available-themes="{{ range $i, $theme := .Data.AvailableThemes }}{{ if $i }},{{ end }}{{ $theme }}{{ end }}">
+                        {{ range .Data.AvailableThemes }}
+                        <option value="{{ . }}">{{ title . }}</option>
+                        {{ end }}
+                    </select>
+                </div>
+                {{ end }}
+            </section>
+
+            {{ if or .Data.Categories .Data.Tags }}
+            <section class="app-menu-section">
+                <h2 class="app-menu-heading">Filter</h2>
+                <form class="app-menu-filter" id="feedFilterForm" method="get" action="/">
+                    {{ if .Data.Categories }}
+                    <div class="app-menu-field">
+                        <label for="filterCategory" class="app-menu-label">Category</label>
+                        <select id="filterCategory" name="category">
+                            <option value="">All categories</option>
+                            {{ range .Data.Categories }}
+                            <option value="{{ . }}"{{ if eq . $.Data.SelectedCategory }} selected{{ end }}>{{ . }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    {{ end }}
+                    {{ if .Data.Tags }}
+                    <div class="app-menu-field">
+                        <label for="filterTag" class="app-menu-label">Tag</label>
+                        <select id="filterTag" name="tag">
+                            <option value="">All tags</option>
+                            {{ range .Data.Tags }}
+                            <option value="{{ . }}"{{ if eq . $.Data.SelectedTag }} selected{{ end }}>{{ . }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    {{ end }}
+                    <div class="app-menu-actions">
+                        <button type="submit" class="app-menu-apply">Apply</button>
+                        {{ if or .Data.SelectedCategory .Data.SelectedTag }}
+                        <a href="/" class="app-menu-clear">Clear</a>
+                        {{ end }}
+                    </div>
+                </form>
+            </section>
+            {{ end }}
+        </div>
+    </details>
+
+    {{ if or .Data.SelectedCategory .Data.SelectedTag }}
+    <div class="active-filters">
+        <span class="active-filters-label">Showing</span>
+        {{ if .Data.SelectedCategory }}<span class="active-filter-pill">{{ .Data.SelectedCategory }}</span>{{ end }}
+        {{ if .Data.SelectedTag }}<span class="active-filter-pill">#{{ .Data.SelectedTag }}</span>{{ end }}
+        <a href="{{ .Data.RSSURL }}" class="active-filters-rss" title="Subscribe to this filtered view">RSS</a>
+        <a href="/" class="active-filters-clear">clear</a>
+    </div>
     {{ end }}
 
     <div class="feed">
@@ -109,38 +178,8 @@
     </div>    <!-- External JavaScript -->
     <script type="module" src="/static/js/main.js"></script>
     
-    {{ if .Data.AllowPublicThemeSelection }}
-    <!-- Theme Selection JavaScript -->
-    <script src="/static/js/modules/public-theme-selection.js"></script>
-    {{ end }}
-    
-    <!-- Immediate favicon loading after page load -->
-    
-
-    {{ if .Data.AllowPublicThemeSelection }}
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" aria-hidden="true">
-        <div class="settings-modal-content">
-            <div class="settings-modal-header">
-                <h3 id="settingsModalTitle">Settings</h3>
-                <button id="closeSettingsModal" class="settings-close" aria-label="Close settings dialog">&times;</button>
-            </div>
-            <div class="settings-modal-body">
-                <div class="setting-section">
-                    <label for="themeSelect">Theme</label>
-                    <select id="themeSelect" class="theme-select">
-                        {{ range .Data.AvailableThemes }}
-                        <option value="{{ . }}">{{ title . }}</option>
-                        {{ end }}
-                    </select>
-                </div>
-            </div>
-            <div class="settings-modal-footer">
-                <button id="applySettings" class="apply-button">Apply</button>
-            </div>
-        </div>
-    </div>
-    {{ end }}
+    <!-- Public menu JavaScript: live theme apply + filter UX (issues #80, #81) -->
+    <script src="/static/js/modules/public-menu.js" data-cfasync="false"></script>
 
     {{ if .Data.TrackingCode }}
     {{ .Data.TrackingCode | safeHTML }}

@@ -218,8 +218,9 @@ Production mode: Enforces HTTPS-only features including strict CSRF protection
    - Add/remove feeds
    - Preview feed content before adding
    - Delete feeds from the Edit modal (requires updated `/app/web` assets)
+   - Assign a category and tags to each feed; readers can then filter the public river by category and/or tag from the on-page menu, and subscribe to a filtered RSS feed (e.g. `/rss.xml?category=Photography&tag=english`)
 5. **Entry Filtering System:**
-   - Create custom filters to automatically keep or discard entries based on title patterns
+   - Create custom filters to automatically keep or discard entries based on their title, content, entry URL, feed category, or feed tags (e.g. discard entries whose URL contains "/shorts/")
    - Support for both keyword matching and regular expressions
    - Advanced boolean logic with AND/OR operators for complex filtering rules
    - Filter groups with customizable priority ordering
@@ -253,7 +254,7 @@ Infoscope includes a powerful filtering system that allows administrators to aut
 
 The filtering system operates in two levels:
 
-1. **Entry Filters**: Individual pattern-based filters that match against entry titles
+1. **Entry Filters**: Individual pattern-based filters that match against a chosen field — entry title, entry content, entry URL, feed category, or feed tags
 2. **Filter Groups**: Collections of entry filters combined with boolean logic
 
 ### Creating Entry Filters
@@ -261,7 +262,8 @@ The filtering system operates in two levels:
 Entry filters are the building blocks of the filtering system. Each filter defines:
 
 - **Name**: A descriptive name for easy identification
-- **Pattern**: The text or regex pattern to match against entry titles
+- **Target**: Which field to match against — entry title, entry content, entry URL, feed category, or feed tags
+- **Pattern**: The text or regex pattern to match against the target
 - **Pattern Type**: Either "keyword" for simple text matching or "regex" for regular expressions
 - **Case Sensitivity**: Whether matching should be case-sensitive
 

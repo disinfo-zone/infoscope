@@ -158,8 +158,8 @@ func (s *Server) CreateFilter(w http.ResponseWriter, r *http.Request) {
 		req.TargetType = "title"
 	}
 
-	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
-		s.jsonError(w, "Target type must be 'title', 'content', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
+	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "url" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
+		s.jsonError(w, "Target type must be 'title', 'content', 'url', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
 		return
 	}
 
@@ -219,8 +219,8 @@ func (s *Server) UpdateFilter(w http.ResponseWriter, r *http.Request) {
 		req.TargetType = "title"
 	}
 
-	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
-		s.jsonError(w, "Target type must be 'title', 'content', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
+	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "url" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
+		s.jsonError(w, "Target type must be 'title', 'content', 'url', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
 		return
 	}
 
@@ -551,8 +551,8 @@ func (s *Server) TestFilter(w http.ResponseWriter, r *http.Request) {
 		req.TargetType = "title"
 	}
 
-	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
-		s.jsonError(w, "Target type must be 'title', 'content', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
+	if req.TargetType != "title" && req.TargetType != "content" && req.TargetType != "url" && req.TargetType != "feed_tags" && req.TargetType != "feed_category" {
+		s.jsonError(w, "Target type must be 'title', 'content', 'url', 'feed_tags', or 'feed_category'", http.StatusBadRequest)
 		return
 	}
 

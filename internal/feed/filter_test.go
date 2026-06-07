@@ -58,6 +58,56 @@ func TestFilterEngine_KeywordFilter(t *testing.T) {
 	}
 }
 
+func TestFilterEngine_URLTarget(t *testing.T) {
+	env := setupTestDB(t)
+	defer env.db.Close()
+
+	if _, err := env.db.Exec(database.Schema); err != nil {
+		t.Fatalf("Failed to create filter tables: %v", err)
+	}
+
+	fe := NewFilterEngine(env.db)
+
+	filter := &database.EntryFilter{
+		Pattern:       "/shorts/",
+		PatternType:   "keyword",
+		TargetType:    "url",
+		CaseSensitive: false,
+	}
+
+	// The url target must match against the entry URL, not its title.
+	entry := &database.Entry{
+		Title: "An interesting clip",
+		URL:   "https://www.youtube.com/shorts/abc123",
+	}
+	matched, err := fe.evaluateFilter(filter, entry, "", nil)
+	if err != nil {
+		t.Fatalf("evaluateFilter error: %v", err)
+	}
+	if !matched {
+		t.Error("expected url filter to match entry URL containing '/shorts/'")
+	}
+
+	// A regular video URL (and matching title text) must not match.
+	entry.URL = "https://www.youtube.com/watch?v=abc123"
+	matched, err = fe.evaluateFilter(filter, entry, "", nil)
+	if err != nil {
+		t.Fatalf("evaluateFilter error: %v", err)
+	}
+	if matched {
+		t.Error("expected url filter not to match a /watch URL")
+	}
+
+	// TestFilter (used by the admin filter-test endpoint) should also work.
+	ok, err := fe.TestFilter(filter, "https://example.com/shorts/xyz")
+	if err != nil {
+		t.Fatalf("TestFilter error: %v", err)
+	}
+	if !ok {
+		t.Error("expected TestFilter to match the url target")
+	}
+}
+
 func TestFilterEngine_RegexFilter(t *testing.T) {
 	env := setupTestDB(t)
 	defer env.db.Close()

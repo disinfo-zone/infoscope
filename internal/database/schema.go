@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -96,7 +97,9 @@ CREATE TABLE IF NOT EXISTS entry_filters (
     name TEXT NOT NULL,
     pattern TEXT NOT NULL,
     pattern_type TEXT NOT NULL CHECK(pattern_type IN ('keyword', 'regex')),
-    target_type TEXT NOT NULL DEFAULT 'title' CHECK(target_type IN ('title', 'content', 'feed_tags', 'feed_category')),
+    -- target_type is validated in the application layer (see filter_handlers.go) so
+    -- new targets (e.g. 'url') can be added without a schema CHECK migration.
+    target_type TEXT NOT NULL DEFAULT 'title',
     case_sensitive BOOLEAN NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -558,13 +561,20 @@ func migrateSettingsTable(db *sql.DB) error {
 
 // migrateFilterTables ensures all filter-related tables exist with proper triggers
 func migrateFilterTables(db *sql.DB) error {
+	// Rebuild entry_filters if it still carries the legacy restrictive CHECK on
+	// target_type. Dropping the constraint lets new filter targets (e.g. 'url')
+	// be added without further schema migrations.
+	if err := migrateEntryFiltersTargetType(db); err != nil {
+		return fmt.Errorf("error migrating entry_filters target_type: %w", err)
+	}
+
 	// Add new columns to entry_filters if they don't exist
 	targetTypeExists, err := columnExists(db, "entry_filters", "target_type")
 	if err != nil {
 		return fmt.Errorf("error checking target_type column: %w", err)
 	}
 	if !targetTypeExists {
-		_, err := db.Exec("ALTER TABLE entry_filters ADD COLUMN target_type TEXT NOT NULL DEFAULT 'title' CHECK(target_type IN ('title', 'content', 'feed_tags', 'feed_category'))")
+		_, err := db.Exec("ALTER TABLE entry_filters ADD COLUMN target_type TEXT NOT NULL DEFAULT 'title'")
 		if err != nil {
 			return fmt.Errorf("error adding target_type column: %w", err)
 		}
@@ -603,6 +613,95 @@ func migrateFilterTables(db *sql.DB) error {
 		if _, err := db.Exec(trigger); err != nil {
 			return fmt.Errorf("error creating filter trigger: %w", err)
 		}
+	}
+
+	return nil
+}
+
+// migrateEntryFiltersTargetType rebuilds the entry_filters table to remove the
+// legacy CHECK(target_type IN (...)) constraint. SQLite cannot drop a CHECK
+// constraint in place, so we recreate the table preserving all rows (and their
+// ids, so filter_group_rules foreign keys remain valid). This is a no-op once the
+// constraint has been removed.
+func migrateEntryFiltersTargetType(db *sql.DB) error {
+	var ddl string
+	err := db.QueryRow(
+		"SELECT sql FROM sqlite_master WHERE type='table' AND name='entry_filters'",
+	).Scan(&ddl)
+	if err == sql.ErrNoRows {
+		return nil // Table not created yet; Schema will create it without the CHECK.
+	}
+	if err != nil {
+		return fmt.Errorf("error reading entry_filters schema: %w", err)
+	}
+
+	// The restrictive constraint is the only place "target_type IN" appears.
+	if !strings.Contains(ddl, "target_type IN") {
+		return nil
+	}
+
+	ctx := context.Background()
+
+	// Use a dedicated connection so PRAGMA foreign_keys applies to the same
+	// connection that performs the rebuild. Foreign keys must be disabled
+	// (outside a transaction) so that DROP TABLE does not cascade-delete the
+	// referencing rows in filter_group_rules.
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("error acquiring connection: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys=OFF"); err != nil {
+		return fmt.Errorf("error disabling foreign keys: %w", err)
+	}
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("error starting rebuild transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmts := []string{
+		`CREATE TABLE entry_filters_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			pattern TEXT NOT NULL,
+			pattern_type TEXT NOT NULL CHECK(pattern_type IN ('keyword', 'regex')),
+			target_type TEXT NOT NULL DEFAULT 'title',
+			case_sensitive BOOLEAN NOT NULL DEFAULT 0,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO entry_filters_new (id, name, pattern, pattern_type, target_type, case_sensitive, created_at, updated_at)
+			SELECT id, name, pattern, pattern_type, target_type, case_sensitive, created_at, updated_at FROM entry_filters`,
+		`DROP TABLE entry_filters`,
+		`ALTER TABLE entry_filters_new RENAME TO entry_filters`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("error rebuilding entry_filters: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("error committing entry_filters rebuild: %w", err)
+	}
+
+	// Sanity check that no foreign keys were orphaned (ids were preserved, so
+	// this should always pass) before re-enabling enforcement.
+	rows, err := conn.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return fmt.Errorf("error running foreign key check: %w", err)
+	}
+	hasViolation := rows.Next()
+	rows.Close()
+	if hasViolation {
+		return fmt.Errorf("entry_filters rebuild left orphaned foreign keys")
+	}
+
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys=ON"); err != nil {
+		return fmt.Errorf("error re-enabling foreign keys: %w", err)
 	}
 
 	return nil
