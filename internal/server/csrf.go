@@ -2,6 +2,7 @@
 package server
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -11,6 +12,10 @@ import (
 	"sync"
 	"time"
 )
+
+// csrfTokenCtxKey memoizes the token minted for a single request so repeated
+// Token() calls within that request are stable.
+type csrfTokenCtxKey struct{}
 
 var (
 	ErrTokenMissing = errors.New("CSRF token missing")
@@ -120,9 +125,19 @@ func (c *CSRF) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// Token gets or creates a CSRF token and returns it
+// Token gets or creates a CSRF token and returns it. The token is memoized on
+// the request context so that multiple calls within the same request (e.g. a
+// handler that embeds the token in the page, then renderTemplate) return the
+// same token and set the cookie only once. Without this, the second call mints
+// a fresh token (the first call's cookie isn't on the request yet) and
+// overwrites the cookie, leaving the rendered token and the cookie mismatched —
+// which 403s the first POST after a fresh load or a server restart.
 func (c *CSRF) Token(w http.ResponseWriter, r *http.Request) string {
+	if tok, ok := r.Context().Value(csrfTokenCtxKey{}).(string); ok && tok != "" {
+		return tok
+	}
 	token, _ := c.getOrCreateToken(w, r)
+	*r = *r.WithContext(context.WithValue(r.Context(), csrfTokenCtxKey{}, token))
 	return token
 }
 
