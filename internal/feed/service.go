@@ -17,6 +17,7 @@ type Service struct {
 	fetcher    *Fetcher
 	faviconSvc *favicon.Service
 	done       chan struct{}
+	validate   func(string) (*FeedValidationResult, error)
 }
 
 func NewService(db *sql.DB, logger *log.Logger, faviconSvc *favicon.Service) *Service {
@@ -25,6 +26,7 @@ func NewService(db *sql.DB, logger *log.Logger, faviconSvc *favicon.Service) *Se
 		logger:     logger,
 		faviconSvc: faviconSvc,
 		done:       make(chan struct{}),
+		validate:   ValidateFeedURL,
 	}
 	s.fetcher = NewFetcher(db, logger, faviconSvc)
 	return s
@@ -104,7 +106,7 @@ func (s *Service) UpdateFeeds(ctx context.Context) error {
 
 func (s *Service) AddFeed(url string) error {
 	// Validate the feed first
-	validationResult, err := ValidateFeedURL(url)
+	validationResult, err := s.validate(url)
 	if err != nil {
 		return fmt.Errorf("feed validation failed: %w", err)
 	}

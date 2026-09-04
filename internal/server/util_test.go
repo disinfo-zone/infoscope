@@ -73,6 +73,12 @@ func TestTruncateText(t *testing.T) {
 			expected:  "He...",
 		},
 		{
+			name:      "Unicode is not split",
+			input:     "éééééé",
+			maxLength: 5,
+			expected:  "éé...",
+		},
+		{
 			name:      "Empty string",
 			input:     "",
 			maxLength: 10,

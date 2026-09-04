@@ -2,6 +2,7 @@
 package favicon
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -33,8 +34,7 @@ func NewService(storageDir string) (*Service, error) {
 	}
 
 	transport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		DialContext:           securitynet.PublicOnlyDialContext(&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}),
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          50,
 		MaxIdleConnsPerHost:   10,
@@ -44,8 +44,9 @@ func NewService(storageDir string) (*Service, error) {
 	}
 	return &Service{
 		client: &http.Client{
-			Timeout:   10 * time.Second,
-			Transport: transport,
+			Timeout:       10 * time.Second,
+			Transport:     transport,
+			CheckRedirect: securitynet.CheckRedirect(5),
 		},
 		storageDir:  storageDir,
 		failedHosts: sync.Map{}, // Initialize the map
@@ -54,8 +55,8 @@ func NewService(storageDir string) (*Service, error) {
 
 func (s *Service) GetFavicon(siteURL string) (string, error) {
 	u, err := url.Parse(siteURL)
-	if err != nil {
-		return "default.ico", nil
+	if err != nil || securitynet.ValidateHTTPURL(u) != nil {
+		return "default.ico", fmt.Errorf("invalid site URL")
 	}
 
 	// Check if this host has failed before
@@ -110,24 +111,12 @@ func (s *Service) GetFavicon(siteURL string) (string, error) {
 }
 
 func (s *Service) getFaviconFromHTML(siteURL string) ([]byte, error) {
-	// SSRF hardening for initial site HTML fetch
 	parsed, err := url.Parse(siteURL)
 	if err != nil {
 		return nil, err
 	}
-	host := parsed.Hostname()
-	if ip := net.ParseIP(host); ip != nil {
-		if securitynet.IsPrivateIP(ip) {
-			return nil, fmt.Errorf("blocked private/reserved address for favicon HTML fetch")
-		}
-	} else {
-		if addrs, err := net.LookupIP(host); err == nil {
-			for _, a := range addrs {
-				if securitynet.IsPrivateIP(a) {
-					return nil, fmt.Errorf("blocked private/reserved address for favicon HTML fetch")
-				}
-			}
-		}
+	if err := securitynet.ValidateHTTPURL(parsed); err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", siteURL, nil)
@@ -145,7 +134,15 @@ func (s *Service) getFaviconFromHTML(siteURL string) ([]byte, error) {
 		return nil, fmt.Errorf("got status %d", resp.StatusCode)
 	}
 
-	doc, err := html.Parse(resp.Body)
+	const maxHTMLBytes = 2 << 20
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxHTMLBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxHTMLBytes {
+		return nil, fmt.Errorf("HTML response exceeds %d bytes", maxHTMLBytes)
+	}
+	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -202,24 +199,12 @@ func (s *Service) getFaviconFromRoot(siteURL string) ([]byte, error) {
 }
 
 func (s *Service) downloadFavicon(urlStr string) ([]byte, error) {
-	// SSRF hardening for favicon downloads
 	parsed, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
 	}
-	host := parsed.Hostname()
-	if ip := net.ParseIP(host); ip != nil {
-		if securitynet.IsPrivateIP(ip) {
-			return nil, fmt.Errorf("blocked private/reserved address for favicon")
-		}
-	} else {
-		if addrs, err := net.LookupIP(host); err == nil {
-			for _, a := range addrs {
-				if securitynet.IsPrivateIP(a) {
-					return nil, fmt.Errorf("blocked private/reserved address for favicon")
-				}
-			}
-		}
+	if err := securitynet.ValidateHTTPURL(parsed); err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", urlStr, nil)
@@ -237,5 +222,19 @@ func (s *Service) downloadFavicon(urlStr string) ([]byte, error) {
 		return nil, fmt.Errorf("got status %d", resp.StatusCode)
 	}
 
-	return io.ReadAll(resp.Body)
+	const maxFaviconBytes = 1 << 20
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxFaviconBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxFaviconBytes {
+		return nil, fmt.Errorf("favicon exceeds %d bytes", maxFaviconBytes)
+	}
+	contentType := http.DetectContentType(data)
+	switch contentType {
+	case "image/png", "image/gif", "image/jpeg", "image/webp", "image/x-icon", "image/vnd.microsoft.icon":
+		return data, nil
+	default:
+		return nil, fmt.Errorf("unsupported favicon content type %q", contentType)
+	}
 }

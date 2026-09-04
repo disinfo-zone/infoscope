@@ -23,9 +23,10 @@ import (
 var ErrInvalidFileType = errors.New("invalid file type")
 
 const (
-	maxUploadSize      = 5 << 20 // 5 MB
-	maxFaviconSize     = 1 << 20 // 1 MB
-	defaultFaviconName = "default.ico"
+	maxUploadSize        = 5 << 20 // 5 MB
+	maxFaviconSize       = 1 << 20 // 1 MB
+	maxMultipartOverhead = 1 << 20
+	defaultFaviconName   = "default.ico"
 )
 
 type ImageHandler struct {
@@ -74,17 +75,17 @@ func (h *ImageHandler) validateFile(file multipart.File, header *multipart.FileH
 	return detectedContentType, nil
 }
 
-func (h *ImageHandler) isValidFavicon(file multipart.File, header *multipart.FileHeader) (bool, error) {
+func (h *ImageHandler) validateFavicon(file multipart.File, header *multipart.FileHeader) (string, error) {
 	if header.Size > maxFaviconSize {
-		return false, fmt.Errorf("favicon too large (max %d MB)", maxFaviconSize/(1<<20))
+		return "", fmt.Errorf("favicon too large (max %d MB)", maxFaviconSize/(1<<20))
 	}
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
-		return false, fmt.Errorf("failed to read favicon for content type detection: %w", err)
+		return "", fmt.Errorf("failed to read favicon for content type detection: %w", err)
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return false, fmt.Errorf("failed to rewind favicon file: %w", err)
+		return "", fmt.Errorf("failed to rewind favicon file: %w", err)
 	}
 	detectedContentType := http.DetectContentType(buffer[:n])
 	allowedFaviconTypes := map[string]bool{
@@ -93,20 +94,11 @@ func (h *ImageHandler) isValidFavicon(file multipart.File, header *multipart.Fil
 		"image/vnd.microsoft.icon": true,
 	}
 	if !allowedFaviconTypes[detectedContentType] {
-		// Some ICO files may be misdetected by sniffing (e.g., as image/gif).
-		// Also, the client may send a correct favicon Content-Type in header.
-		clientCT := header.Header.Get("Content-Type")
-		if strings.EqualFold(filepath.Ext(header.Filename), ".ico") && (detectedContentType == "image/gif" || clientCT == "image/x-icon" || clientCT == "image/vnd.microsoft.icon") {
-			if !h.productionMode {
-				h.logger.Printf("Warning: favicon '%s' detected as %s but headers/ext indicate ICO. Allowing upload.", header.Filename, detectedContentType)
-			}
-			return true, nil
-		}
 		h.logger.Printf("Invalid favicon content type detected: '%s' for file '%s'. Allowed: image/png, image/x-icon, image/vnd.microsoft.icon",
 			detectedContentType, header.Filename)
-		return false, nil
+		return "", ErrInvalidFileType
 	}
-	return true, nil
+	return detectedContentType, nil
 }
 
 func (h *ImageHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +111,7 @@ func (h *ImageHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		RespondWithError(w, http.StatusForbidden, "Invalid CSRF token")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize+maxMultipartOverhead)
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 		http.Error(w, fmt.Sprintf("File too large (max %d MB)", maxUploadSize/(1<<20)), http.StatusBadRequest)
 		return
@@ -136,7 +129,8 @@ func (h *ImageHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		"image/gif":  true,
 		"image/webp": true,
 	}
-	if _, err := h.validateFile(file, header, allowedMetaTypes); err != nil {
+	contentType, err := h.validateFile(file, header, allowedMetaTypes)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -144,12 +138,13 @@ func (h *ImageHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to process image (rewind error)", http.StatusInternalServerError)
 		return
 	}
-	savedFilename, err := h.saveImage(file, header, h.uploadDir)
+	savedFilename, err := h.saveImage(file, h.uploadDir, contentType)
 	if err != nil {
 		http.Error(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
 	if err := h.updateSettingKey(r.Context(), "footer_image_url", savedFilename); err != nil {
+		_ = os.Remove(filepath.Join(h.uploadDir, savedFilename))
 		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
 		return
 	}
@@ -158,15 +153,15 @@ func (h *ImageHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"filename": savedFilename})
 }
 
-func (h *ImageHandler) saveImage(file multipart.File, header *multipart.FileHeader, directory string) (string, error) {
+func (h *ImageHandler) saveImage(file multipart.File, directory, contentType string) (string, error) {
 	content, err := io.ReadAll(file)
 	if err != nil {
 		return "", fmt.Errorf("error reading file: %w", err)
 	}
 	hash := sha256.Sum256(content)
-	ext := strings.ToLower(filepath.Ext(header.Filename))
-	if ext == "" {
-		ext = ".png"
+	ext, err := imageExtension(contentType)
+	if err != nil {
+		return "", err
 	}
 	filename := hex.EncodeToString(hash[:16]) + ext
 	path := filepath.Join(directory, filename)
@@ -174,9 +169,26 @@ func (h *ImageHandler) saveImage(file multipart.File, header *multipart.FileHead
 		return "", fmt.Errorf("error writing file to %s: %w", path, err)
 	}
 	if !h.productionMode {
-		h.logger.Printf("Saved image %s to %s", header.Filename, path)
+		h.logger.Printf("Saved image to %s", path)
 	}
 	return filename, nil
+}
+
+func imageExtension(contentType string) (string, error) {
+	switch contentType {
+	case "image/jpeg":
+		return ".jpg", nil
+	case "image/png":
+		return ".png", nil
+	case "image/gif":
+		return ".gif", nil
+	case "image/webp":
+		return ".webp", nil
+	case "image/x-icon", "image/vnd.microsoft.icon":
+		return ".ico", nil
+	default:
+		return "", ErrInvalidFileType
+	}
 }
 
 func (h *ImageHandler) cleanupOldImages(directory string, currentImageFilename string, numToKeep int) {
@@ -232,7 +244,7 @@ func (h *ImageHandler) HandleFaviconUpload(w http.ResponseWriter, r *http.Reques
 		RespondWithError(w, http.StatusForbidden, "Invalid CSRF token")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxFaviconSize)
+	r.Body = http.MaxBytesReader(w, r.Body, maxFaviconSize+maxMultipartOverhead)
 	if err := r.ParseMultipartForm(maxFaviconSize); err != nil {
 		http.Error(w, fmt.Sprintf("Favicon too large or form parsing error (max %d MB)", maxFaviconSize/(1<<20)), http.StatusBadRequest)
 		return
@@ -244,13 +256,9 @@ func (h *ImageHandler) HandleFaviconUpload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	defer file.Close()
-	valid, err := h.isValidFavicon(file, header)
+	contentType, err := h.validateFavicon(file, header)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if !valid {
-		http.Error(w, "Invalid file type. Must be ICO or PNG.", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
@@ -263,17 +271,14 @@ func (h *ImageHandler) HandleFaviconUpload(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Failed to save favicon (dir error)", http.StatusInternalServerError)
 		return
 	}
-	ext := strings.ToLower(filepath.Ext(header.Filename))
-	if ext != ".ico" && ext != ".png" {
-		ext = ".png"
-	}
-	savedFilename, err := h.saveImage(file, header, faviconDir)
+	savedFilename, err := h.saveImage(file, faviconDir, contentType)
 	if err != nil {
 		http.Error(w, "Failed to save favicon", http.StatusInternalServerError)
 		return
 	}
 	faviconURLPath := "favicon/" + savedFilename
 	if err := h.updateSettingKey(r.Context(), "favicon_url", faviconURLPath); err != nil {
+		_ = os.Remove(filepath.Join(faviconDir, savedFilename))
 		http.Error(w, "Failed to update settings for favicon", http.StatusInternalServerError)
 		return
 	}
@@ -292,6 +297,7 @@ func (h *ImageHandler) HandleMetaImageUpload(w http.ResponseWriter, r *http.Requ
 		RespondWithError(w, http.StatusForbidden, "Invalid CSRF token")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize+maxMultipartOverhead)
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 		http.Error(w, fmt.Sprintf("File too large (max %d MB)", maxUploadSize/(1<<20)), http.StatusBadRequest)
 		return
@@ -309,7 +315,8 @@ func (h *ImageHandler) HandleMetaImageUpload(w http.ResponseWriter, r *http.Requ
 		"image/gif":  true,
 		"image/webp": true,
 	}
-	if _, err := h.validateFile(file, header, allowedMetaTypes); err != nil {
+	contentType, err := h.validateFile(file, header, allowedMetaTypes)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -317,12 +324,13 @@ func (h *ImageHandler) HandleMetaImageUpload(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Failed to process image (rewind error)", http.StatusInternalServerError)
 		return
 	}
-	savedFilename, err := h.saveImage(file, header, h.uploadDir)
+	savedFilename, err := h.saveImage(file, h.uploadDir, contentType)
 	if err != nil {
 		http.Error(w, "Failed to save meta image", http.StatusInternalServerError)
 		return
 	}
 	if err := h.updateSettingKey(r.Context(), "meta_image_url", savedFilename); err != nil {
+		_ = os.Remove(filepath.Join(h.uploadDir, savedFilename))
 		http.Error(w, "Failed to update settings for meta image", http.StatusInternalServerError)
 		return
 	}

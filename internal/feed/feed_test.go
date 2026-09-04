@@ -83,10 +83,10 @@ type testEnv struct {
 // setupTestDB only sets up the database and common services not dependent on mock server.
 func setupTestDB(t *testing.T) *testEnv {
 	t.Helper()
-	
+
 	// Use a temporary file instead of in-memory database to avoid WAL mode issues
 	tempFile := t.TempDir() + "/test.db"
-	
+
 	// Use NewDB to get a DB instance with schema and migrations applied
 	dbInstance, err := database.NewDB(tempFile, database.DefaultConfig())
 	if err != nil {
@@ -113,13 +113,17 @@ func TestService(t *testing.T) {
 	t.Run("Add feed", func(t *testing.T) {
 		env := setupTestDB(t)
 		defer env.db.Close()
-		
+
 		mockServer := newMockFeedServer(t, func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, sampleRSS)
 		})
 		defer mockServer.Close()
 
 		service := NewService(env.db, env.logger, env.faviconSvc)
+		service.validate = func(rawURL string) (*FeedValidationResult, error) {
+			return validateFeedURLWithClient(context.Background(), rawURL, mockServer.Client())
+		}
+		service.fetcher.client = mockServer.Client()
 		err := service.AddFeed(mockServer.URL)
 		if err != nil {
 			t.Fatalf("Failed to add feed: %v", err)
@@ -138,13 +142,14 @@ func TestService(t *testing.T) {
 	t.Run("Update feeds", func(t *testing.T) {
 		env := setupTestDB(t)
 		defer env.db.Close()
-		
+
 		mockServer := newMockFeedServer(t, func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, sampleAtom)
 		})
 		defer mockServer.Close()
 
 		service := NewService(env.db, env.logger, env.faviconSvc)
+		service.fetcher.client = mockServer.Client()
 
 		initialTitle := "Old Title Before Update"
 		_, err := env.db.Exec("INSERT INTO feeds (url, title, status) VALUES (?, ?, ?)", mockServer.URL, initialTitle, "active")
@@ -185,7 +190,7 @@ func TestService(t *testing.T) {
 	t.Run("Delete feed", func(t *testing.T) {
 		env := setupTestDB(t)
 		defer env.db.Close()
-		
+
 		service := NewService(env.db, env.logger, env.faviconSvc)
 		feedURL := "http://example.com/todelete"
 		res, err := env.db.Exec("INSERT INTO feeds (url, title) VALUES (?, ?)", feedURL, "To Delete")
@@ -269,13 +274,14 @@ func TestFetcher(t *testing.T) {
 	t.Run("Fetch single feed", func(t *testing.T) {
 		env := setupTestDB(t)
 		defer env.db.Close()
-		
+
 		mockServer := newMockFeedServer(t, func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, sampleRSS)
 		})
 		defer mockServer.Close()
 
 		fetcher := NewFetcher(env.db, env.logger, env.faviconSvc)
+		fetcher.client = mockServer.Client()
 
 		result, err := env.db.Exec(
 			"INSERT INTO feeds (url, title, status) VALUES (?, ?, ?)",
@@ -313,7 +319,7 @@ func TestFetcher(t *testing.T) {
 	t.Run("Update all feeds", func(t *testing.T) {
 		env := setupTestDB(t)
 		defer env.db.Close()
-		
+
 		mockServer1 := newMockFeedServer(t, func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, sampleRSS)
 		})
@@ -324,6 +330,7 @@ func TestFetcher(t *testing.T) {
 		defer mockServer2.Close()
 
 		fetcher := NewFetcher(env.db, env.logger, env.faviconSvc)
+		fetcher.client = &http.Client{Timeout: 10 * time.Second}
 
 		_, err := env.db.Exec("INSERT INTO feeds (url, title, status) VALUES (?, ?, ?)", mockServer1.URL, "RSS Test", "active")
 		if err != nil {
@@ -358,7 +365,7 @@ func TestValidateFeedURL(t *testing.T) {
 		})
 		defer mockServer.Close()
 
-		result, err := ValidateFeedURL(mockServer.URL)
+		result, err := validateFeedURLWithClient(context.Background(), mockServer.URL, mockServer.Client())
 		if err != nil {
 			t.Fatalf("Expected no error for valid RSS, got %v", err)
 		}
@@ -381,7 +388,7 @@ func TestValidateFeedURL(t *testing.T) {
 		})
 		defer mockServer.Close()
 
-		result, err := ValidateFeedURL(mockServer.URL)
+		result, err := validateFeedURLWithClient(context.Background(), mockServer.URL, mockServer.Client())
 		if err != nil {
 			t.Fatalf("Expected no error for valid Atom, got %v", err)
 		}
@@ -400,7 +407,7 @@ func TestValidateFeedURL(t *testing.T) {
 		})
 		defer mockServer.Close()
 
-		_, err := ValidateFeedURL(mockServer.URL)
+		_, err := validateFeedURLWithClient(context.Background(), mockServer.URL, mockServer.Client())
 		if err == nil {
 			t.Fatalf("Expected error for HTTP 404, got nil")
 		}
@@ -415,7 +422,7 @@ func TestValidateFeedURL(t *testing.T) {
 		})
 		defer mockServer.Close()
 
-		_, err := ValidateFeedURL(mockServer.URL)
+		_, err := validateFeedURLWithClient(context.Background(), mockServer.URL, mockServer.Client())
 		if err == nil {
 			t.Fatalf("Expected error for non-XML content, got nil")
 		}

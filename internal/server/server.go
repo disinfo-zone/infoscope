@@ -89,6 +89,9 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			// Set base Referrer-Policy below (overridden later to tightened policy)
 			w.Header().Set("Referrer-Policy", "no-referrer-when-downgrade")
 			w.Header().Set("X-XSS-Protection", "0") // modern browsers; rely on CSP
+			w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+			w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+			w.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
 			if s.config.UseHTTPS {
 				w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
 			}
@@ -105,6 +108,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 				"connect-src 'self' https:",
 				"frame-src 'self' https:",
 				"frame-ancestors 'none'",
+				"object-src 'none'",
 				"base-uri 'self'",
 				"form-action 'self'",
 			}, "; ")
@@ -536,8 +540,9 @@ func (s *Server) Routes() http.Handler {
 	// Apply CSRF middleware to all routes except static files and safe paths
 	excludePaths := []string{"/healthz", "/healthz/", "/click", "/click/"}
 	csrfWrapped := s.csrf.MiddlewareExceptPaths(mux, excludePaths)
+	bodyLimited := requestBodyLimit(csrfWrapped, 12<<20)
 	// Apply gzip compression for text-based responses
-	gzWrapped := gzipMiddleware(csrfWrapped)
+	gzWrapped := gzipMiddleware(bodyLimited)
 	// Apply security headers last to cover all responses
 	return s.securityHeaders(gzWrapped)
 }
@@ -573,6 +578,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		session, err := s.auth.ValidateSession(s.db, cookie.Value)
 		if err != nil {
+			http.SetCookie(w, expiredSessionCookie(s.csrf.config.Secure))
 			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 			return
 		}
@@ -584,6 +590,28 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}{CSRFToken: token, UserID: session.UserID}
 		ctx = context.WithValue(ctx, contextKeyTemplateData, data)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+}
+
+func requestBodyLimit(next http.Handler, limit int64) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func expiredSessionCookie(secure bool) *http.Cookie {
+	return &http.Cookie{
+		Name:     "session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   -1,
+		Expires:  time.Unix(1, 0),
 	}
 }
 

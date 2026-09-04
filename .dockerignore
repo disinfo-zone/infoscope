@@ -1,0 +1,14 @@
+.git
+.github
+.claude
+.env
+data
+dist
+node_modules
+playwright-report
+test-results
+*.db
+*.db-*
+*.exe
+*.log
+*.test

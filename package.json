@@ -6,6 +6,6 @@
     "test:e2e:theme": "playwright test tests/public-theme-initial-paint.spec.js --reporter=line"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.1"
+    "@playwright/test": "^1.62.1"
   }
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -114,6 +115,16 @@ type ImportResults struct {
 	Errors       []string
 }
 
+var backupFilenamePattern = regexp.MustCompile(`^infoscope_backup_[0-9]{8}_[0-9]{6}\.json$`)
+
+func validateBackupFilename(raw string) (string, bool) {
+	name := strings.TrimSpace(raw)
+	if name == "" || filepath.Base(name) != name || !backupFilenamePattern.MatchString(name) {
+		return "", false
+	}
+	return name, true
+}
+
 func (s *Server) handleBackup(w http.ResponseWriter, r *http.Request) {
 	// Ensure user is authenticated
 	if _, ok := getUserID(r.Context()); !ok {
@@ -217,6 +228,7 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, (10<<20)+maxMultipartOverhead)
 	// Parse multipart form data
 	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10 MB limit
 		s.logger.Printf("Error parsing multipart form: %v", err)
@@ -1176,7 +1188,7 @@ func (s *Server) getBackupDir() string {
 	if s.config.DataPath != "" {
 		base = s.config.DataPath
 	}
-	return base + string('/') + "backups"
+	return filepath.Join(base, "backups")
 }
 
 func (s *Server) writeBackupToDisk(ctx context.Context, backup BackupData) (string, error) {
@@ -1189,9 +1201,9 @@ func (s *Server) writeBackupToDisk(ctx context.Context, backup BackupData) (stri
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal backup: %w", err)
 	}
-	name := fmt.Sprintf("infoscope_backup_%s.json", time.Now().Format("20060102_150405"))
-	path := dir + string('/') + name
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	name := fmt.Sprintf("infoscope_backup_%s.json", time.Now().UTC().Format("20060102_150405"))
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return "", fmt.Errorf("failed to write backup file: %w", err)
 	}
 	return name, nil
@@ -1209,7 +1221,7 @@ func (s *Server) pruneOldBackups(retentionDays int) {
 	}
 	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour)
 	for _, e := range entries {
-		if e.IsDir() {
+		if e.IsDir() || !backupFilenamePattern.MatchString(e.Name()) {
 			continue
 		}
 		info, err := e.Info()
@@ -1217,7 +1229,7 @@ func (s *Server) pruneOldBackups(retentionDays int) {
 			continue
 		}
 		if info.ModTime().Before(cutoff) {
-			_ = os.Remove(dir + string('/') + e.Name())
+			_ = os.Remove(filepath.Join(dir, e.Name()))
 		}
 	}
 }
@@ -1327,7 +1339,7 @@ func (s *Server) handleBackupList(w http.ResponseWriter, r *http.Request) {
 	}
 	files := make([]fileInfo, 0)
 	for _, e := range entries {
-		if e.IsDir() {
+		if e.IsDir() || !backupFilenamePattern.MatchString(e.Name()) {
 			continue
 		}
 		info, err := e.Info()
@@ -1358,9 +1370,9 @@ func (s *Server) handleRestoreFromFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	name := filepath.Base(strings.TrimSpace(req.Filename))
-	if name == "" {
-		http.Error(w, "Missing filename", http.StatusBadRequest)
+	name, ok := validateBackupFilename(req.Filename)
+	if !ok {
+		http.Error(w, "Invalid backup filename", http.StatusBadRequest)
 		return
 	}
 	path := filepath.Join(s.getBackupDir(), name)
@@ -1407,9 +1419,9 @@ func (s *Server) handleBackupDownload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	name := filepath.Base(strings.TrimSpace(r.URL.Query().Get("name")))
-	if name == "" {
-		http.Error(w, "Missing filename", http.StatusBadRequest)
+	name, ok := validateBackupFilename(r.URL.Query().Get("name"))
+	if !ok {
+		http.Error(w, "Invalid backup filename", http.StatusBadRequest)
 		return
 	}
 	path := filepath.Join(s.getBackupDir(), name)
@@ -1440,9 +1452,9 @@ func (s *Server) handleDeleteBackupFile(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	name := filepath.Base(strings.TrimSpace(req.Filename))
-	if name == "" {
-		http.Error(w, "Missing filename", http.StatusBadRequest)
+	name, ok := validateBackupFilename(req.Filename)
+	if !ok {
+		http.Error(w, "Invalid backup filename", http.StatusBadRequest)
 		return
 	}
 	path := filepath.Join(s.getBackupDir(), name)

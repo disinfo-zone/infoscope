@@ -15,6 +15,10 @@ function escapeHTML(value) {
   return div.innerHTML;
 }
 
+function escapeAttribute(value) {
+  return escapeHTML(value).replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
 function normalizeClassToken(value, fallback = '') {
   const token = String(value || '').toLowerCase();
   return /^[a-z0-9_-]+$/.test(token) ? token : fallback;
@@ -761,15 +765,16 @@ function bindBackup() {
         const row = document.createElement('div');
         row.className = 'backup-row';
         const safeFileName = escapeHTML(f.name || '');
+        const safeFileAttribute = escapeAttribute(f.name || '');
         const safeDate = escapeHTML(new Date(f.modified).toLocaleString());
         const safeSizeKB = escapeHTML((Number(f.size || 0) / 1024).toFixed(1));
         row.innerHTML = `
           <div class="backup-name">${safeFileName}</div>
           <div class="backup-meta">${safeDate} • ${safeSizeKB} KB</div>
           <div class="backup-actions-inline">
-            <button class="backup-button" data-restore-file="${safeFileName}">RESTORE</button>
-            <button class="backup-button" data-download-file="${safeFileName}">DOWNLOAD</button>
-            <button class="backup-button danger" data-delete-file="${safeFileName}">DELETE</button>
+            <button class="backup-button" data-restore-file="${safeFileAttribute}">RESTORE</button>
+            <button class="backup-button" data-download-file="${safeFileAttribute}">DOWNLOAD</button>
+            <button class="backup-button danger" data-delete-file="${safeFileAttribute}">DELETE</button>
           </div>`;
         listContainer.appendChild(row);
       });

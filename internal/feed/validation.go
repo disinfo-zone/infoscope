@@ -2,9 +2,11 @@
 package feed
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,48 +37,17 @@ type FeedValidationResult struct {
 }
 
 func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
-	// Parse URL
 	u, err := url.Parse(feedURL)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
 	}
-
-	// Check scheme
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("%w: must use HTTP or HTTPS", ErrInvalidURL)
+	if err := securitynet.ValidateHTTPURL(u); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
 	}
-
-	// SSRF hardening: block private/reserved ranges (but allow loopback for local testing)
-	host := u.Hostname()
-	if ip := net.ParseIP(host); ip != nil {
-		if securitynet.IsPrivateIP(ip) && !ip.IsLoopback() {
-			return nil, fmt.Errorf("%w: URL resolves to private/reserved address", ErrInvalidURL)
-		}
-	} else {
-		dnsCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		addrs, err := net.DefaultResolver.LookupIP(dnsCtx, "ip", host)
-		if err == nil {
-			for _, a := range addrs {
-				if securitynet.IsPrivateIP(a) && !a.IsLoopback() {
-					return nil, fmt.Errorf("%w: URL resolves to private/reserved address", ErrInvalidURL)
-				}
-			}
-		} else if dnsCtx.Err() == context.DeadlineExceeded {
-			return nil, ErrTimeout
-		}
-	}
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	// Create feed parser
-	fp := gofeed.NewParser()
-	// Use a custom HTTP client with sane timeouts and HTTP/2
 	transport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		DialContext:           securitynet.PublicOnlyDialContext(&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}),
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          20,
 		MaxIdleConnsPerHost:   5,
@@ -85,28 +56,44 @@ func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	// Create HTTP client with timeout
-	client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
+	client := &http.Client{
+		Timeout:       10 * time.Second,
+		Transport:     transport,
+		CheckRedirect: securitynet.CheckRedirect(5),
+	}
+	return validateFeedURLWithClient(ctx, feedURL, client)
+}
 
-	// Try to fetch and parse feed
-	// gofeed uses http.DefaultClient internally unless we override Fetcher.
-	// Since we already perform network checks and will explicitly fetch via client,
-	// ensure the parser uses our client settings.
-	fp.Client = client
-	feed, err := fp.ParseURLWithContext(feedURL, ctx)
+const maxValidationFeedBytes = 5 << 20
+
+// validateFeedURLWithClient is a test seam; production callers use the
+// public-only client constructed by ValidateFeedURL.
+func validateFeedURLWithClient(ctx context.Context, feedURL string, client *http.Client) (*FeedValidationResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
 	if err != nil {
-		// Try to determine if it's a timeout or invalid feed
+		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
+	}
+	req.Header.Set("User-Agent", "Infoscope/0.5")
+	resp, err := client.Do(req)
+	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ErrTimeout
 		}
-
-		// Check if the URL is reachable
-		resp, err := client.Get(feedURL)
-		if err != nil {
-			return nil, fmt.Errorf("could not reach URL: %v", err)
-		}
-		defer resp.Body.Close()
-
+		return nil, fmt.Errorf("could not reach URL: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, ErrNotAFeed
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxValidationFeedBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("could not read URL: %v", err)
+	}
+	if len(body) > maxValidationFeedBytes {
+		return nil, fmt.Errorf("%w: feed exceeds %d bytes", ErrNotAFeed, maxValidationFeedBytes)
+	}
+	feed, err := gofeed.NewParser().Parse(bytes.NewReader(body))
+	if err != nil || feed == nil {
 		return nil, ErrNotAFeed
 	}
 
@@ -146,9 +133,9 @@ func ValidateFeedURL(feedURL string) (*FeedValidationResult, error) {
 		}
 		// Trim excessive whitespace and shorten overly long previews
 		if sampleBody != "" {
-			// Basic whitespace normalization
-			if len(sampleBody) > 2000 {
-				sampleBody = sampleBody[:2000]
+			runes := []rune(sampleBody)
+			if len(runes) > 2000 {
+				sampleBody = string(runes[:2000])
 			}
 			result.SampleItemContent = sampleBody
 		}

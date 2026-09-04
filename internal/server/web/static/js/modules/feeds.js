@@ -387,7 +387,7 @@ class FeedsManager {
 
     container.innerHTML = this.availableTags
       .filter(tag => !this.currentTags.includes(tag))
-      .map(tag => `<span class="available-tag" data-tag="${this.escapeHtml(tag)}">${this.escapeHtml(tag)}</span>`)
+      .map(tag => `<span class="available-tag" data-tag="${this.escapeAttribute(tag)}">${this.escapeHtml(tag)}</span>`)
       .join('');
   }
 
@@ -413,7 +413,7 @@ class FeedsManager {
       .map(tag => `
         <span class="tag-token">
           ${this.escapeHtml(tag)}
-          <span class="remove" data-tag="${this.escapeHtml(tag)}">&times;</span>
+          <span class="remove" data-tag="${this.escapeAttribute(tag)}">&times;</span>
         </span>
       `).join('');
   }
@@ -434,7 +434,7 @@ class FeedsManager {
     }
 
     suggestions.innerHTML = matches
-      .map(cat => `<div class="category-suggestion" data-category="${this.escapeHtml(cat)}">${this.escapeHtml(cat)}</div>`)
+      .map(cat => `<div class="category-suggestion" data-category="${this.escapeAttribute(cat)}">${this.escapeHtml(cat)}</div>`)
       .join('');
 
     suggestions.classList.add('is-open');
@@ -555,6 +555,10 @@ class FeedsManager {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  escapeAttribute(text) {
+    return this.escapeHtml(text).replaceAll('"', '&quot;').replaceAll("'", '&#39;');
   }
 }
 

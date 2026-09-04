@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // headerWritten checks if response headers have already been written
@@ -40,11 +41,11 @@ func stripHTML(input string) string {
 	if input == "" {
 		return ""
 	}
-	
+
 	// Remove HTML tags
 	htmlTagRegex := regexp.MustCompile(`<[^>]*>`)
 	text := htmlTagRegex.ReplaceAllString(input, "")
-	
+
 	// Decode common HTML entities
 	text = strings.ReplaceAll(text, "&amp;", "&")
 	text = strings.ReplaceAll(text, "&lt;", "<")
@@ -52,11 +53,11 @@ func stripHTML(input string) string {
 	text = strings.ReplaceAll(text, "&quot;", "\"")
 	text = strings.ReplaceAll(text, "&#39;", "'")
 	text = strings.ReplaceAll(text, "&nbsp;", " ")
-	
+
 	// Clean up extra whitespace
 	text = strings.TrimSpace(text)
 	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
-	
+
 	return text
 }
 
@@ -65,25 +66,28 @@ func truncateText(input string, maxLength int) string {
 	if input == "" || maxLength <= 0 {
 		return ""
 	}
-	
-	if len(input) <= maxLength {
+
+	runes := []rune(input)
+	if len(runes) <= maxLength {
 		return input
 	}
-	
+
 	// Account for the "..." suffix
 	actualLength := maxLength - 3
 	if actualLength <= 0 {
 		return "..."
 	}
-	
-	text := input[:actualLength]
-	// Find the last space to avoid cutting words, but only if we have reasonable space
-	if lastSpace := strings.LastIndex(text, " "); lastSpace > actualLength/2 {
-		text = text[:lastSpace]
+
+	textRunes := runes[:actualLength]
+	// Find the last whitespace to avoid cutting words, but only if enough of the
+	// requested preview remains.
+	for i := len(textRunes) - 1; i > actualLength/2; i-- {
+		if unicode.IsSpace(textRunes[i]) {
+			textRunes = textRunes[:i]
+			break
+		}
 	}
-	text += "..."
-	
-	return text
+	return string(textRunes) + "..."
 }
 
 // ProcessBodyText strips HTML tags and truncates text to the specified length
@@ -91,14 +95,14 @@ func ProcessBodyText(input string, maxLength int) string {
 	if input == "" {
 		return ""
 	}
-	
+
 	// Remove HTML tags
 	text := stripHTML(input)
-	
+
 	// Truncate if necessary
 	if maxLength > 0 {
 		text = truncateText(text, maxLength)
 	}
-	
+
 	return text
 }

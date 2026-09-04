@@ -266,6 +266,9 @@ func (s *Server) getFeeds(ctx context.Context) ([]Feed, error) {
 }
 
 func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
+	if err := validateSettings(settings); err != nil {
+		return err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -339,6 +342,28 @@ func (s *Server) updateSettings(ctx context.Context, settings Settings) error {
 	}
 
 	return tx.Commit()
+}
+
+func validateSettings(settings Settings) error {
+	switch {
+	case settings.MaxPosts < 1 || settings.MaxPosts > 1000:
+		return fmt.Errorf("maximum posts must be between 1 and 1000")
+	case settings.UpdateInterval < 60 || settings.UpdateInterval > 86400:
+		return fmt.Errorf("update interval must be between 60 and 86400 seconds")
+	case settings.BodyTextLength < 50 || settings.BodyTextLength > 1000:
+		return fmt.Errorf("preview length must be between 50 and 1000 characters")
+	case settings.BackupIntervalHours < 1 || settings.BackupIntervalHours > 8760:
+		return fmt.Errorf("backup interval must be between 1 and 8760 hours")
+	case settings.BackupRetentionDays < 1 || settings.BackupRetentionDays > 3650:
+		return fmt.Errorf("backup retention must be between 1 and 3650 days")
+	case len(settings.SiteTitle) > 200:
+		return fmt.Errorf("site title is too long")
+	case len(settings.SiteURL) > 2048, len(settings.HeaderLinkURL) > 2048, len(settings.FooterLinkURL) > 2048:
+		return fmt.Errorf("URL is too long")
+	case len(settings.TrackingCode) > 64<<10:
+		return fmt.Errorf("tracking code is too large")
+	}
+	return nil
 }
 
 func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
@@ -501,7 +526,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	maxPosts := 33 // default
 	if maxStr, ok := settings["max_posts"]; ok {
-		if max, err := strconv.Atoi(maxStr); err == nil {
+		if max, err := strconv.Atoi(maxStr); err == nil && max >= 1 && max <= 1000 {
 			maxPosts = max
 		}
 	}
@@ -669,6 +694,10 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		var settingsData Settings // Renamed from 'settings' to avoid conflict with outer scope
 		if err := json.NewDecoder(r.Body).Decode(&settingsData); err != nil {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if err := validateSettings(settingsData); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if err := s.updateSettings(r.Context(), settingsData); err != nil {

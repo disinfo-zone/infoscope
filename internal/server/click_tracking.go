@@ -35,7 +35,7 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id, err := strconv.ParseInt(entryID, 10, 64)
-	if err != nil {
+	if err != nil || id <= 0 {
 		http.Error(w, "Invalid entry ID", http.StatusBadRequest)
 		return
 	}
@@ -47,6 +47,17 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+
+	var exists bool
+	if err := tx.QueryRow("SELECT EXISTS(SELECT 1 FROM entries WHERE id = ?)", id).Scan(&exists); err != nil {
+		s.logger.Printf("Error checking click entry: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		http.Error(w, "Entry not found", http.StatusNotFound)
+		return
+	}
 
 	// First update entry-specific clicks
 	_, err = tx.Exec(`

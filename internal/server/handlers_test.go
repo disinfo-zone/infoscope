@@ -154,6 +154,13 @@ func TestClickEndpointDoesNotRequireCSRF(t *testing.T) {
 	if clicks != 1 {
 		t.Fatalf("expected click_count 1, got %d", clicks)
 	}
+
+	missingReq := httptest.NewRequest(http.MethodPost, "/click?id=999999", nil)
+	missingRR := httptest.NewRecorder()
+	handler.ServeHTTP(missingRR, missingReq)
+	if missingRR.Code != http.StatusNotFound {
+		t.Fatalf("missing entry: expected %d, got %d", http.StatusNotFound, missingRR.Code)
+	}
 }
 
 func TestFeedAPIDeleteRequiresCSRF(t *testing.T) {

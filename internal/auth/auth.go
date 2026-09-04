@@ -12,6 +12,7 @@ var (
 	ErrSessionNotFound    = errors.New("session not found")
 	ErrSessionExpired     = errors.New("session expired")
 	ErrAccountLocked      = errors.New("account locked, try again later") // Added for lockout
+	ErrAlreadyConfigured  = errors.New("administrator already configured")
 )
 
 type User struct {

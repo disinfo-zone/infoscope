@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write # Required for creating releases
-  actions: write
 
 env:
   VERSION: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.version }}
@@ -39,19 +38,21 @@ jobs:
 
     runs-on: ${{ matrix.target.runner }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v7
       with:
-        go-version: '1.22.4'
+        go-version: '1.27.x'
+        check-latest: true
 
-    - name: Install dependencies
+    - name: Verify dependencies
       run: |
-        go get github.com/mattn/go-sqlite3@v1.14.24
-        go get github.com/mmcdole/gofeed@v1.3.0
-        go get golang.org/x/crypto@v0.28.0
-        go get golang.org/x/net@v0.30.0
+        go mod download
+        go mod verify
+
+    - name: Test
+      run: go test ./...
 
     - name: Create Directories (Linux) 
       if: runner.os == 'Linux'
@@ -88,7 +89,6 @@ jobs:
         CGO_ENABLED: 1
       run: |
         go build -v -trimpath -ldflags="${LDFLAGS} -X main.Version=${{ env.VERSION }}" -o "${BINARY_NAME}" ./cmd/infoscope
-        upx --best --lzma "${BINARY_NAME}"
 
     - name: Build (Windows) 
       if: runner.os == 'Windows'
@@ -105,7 +105,7 @@ jobs:
         go build -v -trimpath -ldflags="${env:LDFLAGS} -X main.Version=${{ env.VERSION }}" -o "${env:BINARY_NAME}" ./cmd/infoscope
 
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         files: |
           infoscope_*-amd64_${{ env.VERSION }}*

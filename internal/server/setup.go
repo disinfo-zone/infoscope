@@ -5,8 +5,11 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+
+	"infoscope/internal/auth"
 )
 
 func IsFirstRun(db *sql.DB) (bool, error) {
@@ -96,8 +99,12 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Create admin user (validation will be done in CreateUser)
-		if err := s.auth.CreateUser(s.db, req.Username, req.Password); err != nil {
+		if err := s.auth.CreateInitialUser(s.db, req.Username, req.Password); err != nil {
 			s.logger.Printf("Failed to create user: %v", err)
+			if errors.Is(err, auth.ErrAlreadyConfigured) {
+				http.NotFound(w, r)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

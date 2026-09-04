@@ -18,7 +18,10 @@ import (
 const (
 	maxLoginAttempts = 5
 	lockoutDuration  = 15 * time.Minute
+	maxUsernameBytes = 64
 )
+
+var dummyPasswordHash, _ = bcrypt.GenerateFromPassword([]byte("invalid-account-timing-placeholder"), bcrypt.DefaultCost)
 
 type Service struct{}
 
@@ -160,16 +163,7 @@ func (s *Service) validatePasswordStrength(password string) error {
 
 // CreateUser creates a new admin user with a hashed password
 func (s *Service) CreateUser(db *sql.DB, username, password string) error {
-	// Validate password strength
-	if err := s.validatePasswordStrength(password); err != nil {
-		return err
-	}
-
-	// Convert username to lowercase for case-insensitivity
-	lowerUsername := strings.ToLower(username)
-
-	// Hash password with bcrypt
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	lowerUsername, hash, err := s.prepareCredentials(username, password)
 	if err != nil {
 		return err
 	}
@@ -182,10 +176,52 @@ func (s *Service) CreateUser(db *sql.DB, username, password string) error {
 	return err
 }
 
+// CreateInitialUser atomically creates the sole first-run administrator. The
+// conditional INSERT prevents concurrent setup requests from both succeeding.
+func (s *Service) CreateInitialUser(db *sql.DB, username, password string) error {
+	lowerUsername, hash, err := s.prepareCredentials(username, password)
+	if err != nil {
+		return err
+	}
+	result, err := db.Exec(`
+		INSERT INTO admin_users (username, password_hash)
+		SELECT ?, ?
+		WHERE NOT EXISTS (SELECT 1 FROM admin_users)`, lowerUsername, hash)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return ErrAlreadyConfigured
+	}
+	return nil
+}
+
+func (s *Service) prepareCredentials(username, password string) (string, string, error) {
+	if err := s.validatePasswordStrength(password); err != nil {
+		return "", "", err
+	}
+	lowerUsername := strings.ToLower(strings.TrimSpace(username))
+	if lowerUsername == "" {
+		return "", "", errors.New("username is required")
+	}
+	if len(lowerUsername) > maxUsernameBytes {
+		return "", "", fmt.Errorf("username must be at most %d bytes", maxUsernameBytes)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", "", err
+	}
+	return lowerUsername, string(hash), nil
+}
+
 func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session, error) {
 	var user User // Changed from anonymous struct to User type
 	// Convert username to lowercase for case-insensitive lookup
-	lowerUsername := strings.ToLower(username)
+	lowerUsername := strings.ToLower(strings.TrimSpace(username))
 
 	err := db.QueryRow(
 		"SELECT id, password_hash, login_attempts, locked_until FROM admin_users WHERE username = ?",
@@ -194,6 +230,9 @@ func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session,
 
 	if err != nil {
 		if err == sql.ErrNoRows {
+			// Keep unknown-account and wrong-password paths similar enough to avoid
+			// exposing registered usernames through a cheap timing oracle.
+			_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(password))
 			return nil, ErrInvalidCredentials
 		}
 		return nil, err
@@ -206,19 +245,7 @@ func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session,
 
 	// Compare password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		// Password incorrect, increment attempts and potentially lock
-		user.LoginAttempts++
-		var newLockedUntil sql.NullTime
-		if user.LoginAttempts >= maxLoginAttempts {
-			newLockedUntil.Time = time.Now().Add(lockoutDuration)
-			newLockedUntil.Valid = true
-		}
-
-		_, updateErr := db.Exec(
-			"UPDATE admin_users SET login_attempts = ?, locked_until = ? WHERE id = ?",
-			user.LoginAttempts, newLockedUntil, user.ID,
-		)
-		if updateErr != nil {
+		if updateErr := recordFailedAttempt(db, user.ID); updateErr != nil {
 			// Log this error, but return invalid credentials to the user
 			log.Printf("Error updating login attempts for user %d: %v", user.ID, updateErr)
 		}
@@ -261,6 +288,53 @@ func (s *Service) Authenticate(db *sql.DB, username, password string) (*Session,
 	}
 
 	return session, nil
+}
+
+// VerifyPassword checks a user's password without creating a session. This is
+// used for sensitive in-session operations such as password changes.
+func (s *Service) VerifyPassword(db *sql.DB, userID int64, password string) error {
+	var hash string
+	var attempts int
+	var lockedUntil sql.NullTime
+	err := db.QueryRow(
+		"SELECT password_hash, login_attempts, locked_until FROM admin_users WHERE id = ?",
+		userID,
+	).Scan(&hash, &attempts, &lockedUntil)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(password))
+			return ErrInvalidCredentials
+		}
+		return err
+	}
+	if lockedUntil.Valid && lockedUntil.Time.After(time.Now()) {
+		return ErrAccountLocked
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
+		if updateErr := recordFailedAttempt(db, userID); updateErr != nil {
+			log.Printf("Error updating login attempts for user %d: %v", userID, updateErr)
+		}
+		return ErrInvalidCredentials
+	}
+	if attempts > 0 || lockedUntil.Valid {
+		if _, err := db.Exec("UPDATE admin_users SET login_attempts = 0, locked_until = NULL WHERE id = ?", userID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func recordFailedAttempt(db *sql.DB, userID int64) error {
+	_, err := db.Exec(`
+		UPDATE admin_users
+		SET login_attempts = login_attempts + 1,
+			locked_until = CASE
+				WHEN login_attempts + 1 >= ? THEN ?
+				ELSE locked_until
+			END
+		WHERE id = ?`,
+		maxLoginAttempts, time.Now().Add(lockoutDuration), userID)
+	return err
 }
 
 // GetUserByID retrieves a user by their ID

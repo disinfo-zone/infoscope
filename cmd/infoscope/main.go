@@ -21,11 +21,11 @@ var (
 	Version = "dev"
 
 	// Command line flags
-	port              = flag.Int("port", 0, "Port to run the server on (default: 8080 or INFOSCOPE_PORT)")
-	dbPath            = flag.String("db", "", "Path to database file (default: data/infoscope.db or INFOSCOPE_DB_PATH)")
-	dataPath          = flag.String("data", "", "Path to data directory (default: data or INFOSCOPE_DATA_PATH)")
-	version           = flag.Bool("version", false, "Print version information")
-	prodMode          = flag.Bool("prod", false, "Enable production mode (HTTPS-only features including strict CSRF)")
+	port                 = flag.Int("port", 0, "Port to run the server on (default: 8080 or INFOSCOPE_PORT)")
+	dbPath               = flag.String("db", "", "Path to database file (default: data/infoscope.db or INFOSCOPE_DB_PATH)")
+	dataPath             = flag.String("data", "", "Path to data directory (default: data or INFOSCOPE_DATA_PATH)")
+	version              = flag.Bool("version", false, "Print version information")
+	prodMode             = flag.Bool("prod", false, "Enable production mode (HTTPS-only features including strict CSRF)")
 	noTemplateUpdates    = flag.Bool("no-template-updates", false, "Disable automatic template updates")
 	forceTemplateUpdates = flag.Bool("force-template-updates", false, "Force template updates even when disabled")
 	webPath              = flag.String("web", "", "Path to web content directory (default: web or INFOSCOPE_WEB_PATH)")
@@ -46,7 +46,8 @@ func main() {
 	if *healthcheck {
 		// Perform health check
 		healthURL := fmt.Sprintf("http://localhost:%d/healthz", cfg.Port)
-		resp, err := http.Get(healthURL)
+		healthClient := &http.Client{Timeout: 2 * time.Second}
+		resp, err := healthClient.Get(healthURL)
 		if err != nil {
 			log.Printf("Health check failed: %v", err)
 			os.Exit(1)
@@ -93,7 +94,7 @@ func main() {
 
 	// Handle template update flags
 	cfg.DisableTemplateUpdates = *noTemplateUpdates
-	
+
 	// Force updates override disable setting
 	if *forceTemplateUpdates {
 		cfg.DisableTemplateUpdates = false

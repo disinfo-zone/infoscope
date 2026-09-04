@@ -333,12 +333,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Clear the session cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:   "session",
-			Value:  "",
-			Path:   "/",
-			MaxAge: -1, // Delete cookie
-		})
+		http.SetCookie(w, expiredSessionCookie(s.csrf.config.Secure))
 	}
 
 	// Redirect to login page after logout
@@ -384,18 +379,10 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the current user's details to verify the current password
-	currentUser, err := s.auth.GetUserByID(s.db, session.UserID)
+	// Verify the current password without minting an otherwise orphaned session.
+	err = s.auth.VerifyPassword(s.db, session.UserID, req.CurrentPassword)
 	if err != nil {
-		s.logger.Printf("Error getting user %d: %v", session.UserID, err)
-		RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve user information")
-		return
-	}
-
-	// Verify the current password
-	_, err = s.auth.Authenticate(s.db, currentUser.Username, req.CurrentPassword)
-	if err != nil {
-		if err == auth.ErrInvalidCredentials {
+		if err == auth.ErrInvalidCredentials || err == auth.ErrAccountLocked {
 			RespondWithError(w, http.StatusUnauthorized, "Incorrect current password")
 		} else {
 			s.logger.Printf("Error authenticating user %d during password change: %v", session.UserID, err)

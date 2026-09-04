@@ -463,7 +463,7 @@ class FilterManager {
                 const safePatternType = this.escapeHtml(filter.pattern_type || '');
                 return `
                 <label class="filter-option">
-                  <input type="checkbox" value="${safeFilterID}" data-filter-name="${this.escapeHtml(filter.name)}">
+                  <input type="checkbox" value="${safeFilterID}" data-filter-name="${this.escapeAttribute(filter.name)}">
                   <div class="filter-option-details">
                     <div class="filter-option-name">${this.escapeHtml(filter.name)}</div>
                     <div class="filter-option-pattern">${this.escapeHtml(filter.pattern)} (${safePatternType})</div>
@@ -882,6 +882,10 @@ class FilterManager {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  escapeAttribute(text) {
+    return this.escapeHtml(text).replaceAll('"', '&quot;').replaceAll("'", '&#39;');
   }
 
   normalizeClassToken(value, fallback = '') {

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 
 	"infoscope/internal/database"
@@ -198,6 +199,25 @@ func TestAuthenticate_Success(t *testing.T) {
 	}
 }
 
+func TestCreateInitialUserOnlySucceedsOnce(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	service := NewService()
+	if err := service.CreateInitialUser(db, "first", "SecurePass123!"); err != nil {
+		t.Fatalf("first setup failed: %v", err)
+	}
+	if err := service.CreateInitialUser(db, "second", "AnotherPass123!"); !errors.Is(err, ErrAlreadyConfigured) {
+		t.Fatalf("second setup error = %v, want ErrAlreadyConfigured", err)
+	}
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM admin_users").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("created %d initial users, want 1", count)
+	}
+}
+
 func TestAuthenticate_IncorrectPassword(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
@@ -229,6 +249,29 @@ func TestAuthenticate_NonExistentUser(t *testing.T) {
 	_, err := service.Authenticate(db, "nonexistent", "password")
 	if err == nil {
 		t.Fatal("Expected error for non-existent user, got nil")
+	}
+}
+
+func TestVerifyPasswordDoesNotCreateSession(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	service := NewService()
+	if err := service.CreateUser(db, "verify-user", "SecurePass123!"); err != nil {
+		t.Fatal(err)
+	}
+	var userID int64
+	if err := db.QueryRow("SELECT id FROM admin_users WHERE username = ?", "verify-user").Scan(&userID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.VerifyPassword(db, userID, "SecurePass123!"); err != nil {
+		t.Fatalf("VerifyPassword failed: %v", err)
+	}
+	var sessions int
+	if err := db.QueryRow("SELECT COUNT(*) FROM sessions WHERE user_id = ?", userID).Scan(&sessions); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != 0 {
+		t.Fatalf("VerifyPassword created %d sessions, want 0", sessions)
 	}
 }
 

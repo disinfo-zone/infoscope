@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -92,7 +93,7 @@ func (c *CSRF) getOrCreateToken(w http.ResponseWriter, r *http.Request) (string,
 	if c.config.Secure {
 		sameSite = http.SameSiteStrictMode
 	}
-	
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     c.config.Cookie,
 		Value:    token,
@@ -162,7 +163,7 @@ func (c *CSRF) validateRequest(r *http.Request) error {
 	}
 
 	// Validate token matches cookie
-	if token != cookie.Value {
+	if subtle.ConstantTimeCompare([]byte(token), []byte(cookie.Value)) != 1 {
 		return ErrTokenInvalid
 	}
 

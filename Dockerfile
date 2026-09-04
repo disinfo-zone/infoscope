@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.22.4-bullseye AS builder
+FROM golang:1.27.1-bookworm AS builder
 WORKDIR /build
 
 # Add build arg for version
@@ -15,7 +15,7 @@ RUN apt-get update && \
 
 # Copy go.mod and go.sum first for better caching
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download && go mod verify
 
 RUN mkdir -p /build/app_final/data /build/app_final/web && \
     chown -R 65532:65532 /build/app_final
@@ -25,7 +25,7 @@ COPY . .
 
 # Build the binary with optimizations
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-    go build -v -trimpath -ldflags="-s -w -X main.Version=${VERSION}" \
+    go build -v -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=${VERSION}" \
     -o infoscope ./cmd/infoscope
 
 # Final stage

@@ -2,6 +2,7 @@
 package feed
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -34,8 +35,7 @@ type Fetcher struct {
 
 func NewFetcher(db *sql.DB, logger *log.Logger, faviconSvc *favicon.Service) *Fetcher {
 	transport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		DialContext:           securitynet.PublicOnlyDialContext(&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}),
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   10,
@@ -45,15 +45,10 @@ func NewFetcher(db *sql.DB, logger *log.Logger, faviconSvc *favicon.Service) *Fe
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return &Fetcher{
-		db:     db,
-		logger: logger,
-		parser: gofeed.NewParser(),
-		client: &http.Client{Timeout: 30 * time.Second, Transport: transport, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 5 {
-				return fmt.Errorf("stopped after 5 redirects")
-			}
-			return nil
-		}},
+		db:           db,
+		logger:       logger,
+		parser:       gofeed.NewParser(),
+		client:       &http.Client{Timeout: 30 * time.Second, Transport: transport, CheckRedirect: securitynet.CheckRedirect(5)},
 		faviconSvc:   faviconSvc,
 		cache:        &sync.Map{},
 		filterEngine: NewFilterEngine(db),
@@ -191,30 +186,6 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 		req.Header.Set("If-None-Match", condETag)
 	}
 
-	// Resolve host and block private/reserved ranges (allow loopback for tests)
-	if host := req.URL.Hostname(); host != "" {
-		if ip := net.ParseIP(host); ip != nil {
-			if securitynet.IsPrivateIP(ip) && !ip.IsLoopback() {
-				result.Error = fmt.Errorf("destination resolves to private/reserved address")
-				return result
-			}
-		} else {
-			dnsCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-			defer cancel()
-			if addrs, err := net.DefaultResolver.LookupIP(dnsCtx, "ip", host); err == nil {
-				for _, a := range addrs {
-					if securitynet.IsPrivateIP(a) && !a.IsLoopback() {
-						result.Error = fmt.Errorf("destination resolves to private/reserved address")
-						return result
-					}
-				}
-			} else if dnsCtx.Err() == context.DeadlineExceeded {
-				result.Error = fmt.Errorf("dns lookup timed out")
-				return result
-			}
-		}
-	}
-
 	resp, err := f.client.Do(req)
 	if err != nil {
 		result.Error = fmt.Errorf("error fetching feed: %w", err)
@@ -222,8 +193,9 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 	}
 	defer resp.Body.Close()
 
-	// Handle non-success statuses other than 304
-	if resp.StatusCode == http.StatusTooManyRequests || (resp.StatusCode >= 400 && resp.StatusCode != http.StatusNotModified) {
+	// Handle non-success statuses other than 304. A redirect response can still
+	// reach this point when the server omits a Location header.
+	if (resp.StatusCode < 200 || resp.StatusCode >= 300) && resp.StatusCode != http.StatusNotModified {
 		result.Error = fmt.Errorf("unexpected response status %d", resp.StatusCode)
 		return result
 	}
@@ -257,10 +229,19 @@ func (f *Fetcher) fetchFeed(ctx context.Context, feed Feed) FetchResult {
 	result.LastModified = resp.Header.Get("Last-Modified")
 	result.ETag = resp.Header.Get("ETag")
 
-	// Parse feed with a reasonable size limit (5MB) to avoid huge downloads
+	// Parse feeds only after enforcing the limit. LimitReader alone can make a
+	// valid prefix of an oversized response appear acceptable.
 	const maxFeedBytes = 5 << 20
-	limited := io.LimitReader(resp.Body, maxFeedBytes)
-	parsedFeed, err := f.parser.Parse(limited)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxFeedBytes+1))
+	if err != nil {
+		result.Error = fmt.Errorf("error reading feed: %w", err)
+		return result
+	}
+	if len(body) > maxFeedBytes {
+		result.Error = fmt.Errorf("feed response exceeds %d bytes", maxFeedBytes)
+		return result
+	}
+	parsedFeed, err := f.parser.Parse(bytes.NewReader(body))
 	if err != nil {
 		result.Error = fmt.Errorf("error parsing feed: %w", err)
 		return result
@@ -433,10 +414,10 @@ func (f *Fetcher) saveFeedEntries(ctx context.Context, result FetchResult) error
 
 	// Clean old entries
 	var maxPosts int
-	err = f.db.QueryRowContext(ctx,
+	err = tx.QueryRowContext(ctx,
 		"SELECT COALESCE(CAST(value AS INTEGER), 33) FROM settings WHERE key = 'max_posts'",
 	).Scan(&maxPosts)
-	if err != nil {
+	if err != nil || maxPosts < 1 || maxPosts > 1000 {
 		maxPosts = 33 // Default value
 	}
 
