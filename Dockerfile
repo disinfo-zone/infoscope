@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.27.1-bookworm AS builder
+FROM golang:1.27.3-bookworm AS builder
 WORKDIR /build
 
 # Add build arg for version
